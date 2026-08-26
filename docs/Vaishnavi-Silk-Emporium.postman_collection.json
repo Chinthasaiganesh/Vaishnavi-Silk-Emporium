@@ -1,0 +1,62 @@
+{
+  "info": {
+    "_postman_id": "b5e4f8a4-4c52-4e2d-849a-vaishnavi-silk",
+    "name": "Vaishnavi Silk Emporium API",
+    "description": "Collection generated from implemented Express routes. Admin routes require Bearer {{accessToken}}. Login test stores accessToken automatically; refresh token is an HttpOnly cookie and is not exposed as a collection variable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:4000/api" }, { "key": "accessToken", "value": "" }, { "key": "productId", "value": "1" }, { "key": "categoryId", "value": "1" }, { "key": "notificationId", "value": "1" }],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        { "name": "Register User", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"displayName\": \"Demo\",\n  \"email\": \"demo@example.com\",\n  \"mobileNumber\": \"9000000001\",\n  \"password\": \"DemoPass123!\",\n  \"confirmPassword\": \"DemoPass123!\"\n}" }, "url": "{{baseUrl}}/auth/register", "description": "Public. Creates USER role only. Validates unique email/mobile and strong password." } },
+        { "name": "Login", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"admin\",\n  \"password\": \"Admin@12345\",\n  \"rememberMe\": true\n}" }, "url": "{{baseUrl}}/auth/login", "description": "Public. Identifier can be username, email, or mobile." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.token).to.be.a('string');", "pm.collectionVariables.set('accessToken', body.token);", "pm.test('response time under 1 second', () => pm.expect(pm.response.responseTime).to.be.below(1000));"] } }] },
+        { "name": "Refresh Session", "request": { "method": "POST", "url": "{{baseUrl}}/auth/refresh", "description": "Uses refresh_session HttpOnly cookie. Run after Login in Postman cookie jar." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('accessToken', pm.response.json().token);"] } }] },
+        { "name": "Current User", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/auth/me" } },
+        { "name": "Update Profile / Settings", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "fullName", "value": "Demo Customer", "type": "text" }, { "key": "displayName", "value": "Demo", "type": "text" }, { "key": "email", "value": "demo@example.com", "type": "text" }, { "key": "mobileNumber", "value": "9000000001", "type": "text" }, { "key": "preferences", "value": "{\"darkMode\":false,\"language\":\"English\"}", "type": "text" }, { "key": "avatar", "type": "file", "src": "" }] }, "url": "{{baseUrl}}/auth/settings", "description": "Authenticated. Avatar accepts JPG/PNG/WEBP, max 5 MB, minimum 100x100." } },
+        { "name": "Change Password", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"Admin@12345\",\n  \"newPassword\": \"NewPass123!\",\n  \"confirmPassword\": \"NewPass123!\"\n}" }, "url": "{{baseUrl}}/auth/password" } },
+        { "name": "Logout", "request": { "method": "POST", "url": "{{baseUrl}}/auth/logout", "description": "Revokes the current refresh session and clears cookie." } },
+        { "name": "OAuth Provider Status", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/providers" } },
+        { "name": "Google OAuth Redirect", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/google", "description": "Browser redirect endpoint; requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." } },
+        { "name": "GitHub OAuth Redirect", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/github", "description": "Browser redirect endpoint; requires GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET." } }
+      ]
+    },
+    {
+      "name": "Products and Search",
+      "item": [
+        { "name": "Public Product Catalog / Search", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?q=kanjivaram&category=Kanjivaram%20Sarees&sort=alpha_asc", "description": "Public. Query supports q, category, featured=true, sort=price_asc|price_desc|alpha_asc. Price is omitted for guests." } },
+        { "name": "Featured Sarees", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?featured=true" } },
+        { "name": "Public Product Detail", "request": { "method": "GET", "url": "{{baseUrl}}/products/public/{{productId}}" } },
+        { "name": "Admin List Sarees", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin" } },
+        { "name": "Admin Inventory Summary", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin/summary" } },
+        { "name": "Create Saree", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "productName", "value": "Bridal Silk Saree", "type": "text" }, { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" }, { "key": "category", "value": "Bridal Sarees", "type": "text" }, { "key": "price", "value": "15999", "type": "text" }, { "key": "quantity", "value": "10", "type": "text" }, { "key": "isActive", "value": "true", "type": "text" }, { "key": "isFeatured", "value": "true", "type": "text" }, { "key": "fabric", "value": "Pure Silk", "type": "text" }, { "key": "weavingStyle", "value": "Handloom", "type": "text" }, { "key": "colour", "value": "Rose Plum", "type": "text" }, { "key": "occasion", "value": "Wedding Collection", "type": "text" }, { "key": "rating", "value": "4.8", "type": "text" }] }, "url": "{{baseUrl}}/products/admin" } },
+        { "name": "Update Saree / Inventory", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "productName", "value": "Bridal Silk Saree", "type": "text" }, { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" }, { "key": "category", "value": "Bridal Sarees", "type": "text" }, { "key": "price", "value": "15999", "type": "text" }, { "key": "quantity", "value": "25", "type": "text" }, { "key": "isActive", "value": "true", "type": "text" }, { "key": "isFeatured", "value": "true", "type": "text" }] }, "url": "{{baseUrl}}/products/admin/{{productId}}", "description": "Updating quantity from 0 to >0 triggers back-in-stock notifications." } },
+        { "name": "Delete Saree", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin/{{productId}}" } }
+      ]
+    },
+    { "name": "Categories", "item": [
+      { "name": "Public Categories", "request": { "method": "GET", "url": "{{baseUrl}}/categories/public" } },
+      { "name": "Admin List Categories", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/categories" } },
+      { "name": "Create Category", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"categoryName\":\"Linen Sarees\",\"description\":\"Lightweight linen drapes\",\"isActive\":true}" }, "url": "{{baseUrl}}/categories" } },
+      { "name": "Update Category", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"categoryName\":\"Linen Sarees\",\"description\":\"Lightweight linen drapes\",\"isActive\":true}" }, "url": "{{baseUrl}}/categories/{{categoryId}}" } },
+      { "name": "Delete Category", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/categories/{{categoryId}}" } }
+    ] },
+    { "name": "Wishlist", "item": [
+      { "name": "List Wishlist", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists" } },
+      { "name": "Wishlist Status", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } },
+      { "name": "Save Wishlist", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } },
+      { "name": "Remove Wishlist", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } }
+    ] },
+    { "name": "Notifications", "item": [
+      { "name": "Subscribe Back In Stock", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
+      { "name": "Subscription Status", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
+      { "name": "List Notifications", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications" } },
+      { "name": "Mark Notification Read", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
+      { "name": "Mark All Notifications Read", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/read-all" } }
+    ] },
+    { "name": "Translations", "item": [
+      { "name": "Translate Text", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"text\":\"Featured Sarees\",\"targetLanguage\":\"te\"}" }, "url": "{{baseUrl}}/translations" } }
+    ] }
+  ]
+}
