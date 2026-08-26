@@ -94,7 +94,7 @@ const updateSaree = db.prepare(`
 `);
 const now = nowIso();
 const sarees = [
-  ["Royal Kanjivaram Silk Saree", "Handwoven pure silk saree with a rich zari border for timeless celebrations.", "Kanjivaram Sarees", 18999, "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=1200&q=85", 12, 1, "Pure Silk", "Kanjivaram Handloom", "Maroon & Gold", "Wedding Collection", 4.9, 1],
+  ["Royal Kanchipuram Silk Saree", "Handwoven pure silk saree with a rich zari border for timeless celebrations.", "Kanchipuram Sarees", 18999, "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=1200&q=85", 12, 1, "Pure Silk", "Kanchipuram Handloom", "Maroon & Gold", "Wedding Collection", 4.9, 1],
   ["Banarasi Floral Zari Saree", "Elegant Banarasi weave with delicate floral motifs and festive gold detailing.", "Banarasi Sarees", 12999, "https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1200&q=85", 8, 1, "Silk Blend", "Banarasi Zari", "Crimson", "Festival Collection", 4.8, 2],
   ["Indigo Handloom Cotton Saree", "Breathable handloom cotton saree designed for graceful everyday elegance.", "Cotton Sarees", 3499, "https://images.unsplash.com/photo-1594736797933-d0c96e874fcb?auto=format&fit=crop&w=1200&q=85", 0, 0, "Cotton", "Handloom", "Indigo Blue", "Office Wear", 4.6, 3]
 ];
@@ -103,7 +103,7 @@ for (const saree of sarees) updateSaree.run(...saree.slice(0, -1), now, saree.at
 const categoryDescriptions = {
   "Silk Sarees": "Luxurious silk sarees for timeless occasions.",
   "Banarasi Sarees": "Elegant Banarasi weaves with traditional zari artistry.",
-  "Kanjivaram Sarees": "Heritage Kanjivaram silks for celebrations and weddings.",
+  "Kanchipuram Sarees": "Heritage Kanchipuram silks for celebrations and weddings.",
   "Cotton Sarees": "Breathable cotton sarees for graceful everyday wear.",
   "Bridal Sarees": "Statement sarees curated for bridal moments.",
   "Designer Sarees": "Contemporary drapes with signature detailing.",
@@ -114,5 +114,16 @@ const categoryDescriptions = {
 const insertCategory = db.prepare("INSERT OR IGNORE INTO Categories (CategoryName, Description, IsActive, CreatedDate, UpdatedDate) VALUES (?, ?, 1, ?, ?)");
 for (const [name, description] of Object.entries(categoryDescriptions)) insertCategory.run(name, description, now, now);
 for (const row of db.prepare("SELECT DISTINCT Category FROM Products WHERE Category != ''").all()) insertCategory.run(row.Category, categoryDescriptions[row.Category] || "Saree collection.", now, now);
+
+db.prepare("INSERT OR IGNORE INTO StoreSettings (SettingsId, StoreName, Tagline, Email, Phone, Address, BusinessDescription, UpdatedDate, UpdatedBy) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+  "Vaishnavi Silk Emporium",
+  "Where Tradition Meets Elegance",
+  "care@vaishnavisilks.example",
+  "+91 90000 00000",
+  "Hyderabad, Telangana",
+  "Vaishnavi Silk Emporium curates timeless silk, cotton, handloom, Banarasi and Kanchipuram sarees for every occasion.",
+  now,
+  existingAdmin?.UserId || null
+);
 
 console.log("Seed complete.");

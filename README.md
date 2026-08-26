@@ -39,6 +39,10 @@ Import the generated Postman collection and select the matching environment:
 
 Run **Authentication / Login** first to populate `{{accessToken}}`. See `docs/api-coverage.md` for implemented endpoint coverage, authentication flow, missing API groups, and standardization recommendations.
 
+## Deployment
+
+Deployment architecture, Vercel/Render configuration, Supabase schema, production environment variables, GitHub Actions validation, and the required PostgreSQL migration gate are documented in `docs/deployment.md`.
+
 ## 1. Application Architecture Diagram
 
 ```mermaid

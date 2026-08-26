@@ -25,7 +25,7 @@
     {
       "name": "Products and Search",
       "item": [
-        { "name": "Public Product Catalog / Search", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?q=kanjivaram&category=Kanjivaram%20Sarees&sort=alpha_asc", "description": "Public. Query supports q, category, featured=true, sort=price_asc|price_desc|alpha_asc. Price is omitted for guests." } },
+        { "name": "Public Product Catalog / Search", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?q=Kanchipuram&category=Kanchipuram%20Sarees&sort=alpha_asc", "description": "Public. Query supports q, category, featured=true, sort=price_asc|price_desc|alpha_asc. Price is omitted for guests." } },
         { "name": "Featured Sarees", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?featured=true" } },
         { "name": "Public Product Detail", "request": { "method": "GET", "url": "{{baseUrl}}/products/public/{{productId}}" } },
         { "name": "Admin List Sarees", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin" } },
@@ -57,6 +57,10 @@
     ] },
     { "name": "Translations", "item": [
       { "name": "Translate Text", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"text\":\"Featured Sarees\",\"targetLanguage\":\"te\"}" }, "url": "{{baseUrl}}/translations" } }
+    ] },
+    { "name": "Settings", "item": [
+      { "name": "Get Store Information", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/settings/store" } },
+      { "name": "Update Store Information", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"storeName\": \"Vaishnavi Silk Emporium\",\n  \"tagline\": \"Where Tradition Meets Elegance\",\n  \"email\": \"care@vaishnavisilks.example\",\n  \"phone\": \"+91 90000 00000\",\n  \"address\": \"Hyderabad, Telangana\",\n  \"businessDescription\": \"Curated heritage sarees for every occasion.\"\n}" }, "url": "{{baseUrl}}/settings/store" } }
     ] }
   ]
 }

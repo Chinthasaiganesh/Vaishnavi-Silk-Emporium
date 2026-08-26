@@ -103,6 +103,18 @@ db.exec(`
     UpdatedDate TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS StoreSettings (
+    SettingsId INTEGER PRIMARY KEY CHECK(SettingsId = 1),
+    StoreName TEXT NOT NULL,
+    Tagline TEXT NOT NULL DEFAULT '',
+    Email TEXT NOT NULL,
+    Phone TEXT NOT NULL DEFAULT '',
+    Address TEXT NOT NULL DEFAULT '',
+    BusinessDescription TEXT NOT NULL DEFAULT '',
+    UpdatedDate TEXT NOT NULL,
+    UpdatedBy INTEGER REFERENCES Users(UserId)
+  );
+
   CREATE TABLE IF NOT EXISTS Products (
     ProductId INTEGER PRIMARY KEY AUTOINCREMENT,
     ProductName TEXT NOT NULL,

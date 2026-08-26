@@ -77,7 +77,7 @@ export default function Header() {
           <form className="header-search" onSubmit={handleSubmit}>
             <input
               type="search"
-              placeholder="Search for Silk Sarees, Banarasi, Kanjivaram, Bridal Collections..."
+              placeholder="Search for Silk Sarees, Banarasi, Kanchipuram, Bridal Collections..."
               value={term}
               onChange={(e) => setTerm(e.target.value)}
               aria-label="Search sarees by fabric, colour, occasion, or collection"

@@ -8,7 +8,7 @@ export default function Footer() {
           <img className="footer-logo" src="/brand/apple-touch-icon.png" alt="Vaishnavi Silk Emporium" />
           <h4>Vaishnavi Silk Emporium</h4>
           <p>
-            Timeless sarees for every occasion, from heirloom silks to graceful everyday weaves.
+            Timeless sarees for every occasion, from handloom silks to graceful everyday weaves.
           </p>
         </div>
         <div>
@@ -31,8 +31,8 @@ export default function Footer() {
         <div>
           <h4>Contact</h4>
           <p>Email: care@vaishnavisilks.example</p>
-          <p>Phone: +91 90000 00000</p>
-          <p>Hyderabad, Telangana</p>
+          <p>Phone: +91 99667 64430</p>
+          <p>Dharmavaram, Andhra Pradesh - 515671</p>
         </div>
         <div>
           <h4>Social</h4>

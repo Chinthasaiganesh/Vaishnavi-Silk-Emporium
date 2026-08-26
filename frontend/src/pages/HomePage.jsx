@@ -101,7 +101,7 @@ export default function HomePage() {
               </AnimatePresence>
             </motion.div>
             <motion.p custom={0.34} variants={reveal} className="hero-description">
-              Explore premium Silk, Cotton, Banarasi, Kanjivaram, Designer and Festive Sarees curated for every occasion.
+              Explore premium Silk, Cotton, Banarasi, Kanchipuram, Designer and Festive Sarees curated for every occasion.
             </motion.p>
             <motion.div custom={0.46} variants={reveal} className="hero-cta">
               <motion.div whileHover={reducedMotion ? undefined : { y: -2 }} whileTap={{ scale: 0.98 }}>

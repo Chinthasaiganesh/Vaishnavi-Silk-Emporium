@@ -13,15 +13,29 @@ import notificationRoutes from "./notifications.routes.js";
 import wishlistRoutes from "./wishlists.routes.js";
 import translationRoutes from "./translations.routes.js";
 import categoryRoutes from "./categories.routes.js";
+import settingsRoutes from "./settings.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
+app.set("trust proxy", 1);
+
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on("finish", () => {
+    console.info(JSON.stringify({ level: "info", method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - startedAt }));
+  });
+  next();
+});
+
 app.use(
   cors({
-    origin: config.clientOrigin,
+    origin(origin, callback) {
+      if (!origin || config.clientOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS origin is not allowed."));
+    },
     credentials: true
   })
 );
@@ -59,7 +73,12 @@ async function ensureAdminUser() {
 }
 
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok" });
+  try {
+    db.prepare("SELECT 1").get();
+    res.json({ status: "ok", database: "sqlite", environment: config.nodeEnv, timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: "unavailable", timestamp: new Date().toISOString() });
+  }
 });
 
 app.use("/api/auth", authRoutes);
@@ -68,6 +87,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/wishlists", wishlistRoutes);
 app.use("/api/translations", translationRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/settings", settingsRoutes);
 
 app.use(errorHandler);
 
