@@ -474,3 +474,6 @@ The SQLite startup migration adds `IsFeatured` to existing `Products` tables wit
 - Set a featured product quantity to zero: it remains in Catalog as Out of Stock and is removed from Home.
 - Remove the featured flag: it remains in Catalog but is removed from Home.
 - Create an active, in-stock featured product through Admin: it appears in both views without a frontend data change.
+
+
+
