@@ -46,7 +46,7 @@ function setRefreshCookie(res, token, rememberMe) {
   const maxAge = rememberMe ? refreshTokenLifetimeDays * 24 * 60 * 60 * 1000 : undefined;
   res.cookie("refresh_session", token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: config.nodeEnv === "production" ? "none" : "lax",
     secure: config.nodeEnv === "production",
     path: "/api/auth",
     ...(maxAge ? { maxAge } : {})
@@ -275,7 +275,7 @@ router.post("/logout", (req, res) => {
       // The expired token is still cleared from the browser below.
     }
   }
-  res.clearCookie("refresh_session", { httpOnly: true, sameSite: "lax", secure: config.nodeEnv === "production", path: "/api/auth" });
+  res.clearCookie("refresh_session", { httpOnly: true, sameSite: config.nodeEnv === "production" ? "none" : "lax", secure: config.nodeEnv === "production", path: "/api/auth" });
   return res.status(204).send();
 });
 

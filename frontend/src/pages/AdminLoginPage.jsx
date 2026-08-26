@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
-import { api } from "../api";
+import { api, apiBaseUrl } from "../api";
 
 export default function AdminLoginPage() {
   const [mode, setMode] = useState("login");
@@ -27,7 +27,7 @@ export default function AdminLoginPage() {
         setError(`${provider === "google" ? "Google" : "GitHub"} Sign-In is not configured correctly.`);
         return;
       }
-      const apiRoot = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace("/api", "");
+      const apiRoot = apiBaseUrl.replace(/\/api$/, "");
       window.location.assign(`${apiRoot}/api/auth/oauth/${provider}`);
     } catch {
       setError("Social Sign-In is unavailable. Check that the authentication service is running.");

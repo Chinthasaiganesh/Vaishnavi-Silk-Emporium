@@ -58,6 +58,8 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 ```
 
 4. Deploy. The included `frontend/vercel.json` preserves React Router deep links.
+
+The frontend normalizes a missing `/api` suffix, but set the full URL above to make the deployment configuration explicit.
 5. Update Render `CLIENT_ORIGIN` with the deployed Vercel domain, then redeploy Render.
 
 ### CORS Validation

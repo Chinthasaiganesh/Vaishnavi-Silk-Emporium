@@ -1,7 +1,14 @@
 import axios from "axios";
 import { clearAdminSession, getAdminToken, setAdminSession } from "./auth";
 
-const baseURL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+function resolveApiBaseUrl(url) {
+  const trimmed = (url || "http://localhost:4000/api").replace(/\/$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
+const baseURL = resolveApiBaseUrl(import.meta.env.VITE_API_URL);
+
+export const apiBaseUrl = baseURL;
 
 export const api = axios.create({
   baseURL,
