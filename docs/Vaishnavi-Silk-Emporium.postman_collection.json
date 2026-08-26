@@ -61,6 +61,12 @@
     { "name": "Settings", "item": [
       { "name": "Get Store Information", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/settings/store" } },
       { "name": "Update Store Information", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"storeName\": \"Vaishnavi Silk Emporium\",\n  \"tagline\": \"Where Tradition Meets Elegance\",\n  \"email\": \"care@vaishnavisilks.example\",\n  \"phone\": \"+91 90000 00000\",\n  \"address\": \"Hyderabad, Telangana\",\n  \"businessDescription\": \"Curated heritage sarees for every occasion.\"\n}" }, "url": "{{baseUrl}}/settings/store" } }
+    ] },
+    { "name": "Admin Users", "item": [
+      { "name": "List Admin Users", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/admin/users" } },
+      { "name": "Create Admin User", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\":\"storemanager\",\"fullName\":\"Store Manager\",\"displayName\":\"Manager\",\"email\":\"manager@example.com\",\"mobileNumber\":\"9000000002\",\"password\":\"ManagerPass123!\"}" }, "url": "{{baseUrl}}/admin/users" } },
+      { "name": "Update Admin User / Reset Password", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fullName\":\"Store Manager\",\"displayName\":\"Manager\",\"email\":\"manager@example.com\",\"mobileNumber\":\"9000000002\",\"isEnabled\":true,\"newPassword\":\"NewManagerPass123!\"}" }, "url": "{{baseUrl}}/admin/users/2" } },
+      { "name": "Delete Admin User", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/admin/users/2" } }
     ] }
   ]
 }

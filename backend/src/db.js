@@ -36,7 +36,8 @@ db.exec(`
     CreatedDate TEXT NOT NULL DEFAULT '',
     LastLogin TEXT,
     OAuthProvider TEXT,
-    OAuthSubject TEXT
+    OAuthSubject TEXT,
+    IsEnabled INTEGER NOT NULL DEFAULT 1 CHECK(IsEnabled IN (0, 1))
   );
 
   CREATE TABLE IF NOT EXISTS RefreshSessions (
@@ -226,6 +227,9 @@ if (!userColumns.some((column) => column.name === "OAuthProvider")) {
 }
 if (!userColumns.some((column) => column.name === "OAuthSubject")) {
   db.exec("ALTER TABLE Users ADD COLUMN OAuthSubject TEXT;");
+}
+if (!userColumns.some((column) => column.name === "IsEnabled")) {
+  db.exec("ALTER TABLE Users ADD COLUMN IsEnabled INTEGER NOT NULL DEFAULT 1 CHECK(IsEnabled IN (0, 1));");
 }
 db.prepare("UPDATE Users SET CreatedDate = ? WHERE CreatedDate = ''").run(new Date().toISOString());
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON Users(Email) WHERE Email IS NOT NULL;");

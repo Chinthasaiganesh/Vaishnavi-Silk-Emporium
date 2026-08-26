@@ -14,6 +14,7 @@ import wishlistRoutes from "./wishlists.routes.js";
 import translationRoutes from "./translations.routes.js";
 import categoryRoutes from "./categories.routes.js";
 import settingsRoutes from "./settings.routes.js";
+import adminUsersRoutes from "./admin-users.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,7 @@ app.use("/api/wishlists", wishlistRoutes);
 app.use("/api/translations", translationRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/admin", adminUsersRoutes);
 
 app.use(errorHandler);
 

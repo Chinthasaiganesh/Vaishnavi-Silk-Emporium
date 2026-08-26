@@ -211,6 +211,9 @@ router.post(
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
+    if (!user.IsEnabled) {
+      return res.status(403).json({ message: "This account has been disabled. Contact an administrator." });
+    }
 
     const isValid = await bcrypt.compare(password, user.PasswordHash);
     if (!isValid) {
@@ -252,6 +255,10 @@ router.post("/refresh", (req, res) => {
     const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(session.UserId);
     if (!user || !["ADMIN", "USER"].includes(user.Role)) {
       return res.status(403).json({ message: "Account access is unavailable." });
+    }
+    if (!user.IsEnabled) {
+      db.prepare("DELETE FROM RefreshSessions WHERE UserId = ?").run(user.UserId);
+      return res.status(403).json({ message: "This account has been disabled. Contact an administrator." });
     }
 
     db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
