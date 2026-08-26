@@ -30,15 +30,21 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || config.clientOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error("CORS origin is not allowed."));
-    },
-    credentials: true
-  })
-);
+const corsOptions = {
+  origin(origin, callback) {
+    if (config.isAllowedOrigin(origin)) return callback(null, true);
+    console.warn(JSON.stringify({ level: "warn", message: "CORS origin rejected", origin }));
+    return callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+  maxAge: 86400
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));

@@ -29,6 +29,7 @@ The currently implemented backend uses Node's synchronous `node:sqlite` driver a
 ```dotenv
 NODE_ENV=production
 CLIENT_ORIGIN=https://your-vercel-project.vercel.app
+VERCEL_PROJECT_SLUG=your-vercel-project
 PUBLIC_API_ORIGIN=https://your-render-service.onrender.com
 JWT_SECRET=<at-least-32-random-characters>
 DATABASE_URL=<supabase-connection-string-after-postgres-migration>
@@ -58,6 +59,10 @@ VITE_API_URL=https://your-render-service.onrender.com/api
 
 4. Deploy. The included `frontend/vercel.json` preserves React Router deep links.
 5. Update Render `CLIENT_ORIGIN` with the deployed Vercel domain, then redeploy Render.
+
+### CORS Validation
+
+`CLIENT_ORIGIN` accepts comma-separated exact origins. `VERCEL_PROJECT_SLUG` additionally permits matching Vercel preview deployments such as `https://your-vercel-project-git-main-account.vercel.app`. Local `localhost` and `127.0.0.1` development origins are accepted automatically. Render handles `OPTIONS` preflight with credentials, `Authorization`, and `Content-Type` support.
 
 ## Production Checklist
 
