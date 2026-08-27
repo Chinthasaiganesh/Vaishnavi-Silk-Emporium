@@ -5,6 +5,7 @@ import { authRequired, adminOnly, optionalAuth, validateRequest } from "./middle
 import { upload } from "./upload.js";
 import { nowIso, toBoolInt } from "./utils.js";
 import { sendAvailabilityNotification } from "./notification.service.js";
+import { initializeInventory } from "./inventory.service.js";
 
 const router = Router();
 
@@ -156,6 +157,7 @@ router.post(
       );
 
     const created = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(result.lastInsertRowid);
+    initializeInventory();
     return res.status(201).json({ product: mapProduct(created) });
   }
 );

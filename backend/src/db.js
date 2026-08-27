@@ -2,11 +2,13 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { config } from "./config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dataDir = path.join(__dirname, "..", "data");
+const databasePath = config.sqliteDatabasePath || path.join(__dirname, "..", "data", "catalog.db");
+const dataDir = path.dirname(databasePath);
 const uploadsDir = path.join(__dirname, "..", "uploads");
 
 if (!fs.existsSync(dataDir)) {
@@ -17,7 +19,9 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-export const db = new DatabaseSync(path.join(dataDir, "catalog.db"));
+export const db = new DatabaseSync(databasePath);
+
+console.info(JSON.stringify({ level: "info", message: "SQLite database opened", databasePath }));
 
 db.exec("PRAGMA journal_mode = WAL;");
 
@@ -171,32 +175,6 @@ if (!categoryColumns.some((column) => column.name === "UpdatedDate")) {
   db.prepare("UPDATE Categories SET UpdatedDate = CreatedDate WHERE UpdatedDate = ''").run();
 }
 
-const usersTable = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'Users'").get();
-if (usersTable?.sql?.includes("'USER'") === false) {
-  db.exec(`
-    PRAGMA foreign_keys = OFF;
-    CREATE TABLE Users_new (
-      UserId INTEGER PRIMARY KEY AUTOINCREMENT,
-      Username TEXT UNIQUE NOT NULL,
-      PasswordHash TEXT NOT NULL,
-      Role TEXT NOT NULL CHECK(Role IN ('ADMIN', 'USER')),
-      FullName TEXT NOT NULL DEFAULT '',
-      DisplayName TEXT NOT NULL DEFAULT '',
-      Email TEXT UNIQUE,
-      AvatarUrl TEXT,
-      MobileNumber TEXT NOT NULL DEFAULT '',
-      Preferences TEXT NOT NULL DEFAULT '{}',
-      CreatedDate TEXT NOT NULL DEFAULT '',
-      LastLogin TEXT
-    );
-    INSERT INTO Users_new (UserId, Username, PasswordHash, Role)
-      SELECT UserId, Username, PasswordHash, Role FROM Users;
-    DROP TABLE Users;
-    ALTER TABLE Users_new RENAME TO Users;
-    PRAGMA foreign_keys = ON;
-  `);
-}
-
 const userColumns = db.prepare("PRAGMA table_info(Users)").all();
 if (!userColumns.some((column) => column.name === "FullName")) {
   db.exec("ALTER TABLE Users ADD COLUMN FullName TEXT NOT NULL DEFAULT '';");
@@ -235,3 +213,85 @@ db.prepare("UPDATE Users SET CreatedDate = ? WHERE CreatedDate = ''").run(new Da
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON Users(Email) WHERE Email IS NOT NULL;");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mobile ON Users(MobileNumber) WHERE MobileNumber != '';");
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth_identity ON Users(OAuthProvider, OAuthSubject) WHERE OAuthProvider IS NOT NULL AND OAuthSubject IS NOT NULL;");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS Inventory (
+    InventoryId INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductId INTEGER NOT NULL UNIQUE,
+    CurrentStock INTEGER NOT NULL DEFAULT 0 CHECK(CurrentStock >= 0),
+    AvailableStock INTEGER NOT NULL DEFAULT 0 CHECK(AvailableStock >= 0),
+    ReservedStock INTEGER NOT NULL DEFAULT 0 CHECK(ReservedStock >= 0),
+    Status TEXT NOT NULL CHECK(Status IN ('IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK')),
+    CreatedDate TEXT NOT NULL,
+    UpdatedDate TEXT NOT NULL,
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE CASCADE,
+    CHECK(AvailableStock + ReservedStock = CurrentStock)
+  );
+
+  CREATE TABLE IF NOT EXISTS InventoryAuditLog (
+    AuditId INTEGER PRIMARY KEY AUTOINCREMENT,
+    InventoryId INTEGER NOT NULL,
+    ProductId INTEGER NOT NULL,
+    AdminUserId INTEGER,
+    Action TEXT NOT NULL CHECK(Action IN ('VIEWED', 'UPDATED', 'RESTOCKED', 'STATUS_CHANGED')),
+    OldStock INTEGER,
+    NewStock INTEGER,
+    CreatedDate TEXT NOT NULL,
+    FOREIGN KEY (InventoryId) REFERENCES Inventory(InventoryId) ON DELETE CASCADE,
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE CASCADE,
+    FOREIGN KEY (AdminUserId) REFERENCES Users(UserId) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_inventory_status ON Inventory(Status);
+  CREATE INDEX IF NOT EXISTS idx_inventory_audit_product ON InventoryAuditLog(ProductId, CreatedDate);
+`);
+
+db.prepare(`
+  INSERT OR IGNORE INTO Inventory (ProductId, CurrentStock, AvailableStock, ReservedStock, Status, CreatedDate, UpdatedDate)
+  SELECT ProductId, Quantity, Quantity, 0,
+    CASE WHEN Quantity = 0 THEN 'OUT_OF_STOCK' WHEN Quantity <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END,
+    CreatedDate, UpdatedDate
+  FROM Products
+`).run();
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS Carts (
+    CartId INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId INTEGER NOT NULL UNIQUE,
+    CreatedDate TEXT NOT NULL,
+    UpdatedDate TEXT NOT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS CartItems (
+    CartItemId INTEGER PRIMARY KEY AUTOINCREMENT,
+    CartId INTEGER NOT NULL,
+    ProductId INTEGER NOT NULL,
+    Quantity INTEGER NOT NULL CHECK(Quantity > 0),
+    UnitPrice REAL NOT NULL CHECK(UnitPrice >= 0),
+    CreatedDate TEXT NOT NULL,
+    UpdatedDate TEXT NOT NULL,
+    UNIQUE(CartId, ProductId),
+    FOREIGN KEY (CartId) REFERENCES Carts(CartId) ON DELETE CASCADE,
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS CartAuditLog (
+    AuditId INTEGER PRIMARY KEY AUTOINCREMENT,
+    CartId INTEGER NOT NULL,
+    CartItemId INTEGER,
+    UserId INTEGER NOT NULL,
+    ProductId INTEGER,
+    Action TEXT NOT NULL CHECK(Action IN ('ADDED', 'REMOVED', 'QUANTITY_UPDATED', 'CLEARED')),
+    OldQuantity INTEGER,
+    NewQuantity INTEGER,
+    CreatedDate TEXT NOT NULL,
+    FOREIGN KEY (CartId) REFERENCES Carts(CartId) ON DELETE CASCADE,
+    FOREIGN KEY (CartItemId) REFERENCES CartItems(CartItemId) ON DELETE SET NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE,
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_cart_items_cart ON CartItems(CartId);
+  CREATE INDEX IF NOT EXISTS idx_cart_audit_user ON CartAuditLog(UserId, CreatedDate);
+`);

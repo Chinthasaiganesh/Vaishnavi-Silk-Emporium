@@ -41,16 +41,19 @@ export function adminOnly(req, res, next) {
 export function validateRequest(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const validationErrors = errors.array().map((error) => ({ field: error.path, message: error.msg }));
+    console.warn(JSON.stringify({ level: "warn", message: "Request validation failed", method: req.method, path: req.path, params: req.params, body: req.body, errors: validationErrors }));
     return res.status(400).json({
+      success: false,
       message: "Validation failed.",
-      errors: errors.array().map((e) => ({ field: e.path, message: e.msg }))
+      errors: validationErrors
     });
   }
   return next();
 }
 
 export function errorHandler(err, req, res, next) {
-  console.error(err);
+  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", method: req.method, path: req.path, params: req.params, body: req.body, error: err.message, stack: err.stack }));
   if (res.headersSent) {
     return next(err);
   }
@@ -60,5 +63,5 @@ export function errorHandler(err, req, res, next) {
   if (err.message === "Only JPG, PNG, and WEBP images are allowed.") {
     return res.status(400).json({ message: err.message });
   }
-  return res.status(500).json({ message: "Internal server error." });
+  return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Internal server error." });
 }

@@ -27,30 +27,14 @@ if (!existingUser) {
   );
 }
 
-db.prepare("UPDATE Users SET FullName = ?, DisplayName = ?, Email = ? WHERE Username = ?").run(
-  "BlueOrbit Administrator",
-  "Admin",
-  "admin@blueorbit.example",
-  config.adminUsername
-);
-db.prepare("UPDATE Users SET FullName = ?, DisplayName = ?, Email = ? WHERE Username = ?").run(
-  "BlueOrbit Customer",
-  "Customer",
-  "customer@blueorbit.example",
-  config.userUsername
-);
-
-const productsCount = db.prepare("SELECT COUNT(*) as count FROM Products").get().count;
-
-if (productsCount === 0) {
-  const insert = db.prepare(`
+const insertProduct = db.prepare(`
     INSERT INTO Products
       (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, CreatedDate, UpdatedDate)
     VALUES
       (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const seedProducts = [
+const seedProducts = [
     [
       "Executive Laptop",
       "High-performance laptop for business professionals.",
@@ -81,16 +65,18 @@ if (productsCount === 0) {
       1,
       0
     ]
-  ];
+];
 
-  const created = nowIso();
-  for (const p of seedProducts) {
-    insert.run(p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], created, created);
+const created = nowIso();
+for (const product of seedProducts) {
+  if (!db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(product[0])) {
+    insertProduct.run(product[0], product[1], product[2], product[3], product[4], product[5], product[6], product[7], created, created);
   }
 }
 
-const updateSaree = db.prepare(`
-  UPDATE Products SET ProductName = ?, Description = ?, Category = ?, Price = ?, ImageUrl = ?, Quantity = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = '5.5 metres', BlousePieceIncluded = 1, CareInstructions = 'Dry clean only. Store folded in a muslin cloth.', Rating = ?, UpdatedDate = ? WHERE ProductId = ?
+const insertSaree = db.prepare(`
+  INSERT INTO Products (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
+  VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, '5.5 metres', 1, 'Dry clean only. Store folded in a muslin cloth.', ?, ?, ?)
 `);
 const now = nowIso();
 const sarees = [
@@ -98,7 +84,11 @@ const sarees = [
   ["Banarasi Floral Zari Saree", "Elegant Banarasi weave with delicate floral motifs and festive gold detailing.", "Banarasi Sarees", 12999, "https://images.unsplash.com/photo-1583391733956-6c78276477e2?auto=format&fit=crop&w=1200&q=85", 8, 1, "Silk Blend", "Banarasi Zari", "Crimson", "Festival Collection", 4.8, 2],
   ["Indigo Handloom Cotton Saree", "Breathable handloom cotton saree designed for graceful everyday elegance.", "Cotton Sarees", 3499, "https://images.unsplash.com/photo-1594736797933-d0c96e874fcb?auto=format&fit=crop&w=1200&q=85", 0, 0, "Cotton", "Handloom", "Indigo Blue", "Office Wear", 4.6, 3]
 ];
-for (const saree of sarees) updateSaree.run(...saree.slice(0, -1), now, saree.at(-1));
+for (const saree of sarees) {
+  if (!db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(saree[0])) {
+    insertSaree.run(...saree.slice(0, -1), now, now);
+  }
+}
 
 const categoryDescriptions = {
   "Silk Sarees": "Luxurious silk sarees for timeless occasions.",
@@ -126,4 +116,4 @@ db.prepare("INSERT OR IGNORE INTO StoreSettings (SettingsId, StoreName, Tagline,
   existingAdmin?.UserId || null
 );
 
-console.log("Seed complete.");
+console.log("Seed complete. Existing users, products, categories, and settings were preserved.");
