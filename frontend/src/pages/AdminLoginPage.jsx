@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { api, apiBaseUrl } from "../api";
@@ -14,6 +14,10 @@ export default function AdminLoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { checking, login, register, user } = useAuth();
+
+  useEffect(() => {
+    if (searchParams.get("mode") === "register") setMode("register");
+  }, [searchParams]);
 
   if (!checking && user) {
     return <Navigate to={user.role === "ADMIN" ? "/admin/dashboard" : "/"} replace />;

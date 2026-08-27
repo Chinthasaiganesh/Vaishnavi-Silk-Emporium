@@ -2,7 +2,8 @@ import axios from "axios";
 import { clearAdminSession, getAdminToken, setAdminSession } from "./auth";
 
 function resolveApiBaseUrl(url) {
-  const trimmed = (url || "http://localhost:4000/api").replace(/\/$/, "");
+  const defaultUrl = import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api";
+  const trimmed = (url || defaultUrl).replace(/\/$/, "");
   return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
 }
 

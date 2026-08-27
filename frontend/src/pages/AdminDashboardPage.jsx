@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { formatCurrency } from "../utils/currency";
 
 const initialForm = {
   productName: "",
@@ -270,7 +271,7 @@ export default function AdminDashboardPage() {
                 <tr key={p.productId}>
                   <td>{p.productName}</td>
                   <td>{p.category}</td>
-                  <td>${Number(p.price).toFixed(2)}</td>
+                  <td>{formatCurrency(p.price)}</td>
                   <td>{p.quantity}</td>
                   <td>{p.isActive ? "Active" : "Inactive"}</td>
                   <td>{p.isFeatured ? "Yes" : "No"}</td>

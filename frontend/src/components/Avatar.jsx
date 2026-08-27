@@ -34,6 +34,6 @@ function resolveAvatarUrl(url) {
   if (url.startsWith("http")) {
     return url;
   }
-  const apiRoot = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace("/api", "");
+  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
   return `${apiRoot}${url}`;
 }

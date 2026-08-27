@@ -4,6 +4,7 @@ import { useAuth } from "../AuthContext";
 import Avatar from "./Avatar";
 import { api } from "../api";
 import { useLanguage } from "../LanguageContext";
+import { useCart } from "../CartContext";
 
 export default function Header() {
   const navigate = useNavigate();
@@ -14,6 +15,19 @@ export default function Header() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const displayName = user?.displayName || user?.fullName || user?.username;
   const { language, setLanguage, t } = useLanguage();
+  const { cartCount } = useCart();
+  const [previousCartCount, setPreviousCartCount] = useState(cartCount);
+  const [cartBump, setCartBump] = useState(false);
+
+  useEffect(() => {
+    if (cartCount !== previousCartCount) {
+      setCartBump(true);
+      const timer = window.setTimeout(() => setCartBump(false), 500);
+      setPreviousCartCount(cartCount);
+      return () => window.clearTimeout(timer);
+    }
+    return undefined;
+  }, [cartCount, previousCartCount]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -91,6 +105,7 @@ export default function Header() {
               <option value="te">{t("telugu")}</option>
             </select>
           </label>
+          <Link className={`cart-link${cartBump ? " cart-link-bump" : ""}`} to="/cart" aria-label={`Cart with ${cartCount} items`}><span aria-hidden="true">Cart</span>{cartCount > 0 && <strong>{cartCount}</strong>}</Link>
           {!checking && !user && (
             <Link className="btn btn-outline" to="/login">{t("signIn")}</Link>
           )}
@@ -131,5 +146,5 @@ export default function Header() {
 function resolveImage(url) {
   if (!url) return "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=200&q=80";
   if (url.startsWith("http")) return url;
-  return `${(import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace("/api", "")}${url}`;
+  return `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}`;
 }

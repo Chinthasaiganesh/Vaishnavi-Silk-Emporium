@@ -5,7 +5,7 @@
     "description": "Collection generated from implemented Express routes. Admin routes require Bearer {{accessToken}}. Login test stores accessToken automatically; refresh token is an HttpOnly cookie and is not exposed as a collection variable.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [{ "key": "baseUrl", "value": "http://localhost:4000/api" }, { "key": "accessToken", "value": "" }, { "key": "productId", "value": "1" }, { "key": "categoryId", "value": "1" }, { "key": "notificationId", "value": "1" }],
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:4010/api" }, { "key": "accessToken", "value": "" }, { "key": "productId", "value": "1" }, { "key": "cartItemId", "value": "1" }, { "key": "categoryId", "value": "1" }, { "key": "notificationId", "value": "1" }],
   "item": [
     {
       "name": "Authentication",
@@ -35,6 +35,20 @@
         { "name": "Delete Saree", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin/{{productId}}" } }
       ]
     },
+    { "name": "Cart", "description": "Customer-only cart APIs. Login with the seeded customer account or another USER account first. Cart totals are calculated server-side and quantities are validated against available inventory.", "item": [
+      { "name": "Get Current Cart", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart", "description": "Returns the authenticated customer's cart, items, quantities, INR-ready numeric prices, subtotals, and totals." } },
+      { "name": "Add Item To Cart", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": 1,\n  \"quantity\": 1\n}" }, "url": "{{baseUrl}}/cart/items", "description": "Adds an active, in-stock product. Adding the same product again increases its quantity." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.success).to.eql(true);", "if (body.items?.[0]?.cartItemId) pm.collectionVariables.set('cartItemId', body.items[0].cartItemId);"] } }] },
+      { "name": "Update Cart Quantity", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"quantity\": 2\n}" }, "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
+      { "name": "Remove Cart Item", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
+      { "name": "Clear Cart", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart" } }
+    ] },
+    { "name": "Inventory", "description": "Admin-only inventory APIs. Login with the seeded admin account before running these requests.", "item": [
+      { "name": "List Inventory", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory" } },
+      { "name": "Inventory Details", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory/{{productId}}" } },
+      { "name": "Low Stock Inventory", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory/low-stock" } },
+      { "name": "Update Stock", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"stock\": 25\n}" }, "url": "{{baseUrl}}/inventory/{{productId}}" } },
+      { "name": "Restock Product", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": 1,\n  \"quantity\": 5\n}" }, "url": "{{baseUrl}}/inventory/restock" } }
+    ] },
     { "name": "Categories", "item": [
       { "name": "Public Categories", "request": { "method": "GET", "url": "{{baseUrl}}/categories/public" } },
       { "name": "Admin List Categories", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/categories" } },

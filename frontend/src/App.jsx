@@ -21,6 +21,7 @@ import AdminReportsPage from "./pages/AdminReportsPage";
 import AdminSettingsPage from "./pages/AdminSettingsPage";
 import AdminSectionPage from "./pages/AdminSectionPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
+import CartPage from "./pages/CartPage";
 import { useAuth } from "./AuthContext";
 import BrandLoader from "./components/BrandLoader";
 
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="/settings/account" element={<AccountSettingsPage />} />
           <Route path="/settings/security" element={<SecurityPage />} />
           <Route path="/wishlist" element={<CustomerFeaturePage type="wishlist" />} />
+          <Route path="/cart" element={<CartPage />} />
           <Route path="/recently-viewed" element={<CustomerFeaturePage type="recentlyViewed" />} />
           <Route path="/orders" element={<CustomerFeaturePage type="orders" />} />
           <Route path="/notifications" element={<CustomerFeaturePage type="notifications" />} />

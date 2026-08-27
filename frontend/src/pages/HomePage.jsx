@@ -5,6 +5,8 @@ import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
+import ProductCardActions from "../components/ProductCardActions";
+import { formatCurrency } from "../utils/currency";
 
 const valueMessages = [
   "Heritage weaves, curated for modern celebrations.",
@@ -159,7 +161,7 @@ export default function HomePage() {
             >
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
-                <img src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
+                <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
               </div>
               <div className="featured-product-body">
                 <p className="featured-category">{product.category}</p>
@@ -167,12 +169,13 @@ export default function HomePage() {
                 <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
                 <RatingBadge rating={product.rating} />
                 <div className="featured-price-row">
-                  {product.canViewPrice ? <strong>${Number(product.price).toFixed(2)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
+                  {product.canViewPrice ? <strong>{formatCurrency(product.price)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
                   <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
                     {product.quantity > 0 ? t("inStock") : t("outOfStock")}
                   </span>
                 </div>
                 <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
+                <ProductCardActions product={product} compact />
               </div>
             </motion.article>
           ))}
@@ -192,6 +195,6 @@ function resolveImage(url) {
   if (url.startsWith("http")) {
     return url;
   }
-  const apiRoot = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace("/api", "");
+  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
   return `${apiRoot}${url}`;
 }

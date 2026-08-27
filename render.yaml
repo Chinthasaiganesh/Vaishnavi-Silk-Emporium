@@ -6,6 +6,10 @@ services:
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
+    disk:
+      name: vaishnavi-sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,6 +23,8 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      - key: SQLITE_DATABASE_PATH
+        value: /var/data/catalog.db
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET

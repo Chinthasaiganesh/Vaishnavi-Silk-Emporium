@@ -10,23 +10,25 @@ Premium saree shopping platform with a role-based customer storefront and store-
 
 ## Quick Start
 
+Backend terminal:
+
 ```bash
-cd backend
+cd "backend"
 cp .env.example .env
 npm install
-npm run seed
-npm run start
+SQLITE_DATABASE_PATH="$PWD/data/local-qa.db" npm run seed
+SQLITE_DATABASE_PATH="$PWD/data/local-qa.db" PORT=4010 npm start
 ```
 
-In a second terminal:
+Frontend terminal:
 
 ```bash
-cd frontend
+cd "frontend"
 npm install
-npm run dev
+VITE_API_URL=http://localhost:4010/api npm run dev
 ```
 
-The API defaults to `http://localhost:4000/api`; the Vite UI defaults to `http://localhost:5173`.
+The API runs at `http://localhost:4010`; Vite runs at `http://localhost:5173`. Demo accounts are `customer` / `Customer@12345` and `admin` / `Admin@12345`.
 
 ## QA and API Testing
 
@@ -137,6 +139,25 @@ Base URL: http://localhost:4000/api
 - PUT /products/admin/:id
 - DELETE /products/admin/:id
 
+### Customer Cart APIs (JWT + USER role required)
+- GET /cart
+- POST /cart/items with `{ "productId": 1, "quantity": 1 }`
+- PUT /cart/items/:id with `{ "quantity": 2 }`
+- DELETE /cart/items/:id
+- DELETE /cart
+
+Cart totals are calculated server-side. Adding an existing product increases its quantity instead of creating a duplicate. Requested quantity cannot exceed available inventory.
+
+### Admin Inventory APIs (JWT + ADMIN role required)
+- GET /inventory
+- GET /inventory/:id
+- GET /inventory/low-stock
+- PUT /inventory/:id with `{ "stock": 25 }`
+- POST /inventory/update-stock
+- POST /inventory/restock
+
+Prices remain numeric in SQLite and are formatted in the frontend with Indian Rupee formatting (`Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })`).
+
 ## 5. Folder Structure
 
 ```text
@@ -169,9 +190,13 @@ frontend/
       Footer.jsx
       Header.jsx
       ProductCard.jsx
+      ProductCardActions.jsx
+      AddToCartButton.jsx
+      CartContext.jsx
     pages/
       AboutPage.jsx
       AdminDashboardPage.jsx
+      CartPage.jsx
       AdminLoginPage.jsx
       ContactPage.jsx
       HomePage.jsx
@@ -221,7 +246,7 @@ Responsiveness:
 ### Frontend
 1. cd frontend
 2. npm install
-3. Create .env with VITE_API_URL=http://localhost:4000/api
+3. Create `.env` with `VITE_API_URL=http://localhost:4010/api`
 4. npm run dev
 
 ### Production Build
@@ -229,6 +254,24 @@ Responsiveness:
 2. serve static frontend dist via CDN/Nginx
 3. run backend behind reverse proxy with HTTPS
 4. persist backend/data and backend/uploads volumes
+
+### Current Vercel and Render Deployment
+
+The frontend is deployed from `frontend/` as a Vite application on Vercel. Set this Vercel environment variable for Production, Preview, and Development as appropriate:
+
+```dotenv
+VITE_API_URL=https://vaishnavi-silk-emporium.onrender.com/api
+```
+
+Vite embeds this value at build time, so redeploy Vercel after changing it. Do not use `NEXT_PUBLIC_API_URL`; this is not a Next.js application. Confirm the generated frontend is calling `https://vaishnavi-silk-emporium.onrender.com/api`, not a localhost URL.
+
+The backend is deployed from `backend/` on Render with `npm ci` and `npm start`. The Render service must use the persistent disk configured in `render.yaml`:
+
+```text
+SQLITE_DATABASE_PATH=/var/data/catalog.db
+```
+
+After pushing the latest code, redeploy Render and verify `GET https://vaishnavi-silk-emporium.onrender.com/api/health` reports SQLite readiness. Keep `DATABASE_URL` unset until the planned PostgreSQL adapter migration is complete.
 
 ## 9. Sample Test Cases
 
@@ -372,12 +415,12 @@ The application stores only short-lived access tokens in tab-scoped storage. Lon
 - `/profile`: read-only account information, including profile image, identity, contact data, member date, last login, and role.
 - `/settings/account`: editable account settings, avatar management, mobile number, and persisted notification/recommendation/language preferences.
 - `/settings/security`: password update with current-password verification, confirmation, and a client-side strength indicator.
-- `/wishlist`: locally persisted saved product list, ready to move to a server-side wishlist table when shopping features are introduced.
+- `/wishlist`: server-persisted saved product list.
 - `/recently-viewed`: locally persisted product view history populated from product detail pages.
 - `/orders`: future-ready empty order history state.
 - `/notifications`: future-ready price, arrival, and featured-product alert state.
 
-Customer preferences and profile data are persisted server-side. Wishlist and recent-viewed collections are intentionally browser-local until orders and customer shopping APIs are introduced.
+Customer preferences, profile, wishlist, and cart data are persisted server-side. Recently viewed products remain browser-local; orders and checkout remain future-ready boundaries.
 
 ## Price Privacy and Registration
 

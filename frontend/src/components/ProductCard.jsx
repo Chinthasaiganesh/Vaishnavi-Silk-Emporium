@@ -1,12 +1,14 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "./RatingBadge";
+import ProductCardActions from "./ProductCardActions";
+import { formatCurrency } from "../utils/currency";
 
 export default function ProductCard({ product }) {
   const { t } = useLanguage();
   return (
     <article className="product-card">
-      <img src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
+      <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
       <div className="product-card-body">
         <p className="pill">{product.category}</p>
         <h3>{product.productName}</h3>
@@ -16,11 +18,12 @@ export default function ProductCard({ product }) {
           <span className={product.quantity > 0 ? "status in" : "status out"}>
             {product.quantity > 0 ? t("inStock") : t("outOfStock")}
           </span>
-          {product.canViewPrice ? <strong>${Number(product.price).toFixed(2)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
+          {product.canViewPrice ? <strong>{formatCurrency(product.price)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
         </div>
         <Link className="btn btn-outline" to={`/products/${product.productId}`}>
           {t("viewDetails")}
         </Link>
+        <ProductCardActions product={product} />
       </div>
     </article>
   );
@@ -33,6 +36,6 @@ function resolveImage(url) {
   if (url.startsWith("http")) {
     return url;
   }
-  const apiRoot = (import.meta.env.VITE_API_URL || "http://localhost:4000/api").replace("/api", "");
+  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
   return `${apiRoot}${url}`;
 }
