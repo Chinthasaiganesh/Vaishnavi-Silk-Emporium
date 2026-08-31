@@ -19,9 +19,14 @@ import AdminInventoryPage from "./pages/AdminInventoryPage";
 import AdminCategoriesPage from "./pages/AdminCategoriesPage";
 import AdminReportsPage from "./pages/AdminReportsPage";
 import AdminSettingsPage from "./pages/AdminSettingsPage";
+import AdminProductAuditPage from "./pages/AdminProductAuditPage";
+import AdminOrdersPage from "./pages/AdminOrdersPage";
 import AdminSectionPage from "./pages/AdminSectionPage";
 import OAuthCallbackPage from "./pages/OAuthCallbackPage";
 import CartPage from "./pages/CartPage";
+import CheckoutPage from "./pages/CheckoutPage";
+import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import { useAuth } from "./AuthContext";
 import BrandLoader from "./components/BrandLoader";
 
@@ -45,6 +50,13 @@ function PublicOnlyRoute() {
     return <Navigate to="/admin/dashboard" replace />;
   }
   return <Outlet />;
+}
+
+function ProtectedCustomerRoute({ children }) {
+  const { checking, user } = useAuth();
+  if (checking) return <BrandLoader label="Restoring your secure session..." />;
+  if (!user || user.role !== "USER") return <Navigate to="/login" replace />;
+  return children;
 }
 
 function PlaceholderPage({ title }) {
@@ -81,8 +93,10 @@ export default function App() {
           <Route path="/settings/security" element={<SecurityPage />} />
           <Route path="/wishlist" element={<CustomerFeaturePage type="wishlist" />} />
           <Route path="/cart" element={<CartPage />} />
+          <Route path="/checkout" element={<ProtectedCustomerRoute><CheckoutPage /></ProtectedCustomerRoute>} />
           <Route path="/recently-viewed" element={<CustomerFeaturePage type="recentlyViewed" />} />
-          <Route path="/orders" element={<CustomerFeaturePage type="orders" />} />
+          <Route path="/orders" element={<ProtectedCustomerRoute><OrdersPage /></ProtectedCustomerRoute>} />
+          <Route path="/orders/:id" element={<ProtectedCustomerRoute><OrderDetailPage /></ProtectedCustomerRoute>} />
           <Route path="/notifications" element={<CustomerFeaturePage type="notifications" />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -101,8 +115,10 @@ export default function App() {
         <Route path="dashboard" element={<AdminOverviewPage />} />
         <Route path="products" element={<AdminDashboardPage />} />
         <Route path="inventory" element={<AdminInventoryPage />} />
+        <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="reports" element={<AdminReportsPage />} />
+        <Route path="product-audit" element={<AdminProductAuditPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

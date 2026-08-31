@@ -7,14 +7,17 @@ export function authRequired(req, res, next) {
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (!token) {
-    return res.status(401).json({ message: "Authentication required." });
+    console.warn(JSON.stringify({ level: "warn", message: "Authentication required", requestId: req.requestId, method: req.method, url: req.originalUrl, authorizationPresent: Boolean(authHeader) }));
+    return res.status(401).json({ success: false, message: "Authentication required." });
   }
 
   try {
     req.user = jwt.verify(token, config.jwtSecret);
+    console.info(JSON.stringify({ level: "info", message: "Authentication succeeded", requestId: req.requestId, method: req.method, url: req.originalUrl, userId: req.user.userId, role: req.user.role }));
     return next();
-  } catch {
-    return res.status(401).json({ message: "Invalid or expired token." });
+  } catch (error) {
+    console.warn(JSON.stringify({ level: "warn", message: "JWT verification failed", requestId: req.requestId, method: req.method, url: req.originalUrl, error: error.message }));
+    return res.status(401).json({ success: false, message: "Session expired. Please login again." });
   }
 }
 
@@ -53,7 +56,7 @@ export function validateRequest(req, res, next) {
 }
 
 export function errorHandler(err, req, res, next) {
-  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", method: req.method, path: req.path, params: req.params, body: req.body, error: err.message, stack: err.stack }));
+  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", requestId: req.requestId, method: req.method, url: req.originalUrl, params: req.params, body: req.body, error: err.message, stack: err.stack }));
   if (res.headersSent) {
     return next(err);
   }
@@ -63,5 +66,5 @@ export function errorHandler(err, req, res, next) {
   if (err.message === "Only JPG, PNG, and WEBP images are allowed.") {
     return res.status(400).json({ message: err.message });
   }
-  return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Internal server error." });
+  return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Internal server error.", requestId: req.requestId });
 }

@@ -1,8 +1,12 @@
 import { sendAvailabilityNotification } from "./notification.service.js";
-import { ensureInventoryRecords, getInventoryById, listInventory, listLowStock, recordViewed, updateStock } from "./inventory.repository.js";
+import { ensureInventoryRecords, getInventoryById, listInventory, listLowStock, recordViewed, syncInventoryForProduct, updateStock } from "./inventory.repository.js";
 
 export function initializeInventory() {
   return ensureInventoryRecords();
+}
+
+export function synchronizeProductInventory(product) {
+  return syncInventoryForProduct(product.ProductId, product.Quantity, product.CreatedDate, product.UpdatedDate);
 }
 
 export function getAllInventory(adminUserId) {

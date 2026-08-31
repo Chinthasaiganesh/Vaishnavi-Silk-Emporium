@@ -5,7 +5,8 @@ import { authRequired, adminOnly, optionalAuth, validateRequest } from "./middle
 import { upload } from "./upload.js";
 import { nowIso, toBoolInt } from "./utils.js";
 import { sendAvailabilityNotification } from "./notification.service.js";
-import { initializeInventory } from "./inventory.service.js";
+import { initializeInventory, synchronizeProductInventory } from "./inventory.service.js";
+import { getProductAudit, recordProductAudit } from "./product-audit.js";
 
 const router = Router();
 
@@ -18,7 +19,7 @@ function mapProduct(row, canViewPrice = true) {
     productName: row.ProductName,
     description: row.Description,
     category: row.Category,
-    ...(canViewPrice ? { price: row.Price } : {}),
+    ...(canViewPrice ? { price: Number(row.Price) } : {}),
     canViewPrice,
     imageUrl: row.ImageUrl,
     quantity: row.Quantity,
@@ -36,6 +37,10 @@ function mapProduct(row, canViewPrice = true) {
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
+}
+
+function auditValues(product) {
+  return { productName: product.ProductName, category: product.Category, price: product.Price, quantity: product.Quantity, isActive: product.IsActive, isFeatured: product.IsFeatured };
 }
 
 router.get(
@@ -62,9 +67,11 @@ router.get(
       const text = `${p.ProductName} ${p.Description} ${p.Category} ${p.Fabric} ${p.Colour} ${p.Occasion} ${p.WeavingStyle}`.toLowerCase();
       const keywordMatch = !q || text.includes(q);
       const categoryMatch = !category || p.Category.toLowerCase() === category;
-      const featuredMatch = !featuredOnly || (p.IsFeatured === 1 && p.Quantity > 0);
+      const featuredMatch = !featuredOnly || p.IsFeatured === 1;
       return keywordMatch && categoryMatch && featuredMatch;
     });
+
+    console.info(JSON.stringify({ level: "info", message: "Product load event", requestId: req.requestId, query: req.query, candidateCount: activeProducts.length, resultCount: products.length, filter: { category, featuredOnly } }));
 
     if (canViewPrice && sort === "price_asc") {
       products.sort((a, b) => a.Price - b.Price);
@@ -74,9 +81,9 @@ router.get(
       products.sort((a, b) => a.ProductName.localeCompare(b.ProductName));
     }
 
-    return res.json({
-      products: products.map((product) => mapProduct(product, canViewPrice))
-    });
+    const mappedProducts = products.map((product) => mapProduct(product, canViewPrice));
+    console.info(JSON.stringify({ level: "info", message: "Customer product prices retrieved", requestId: req.requestId, prices: mappedProducts.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price ?? null })) }));
+    return res.json({ products: mappedProducts });
   }
 );
 
@@ -91,7 +98,9 @@ router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateR
 
 router.get("/admin", authRequired, adminOnly, (req, res) => {
   const rows = db.prepare("SELECT * FROM Products ORDER BY datetime(CreatedDate) DESC").all();
-  return res.json({ products: rows.map(mapProduct) });
+  const products = rows.map((row) => mapProduct(row, true));
+  console.info(JSON.stringify({ level: "info", message: "Admin product prices retrieved", requestId: req.requestId, userId: req.user.userId, prices: products.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price })) }));
+  return res.json({ products });
 });
 
 router.get("/admin/summary", authRequired, adminOnly, (req, res) => {
@@ -124,7 +133,7 @@ router.post(
   validateRequest,
   (req, res) => {
     const { productName, description, category, price, quantity } = req.body;
-    const isActive = req.body.isActive === undefined ? false : req.body.isActive === "true";
+    const isActive = req.body.isActive === undefined ? true : req.body.isActive === "true";
     const isFeatured = req.body.isFeatured === "true" || req.body.isFeatured === true;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl || "";
 
@@ -157,6 +166,8 @@ router.post(
       );
 
     const created = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(result.lastInsertRowid);
+    console.info(JSON.stringify({ level: "info", message: "Product price stored", requestId: req.requestId, productId: created.ProductId, productName: created.ProductName, priceStored: created.Price }));
+    recordProductAudit({ productId: created.ProductId, userId: req.user.userId, action: "CREATED", newValues: auditValues(created) });
     initializeInventory();
     return res.status(201).json({ product: mapProduct(created) });
   }
@@ -194,6 +205,14 @@ router.put(
       ? req.body.imageUrl
       : existing.ImageUrl;
 
+    const updatedValues = {
+      productName: req.body.productName,
+      category: req.body.category,
+      price: Number(req.body.price),
+      quantity: Number(req.body.quantity),
+      isActive: toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
+      isFeatured: toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true)
+    };
     db.prepare(
       `UPDATE Products
       SET ProductName = ?, Description = ?, Category = ?, Price = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
@@ -219,13 +238,19 @@ router.put(
       id
     );
 
+    recordProductAudit({ productId: id, userId: req.user.userId, action: "UPDATED", oldValues: auditValues(existing), newValues: updatedValues });
+    const updatedProduct = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
+    console.info(JSON.stringify({ level: "info", message: "Product price updated", requestId: req.requestId, productId: id, priceStored: updatedProduct.Price }));
+    synchronizeProductInventory(updatedProduct);
+    if (existing.IsActive !== updatedValues.isActive) recordProductAudit({ productId: id, userId: req.user.userId, action: updatedValues.isActive ? "RESTORED" : "ARCHIVED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
+    if (existing.IsActive !== updatedValues.isActive) recordProductAudit({ productId: id, userId: req.user.userId, action: "VISIBILITY_CHANGED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
+
     const isBackInStock = existing.Quantity === 0 && Number(req.body.quantity) > 0;
     if (isBackInStock) {
       sendAvailabilityNotification(id, req.body.productName);
     }
 
-    const updated = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
-    return res.json({ product: mapProduct(updated) });
+    return res.json({ product: mapProduct(updatedProduct) });
   }
 );
 
@@ -237,6 +262,9 @@ router.delete(
   validateRequest,
   (req, res) => {
     const id = Number(req.params.id);
+    const existing = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
+    if (!existing) return res.status(404).json({ message: "Product not found." });
+    recordProductAudit({ productId: id, userId: req.user.userId, action: "DELETED", oldValues: auditValues(existing) });
     const result = db.prepare("DELETE FROM Products WHERE ProductId = ?").run(id);
     if (!result.changes) {
       return res.status(404).json({ message: "Product not found." });
@@ -244,5 +272,9 @@ router.delete(
     return res.status(204).send();
   }
 );
+
+router.get("/admin/audit", authRequired, adminOnly, (req, res) => {
+  return res.json({ audits: getProductAudit() });
+});
 
 export default router;

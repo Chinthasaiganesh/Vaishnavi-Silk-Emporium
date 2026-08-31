@@ -7,8 +7,10 @@ const adminLinks = [
   { to: "/admin/dashboard", label: "Dashboard" },
   { to: "/admin/products", label: "Products" },
   { to: "/admin/inventory", label: "Inventory" },
+  { to: "/admin/orders", label: "Orders" },
   { to: "/admin/categories", label: "Categories" },
   { to: "/admin/reports", label: "Reports" },
+  { to: "/admin/product-audit", label: "Product Audit" },
   { to: "/admin/settings", label: "Settings" }
 ];
 

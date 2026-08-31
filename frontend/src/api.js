@@ -21,6 +21,9 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (config.url?.startsWith("/orders") || config.url?.startsWith("/checkout")) {
+    console.info("Checkout request", { url: `${baseURL}${config.url}`, method: config.method?.toUpperCase(), authorizationPresent: Boolean(token), userAgent: navigator.userAgent });
+  }
   return config;
 });
 
@@ -53,14 +56,16 @@ api.interceptors.response.use(
     }
 
     request._retry = true;
+    console.warn("Protected request returned 401; refreshing session", { url: `${baseURL}${request?.url || ""}`, method: request?.method?.toUpperCase() });
     try {
       const token = await refreshAccessToken();
       request.headers.Authorization = `Bearer ${token}`;
       return api(request);
     } catch (refreshError) {
+      console.error("Session refresh failed", { status: refreshError.response?.status || null, response: refreshError.response?.data || null, message: refreshError.message });
       clearAdminSession();
       window.dispatchEvent(new Event("admin-session-expired"));
-      return Promise.reject(refreshError);
+      return Promise.reject(error);
     }
   }
 );

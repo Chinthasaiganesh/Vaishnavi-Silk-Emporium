@@ -24,6 +24,12 @@ export function CartProvider({ children }) {
     return () => { active = false; };
   }, [user]);
 
+  async function refreshCart() {
+    if (user?.role !== "USER") return;
+    const response = await api.get("/cart");
+    setCart(response.data);
+  }
+
   useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(null), 3200);
@@ -88,7 +94,7 @@ export function CartProvider({ children }) {
     catch (error) { setNotice({ type: "error", text: error.response?.data?.message || "Unable to clear cart." }); }
   }
 
-  return <CartContext.Provider value={{ cart, cartCount: cart.totals.itemCount, addToCart, updateQuantity, removeItem, clearCart }}>
+  return <CartContext.Provider value={{ cart, cartCount: cart.totals.itemCount, addToCart, updateQuantity, removeItem, clearCart, refreshCart }}>
     {children}
     {flyingProduct && <img className="flying-cart-product" src={resolveImage(flyingProduct.imageUrl)} style={{ left: flyingProduct.sourceRect.left, top: flyingProduct.sourceRect.top, width: flyingProduct.sourceRect.width, height: flyingProduct.sourceRect.height, "--cart-left": `${flyingProduct.targetRect?.left || window.innerWidth - 64}px`, "--cart-top": `${flyingProduct.targetRect?.top || 16}px` }} alt="" aria-hidden="true" />}
     {notice && <div className={`cart-toast cart-toast-${notice.type}`} role="status"><span className="cart-toast-icon" aria-hidden="true">{notice.type === "success" ? "✓" : "!"}</span><span>{notice.text}</span>{notice.type === "guest" && <><button onClick={() => navigate("/login")}>Sign In</button><button onClick={() => navigate("/login?mode=register")}>Register</button></>}</div>}

@@ -19,6 +19,10 @@ import adminUsersRoutes from "./admin-users.routes.js";
 import inventoryRoutes from "./inventory.routes.js";
 import { initializeInventory } from "./inventory.service.js";
 import cartRoutes from "./cart.routes.js";
+import addressRoutes from "./address.routes.js";
+import checkoutRoutes from "./checkout.routes.js";
+import ordersRoutes from "./orders.routes.js";
+import adminOrdersRoutes from "./admin-orders.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +46,9 @@ app.set("trust proxy", 1);
 app.use((req, res, next) => {
   req.requestId = req.headers["x-request-id"] || crypto.randomUUID();
   res.setHeader("x-request-id", req.requestId);
+  if (req.method === "OPTIONS" || req.method === "PATCH") {
+    console.info(JSON.stringify({ level: "info", message: "CORS-sensitive request received", requestId: req.requestId, method: req.method, url: req.originalUrl, origin: req.headers.origin || null, accessControlRequestMethod: req.headers["access-control-request-method"] || null, accessControlRequestHeaders: req.headers["access-control-request-headers"] || null, authorizationPresent: Boolean(req.headers.authorization) }));
+  }
   const startedAt = Date.now();
   res.on("finish", () => {
     console.info(JSON.stringify({ level: "info", requestId: req.requestId, method: req.method, url: req.originalUrl, status: res.statusCode, userId: req.user?.userId || null, role: req.user?.role || null, durationMs: Date.now() - startedAt }));
@@ -56,8 +63,9 @@ const corsOptions = {
     return callback(null, false);
   },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-Id"],
+  exposedHeaders: ["x-request-id"],
   optionsSuccessStatus: 204,
   maxAge: 86400
 };
@@ -120,7 +128,9 @@ async function ensureAdminUser() {
   const categoryCount = db.prepare("SELECT COUNT(*) AS count FROM Categories").get().count;
   const productCount = db.prepare("SELECT COUNT(*) AS count FROM Products").get().count;
   const settings = db.prepare("SELECT SettingsId FROM StoreSettings WHERE SettingsId = 1").get();
-  console.log(`Database initialization completed. Categories: ${categoryCount}; Products preserved: ${productCount}; Settings: ${settings ? "preserved" : "created"}.`);
+  const inventoryCount = db.prepare("SELECT COUNT(*) AS count FROM Inventory").get().count;
+  const orphanInventoryCount = db.prepare("SELECT COUNT(*) AS count FROM Inventory i LEFT JOIN Products p ON p.ProductId = i.ProductId WHERE p.ProductId IS NULL").get().count;
+  console.log(`Database initialization completed. Categories: ${categoryCount}; Products preserved: ${productCount}; Inventory records: ${inventoryCount}; Orphan inventory: ${orphanInventoryCount}; Settings: ${settings ? "preserved" : "created"}.`);
 }
 
 app.get("/api/health", (req, res) => {
@@ -149,6 +159,30 @@ console.info(JSON.stringify({
     "PUT /api/cart/items/:id",
     "DELETE /api/cart/items/:id",
     "DELETE /api/cart"
+  ]
+}));
+app.use("/api/addresses", addressRoutes);
+app.use("/api/checkout", checkoutRoutes);
+app.use("/api/orders", ordersRoutes);
+console.info(JSON.stringify({
+  level: "info",
+  message: "Order routes registered",
+  basePath: "/api/orders",
+  routes: [
+    "GET /api/orders",
+    "GET /api/orders/:id",
+    "POST /api/orders"
+  ]
+}));
+app.use("/api/admin/orders", adminOrdersRoutes);
+console.info(JSON.stringify({
+  level: "info",
+  message: "Admin order routes registered",
+  basePath: "/api/admin/orders",
+  routes: [
+    "GET /api/admin/orders",
+    "GET /api/admin/orders/:id",
+    "PATCH /api/admin/orders/:id/status"
   ]
 }));
 app.use("/api/notifications", notificationRoutes);

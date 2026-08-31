@@ -70,13 +70,16 @@ db.exec(`
     NotificationId INTEGER PRIMARY KEY AUTOINCREMENT,
     UserId INTEGER NOT NULL,
     ProductId INTEGER,
+    OrderId INTEGER,
     Type TEXT NOT NULL,
     Title TEXT NOT NULL,
     Message TEXT NOT NULL,
     IsRead INTEGER NOT NULL DEFAULT 0 CHECK(IsRead IN (0, 1)),
+    ReadDate TEXT,
     CreatedDate TEXT NOT NULL,
     FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE,
-    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE SET NULL
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId) ON DELETE SET NULL,
+    FOREIGN KEY (OrderId) REFERENCES Orders(OrderId) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS Wishlists (
@@ -169,6 +172,14 @@ if (!subscriptionColumns.some((column) => column.name === "IsActive")) {
   db.exec("ALTER TABLE NotificationSubscriptions ADD COLUMN IsActive INTEGER NOT NULL DEFAULT 1 CHECK(IsActive IN (0, 1));");
 }
 
+const notificationColumns = db.prepare("PRAGMA table_info(Notifications)").all();
+if (!notificationColumns.some((column) => column.name === "ReadDate")) {
+  db.exec("ALTER TABLE Notifications ADD COLUMN ReadDate TEXT;");
+}
+if (!notificationColumns.some((column) => column.name === "OrderId")) {
+  db.exec("ALTER TABLE Notifications ADD COLUMN OrderId INTEGER REFERENCES Orders(OrderId) ON DELETE SET NULL;");
+}
+
 const categoryColumns = db.prepare("PRAGMA table_info(Categories)").all();
 if (!categoryColumns.some((column) => column.name === "UpdatedDate")) {
   db.exec("ALTER TABLE Categories ADD COLUMN UpdatedDate TEXT NOT NULL DEFAULT ''; ");
@@ -255,6 +266,21 @@ db.prepare(`
 `).run();
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS ProductAuditLog (
+    AuditId INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductId INTEGER NOT NULL,
+    UserId INTEGER,
+    Action TEXT NOT NULL CHECK(Action IN ('CREATED', 'UPDATED', 'DELETED', 'ARCHIVED', 'RESTORED', 'VISIBILITY_CHANGED', 'INVENTORY_CHANGED')),
+    OldValues TEXT,
+    NewValues TEXT,
+    CreatedDate TEXT NOT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_product_audit_product ON ProductAuditLog(ProductId, CreatedDate);
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS Carts (
     CartId INTEGER PRIMARY KEY AUTOINCREMENT,
     UserId INTEGER NOT NULL UNIQUE,
@@ -294,4 +320,162 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_cart_items_cart ON CartItems(CartId);
   CREATE INDEX IF NOT EXISTS idx_cart_audit_user ON CartAuditLog(UserId, CreatedDate);
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS Addresses (
+    AddressId INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId INTEGER NOT NULL,
+    FullName TEXT NOT NULL,
+    MobileNumber TEXT NOT NULL,
+    AddressLine1 TEXT NOT NULL,
+    AddressLine2 TEXT NOT NULL DEFAULT '',
+    City TEXT NOT NULL,
+    State TEXT NOT NULL,
+    PostalCode TEXT NOT NULL,
+    Country TEXT NOT NULL DEFAULT 'India',
+    IsDefault INTEGER NOT NULL DEFAULT 0 CHECK(IsDefault IN (0, 1)),
+    CreatedDate TEXT NOT NULL,
+    UpdatedDate TEXT NOT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS Orders (
+    OrderId INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId INTEGER NOT NULL,
+    AddressId INTEGER NOT NULL,
+    OrderNumber TEXT NOT NULL UNIQUE,
+    IdempotencyKey TEXT,
+    PaymentMethod TEXT NOT NULL DEFAULT 'COD',
+    OrderStatus TEXT NOT NULL DEFAULT 'PENDING' CHECK(OrderStatus IN ('PENDING', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED')),
+    SubTotal REAL NOT NULL CHECK(SubTotal >= 0),
+    ShippingAmount REAL NOT NULL DEFAULT 0 CHECK(ShippingAmount >= 0),
+    DiscountAmount REAL NOT NULL DEFAULT 0 CHECK(DiscountAmount >= 0),
+    GrandTotal REAL NOT NULL CHECK(GrandTotal >= 0),
+    CancelledAt TEXT,
+    CancellationReason TEXT,
+    RefundStatus TEXT NOT NULL DEFAULT 'NOT_APPLICABLE' CHECK(RefundStatus IN ('NOT_APPLICABLE', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')),
+    RefundReference TEXT,
+    CreatedDate TEXT NOT NULL,
+    UpdatedDate TEXT NOT NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId),
+    FOREIGN KEY (AddressId) REFERENCES Addresses(AddressId)
+  );
+
+  CREATE TABLE IF NOT EXISTS OrderItems (
+    OrderItemId INTEGER PRIMARY KEY AUTOINCREMENT,
+    OrderId INTEGER NOT NULL,
+    ProductId INTEGER NOT NULL,
+    ProductName TEXT NOT NULL,
+    ProductPrice REAL NOT NULL CHECK(ProductPrice >= 0),
+    Quantity INTEGER NOT NULL CHECK(Quantity > 0),
+    LineTotal REAL NOT NULL CHECK(LineTotal >= 0),
+    CreatedDate TEXT NOT NULL,
+    FOREIGN KEY (OrderId) REFERENCES Orders(OrderId) ON DELETE CASCADE,
+    FOREIGN KEY (ProductId) REFERENCES Products(ProductId)
+  );
+
+  CREATE TABLE IF NOT EXISTS OrderAuditLog (
+    AuditId INTEGER PRIMARY KEY AUTOINCREMENT,
+    OrderId INTEGER,
+    UserId INTEGER NOT NULL,
+    Action TEXT NOT NULL CHECK(Action IN ('ORDER_CREATED', 'ORDER_UPDATED', 'ORDER_CANCELLED', 'INVENTORY_DEDUCTED', 'ADDRESS_ADDED')),
+    CreatedDate TEXT NOT NULL,
+    FOREIGN KEY (OrderId) REFERENCES Orders(OrderId) ON DELETE SET NULL,
+    FOREIGN KEY (UserId) REFERENCES Users(UserId) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_addresses_user ON Addresses(UserId, IsDefault);
+  CREATE INDEX IF NOT EXISTS idx_orders_user ON Orders(UserId, CreatedDate);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON Orders(UserId, IdempotencyKey) WHERE IdempotencyKey IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_order_items_order ON OrderItems(OrderId);
+  CREATE INDEX IF NOT EXISTS idx_order_audit_user ON OrderAuditLog(UserId, CreatedDate);
+`);
+
+const orderColumns = db.prepare("PRAGMA table_info(Orders)").all();
+if (!orderColumns.some((column) => column.name === "IdempotencyKey")) {
+  db.exec("ALTER TABLE Orders ADD COLUMN IdempotencyKey TEXT;");
+}
+if (!orderColumns.some((column) => column.name === "PaymentMethod")) {
+  db.exec("ALTER TABLE Orders ADD COLUMN PaymentMethod TEXT NOT NULL DEFAULT 'COD';");
+}
+if (!orderColumns.some((column) => column.name === "CancelledAt")) db.exec("ALTER TABLE Orders ADD COLUMN CancelledAt TEXT;");
+if (!orderColumns.some((column) => column.name === "CancellationReason")) db.exec("ALTER TABLE Orders ADD COLUMN CancellationReason TEXT;");
+if (!orderColumns.some((column) => column.name === "RefundStatus")) db.exec("ALTER TABLE Orders ADD COLUMN RefundStatus TEXT NOT NULL DEFAULT 'NOT_APPLICABLE';");
+if (!orderColumns.some((column) => column.name === "RefundReference")) db.exec("ALTER TABLE Orders ADD COLUMN RefundReference TEXT;");
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON Orders(UserId, IdempotencyKey) WHERE IdempotencyKey IS NOT NULL;");
+
+const ordersTable = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'Orders'").get();
+if (ordersTable?.sql && !ordersTable.sql.includes("OUT_FOR_DELIVERY")) {
+  db.exec(`
+    PRAGMA foreign_keys = OFF;
+    CREATE TABLE Orders_new (
+      OrderId INTEGER PRIMARY KEY AUTOINCREMENT,
+      UserId INTEGER NOT NULL,
+      AddressId INTEGER NOT NULL,
+      OrderNumber TEXT NOT NULL UNIQUE,
+      IdempotencyKey TEXT,
+      PaymentMethod TEXT NOT NULL DEFAULT 'COD',
+      OrderStatus TEXT NOT NULL DEFAULT 'PENDING' CHECK(OrderStatus IN ('PENDING', 'PROCESSING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED')),
+      SubTotal REAL NOT NULL CHECK(SubTotal >= 0),
+      ShippingAmount REAL NOT NULL DEFAULT 0 CHECK(ShippingAmount >= 0),
+      DiscountAmount REAL NOT NULL DEFAULT 0 CHECK(DiscountAmount >= 0),
+      GrandTotal REAL NOT NULL CHECK(GrandTotal >= 0),
+      CancelledAt TEXT,
+      CancellationReason TEXT,
+      RefundStatus TEXT NOT NULL DEFAULT 'NOT_APPLICABLE' CHECK(RefundStatus IN ('NOT_APPLICABLE', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED')),
+      RefundReference TEXT,
+      CreatedDate TEXT NOT NULL,
+      UpdatedDate TEXT NOT NULL,
+      FOREIGN KEY (UserId) REFERENCES Users(UserId),
+      FOREIGN KEY (AddressId) REFERENCES Addresses(AddressId)
+    );
+    INSERT INTO Orders_new (OrderId, UserId, AddressId, OrderNumber, IdempotencyKey, PaymentMethod, OrderStatus, SubTotal, ShippingAmount, DiscountAmount, GrandTotal, CancelledAt, CancellationReason, RefundStatus, RefundReference, CreatedDate, UpdatedDate)
+      SELECT OrderId, UserId, AddressId, OrderNumber, IdempotencyKey, COALESCE(PaymentMethod, 'COD'),
+        CASE OrderStatus
+          WHEN 'Pending' THEN 'PENDING'
+          WHEN 'Confirmed' THEN 'PENDING'
+          WHEN 'Processing' THEN 'PROCESSING'
+          WHEN 'Packed' THEN 'PACKED'
+          WHEN 'Shipped' THEN 'SHIPPED'
+          WHEN 'Delivered' THEN 'DELIVERED'
+          WHEN 'Cancelled' THEN 'CANCELLED'
+          ELSE OrderStatus
+        END,
+        SubTotal, ShippingAmount, DiscountAmount, GrandTotal, CancelledAt, CancellationReason, COALESCE(RefundStatus, 'NOT_APPLICABLE'), RefundReference, CreatedDate, UpdatedDate
+      FROM Orders;
+    DROP TABLE Orders;
+    ALTER TABLE Orders_new RENAME TO Orders;
+    PRAGMA foreign_keys = ON;
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_orders_user ON Orders(UserId, CreatedDate);");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_idempotency ON Orders(UserId, IdempotencyKey) WHERE IdempotencyKey IS NOT NULL;");
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS OrderStatusHistory (
+    StatusHistoryId INTEGER PRIMARY KEY AUTOINCREMENT,
+    OrderId INTEGER NOT NULL,
+    OldStatus TEXT,
+    NewStatus TEXT NOT NULL,
+    ChangedBy INTEGER,
+    ChangedAt TEXT NOT NULL,
+    FOREIGN KEY (OrderId) REFERENCES Orders(OrderId) ON DELETE CASCADE,
+    FOREIGN KEY (ChangedBy) REFERENCES Users(UserId) ON DELETE SET NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON OrderStatusHistory(OrderId, ChangedAt);
+`);
+
+db.exec(`
+  UPDATE Orders SET OrderStatus = CASE OrderStatus
+    WHEN 'Pending' THEN 'PENDING'
+    WHEN 'Confirmed' THEN 'CONFIRMED'
+    WHEN 'Processing' THEN 'PROCESSING'
+    WHEN 'Packed' THEN 'PACKED'
+    WHEN 'Shipped' THEN 'SHIPPED'
+    WHEN 'Delivered' THEN 'DELIVERED'
+    WHEN 'Cancelled' THEN 'CANCELLED'
+    ELSE OrderStatus
+  END;
 `);

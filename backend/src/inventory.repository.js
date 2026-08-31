@@ -1,5 +1,6 @@
 import { db } from "./db.js";
 import { nowIso } from "./utils.js";
+import { recordProductAudit } from "./product-audit.js";
 
 const inventorySelect = `
   SELECT i.InventoryId, i.ProductId, p.ProductName, p.Category, i.CurrentStock, i.AvailableStock,
@@ -19,6 +20,15 @@ export function ensureInventoryRecords() {
       CASE WHEN Quantity = 0 THEN 'OUT_OF_STOCK' WHEN Quantity <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END,
       ?, ? FROM Products
   `).run(timestamp, timestamp);
+}
+
+export function syncInventoryForProduct(productId, stock, createdDate, updatedDate) {
+  const status = statusFor(stock);
+  db.prepare(`
+    INSERT INTO Inventory (ProductId, CurrentStock, AvailableStock, ReservedStock, Status, CreatedDate, UpdatedDate)
+    VALUES (?, ?, ?, 0, ?, ?, ?)
+    ON CONFLICT(ProductId) DO UPDATE SET CurrentStock = excluded.CurrentStock, AvailableStock = excluded.AvailableStock, Status = excluded.Status, UpdatedDate = excluded.UpdatedDate
+  `).run(productId, stock, stock, status, createdDate, updatedDate);
 }
 
 export function listInventory() {
@@ -51,6 +61,7 @@ export function updateStock(productId, stock, adminUserId, action = "UPDATED") {
     const status = statusFor(stock);
     db.prepare("UPDATE Inventory SET CurrentStock = ?, AvailableStock = ?, Status = ?, UpdatedDate = ? WHERE ProductId = ?").run(stock, stock, status, timestamp, productId);
     db.prepare("UPDATE Products SET Quantity = ?, UpdatedDate = ? WHERE ProductId = ?").run(stock, timestamp, productId);
+    if (existing.CurrentStock !== stock) recordProductAudit({ productId, userId: adminUserId, action: "INVENTORY_CHANGED", oldValues: { quantity: existing.CurrentStock }, newValues: { quantity: stock } });
     db.prepare("INSERT INTO InventoryAuditLog (InventoryId, ProductId, AdminUserId, Action, OldStock, NewStock, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)").run(existing.InventoryId, productId, adminUserId, action, existing.CurrentStock, stock, timestamp);
     if (existing.Status !== status) db.prepare("INSERT INTO InventoryAuditLog (InventoryId, ProductId, AdminUserId, Action, OldStock, NewStock, CreatedDate) VALUES (?, ?, ?, 'STATUS_CHANGED', ?, ?, ?)").run(existing.InventoryId, productId, adminUserId, existing.CurrentStock, stock, timestamp);
     db.exec("COMMIT");

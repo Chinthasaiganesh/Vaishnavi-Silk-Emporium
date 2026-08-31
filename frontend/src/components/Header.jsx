@@ -70,7 +70,12 @@ export default function Header() {
     }
     loadNotificationCount();
     const interval = window.setInterval(loadNotificationCount, 5000);
-    return () => { active = false; window.clearInterval(interval); };
+    function handleNotificationChange(event) {
+      if (typeof event.detail?.unreadCount === "number") setUnreadNotifications(event.detail.unreadCount);
+      else loadNotificationCount();
+    }
+    window.addEventListener("notifications:changed", handleNotificationChange);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("notifications:changed", handleNotificationChange); };
   }, [user]);
 
   return (
@@ -128,6 +133,7 @@ export default function Header() {
                     <span>{displayName}</span>
                   </div>
                   <Link to="/profile" onClick={() => setProfileOpen(false)}>{t("profile")}</Link>
+                  <Link to="/orders" onClick={() => setProfileOpen(false)}>My Orders</Link>
                   <Link to="/wishlist" onClick={() => setProfileOpen(false)}>{t("wishlist")}</Link>
                   <Link to="/notifications" onClick={() => setProfileOpen(false)}>{t("notifications")}</Link>
                   <Link to="/settings/account" onClick={() => setProfileOpen(false)}>{t("settings")}</Link>

@@ -3,7 +3,7 @@ import { param } from "express-validator";
 import { db } from "./db.js";
 import { authRequired, validateRequest } from "./middleware.js";
 import { nowIso } from "./utils.js";
-import { getUnreadCount, getUserNotifications, markAllAsRead, markAsRead } from "./notification.service.js";
+import { deleteReadNotification, deleteReadNotifications, getNotification, getUnreadCount, getUserNotifications, markAllAsRead, markAsRead } from "./notification.service.js";
 
 const router = Router();
 
@@ -27,17 +27,42 @@ router.get("/subscriptions/:productId", authRequired, param("productId").isInt({
 router.get("/", authRequired, (req, res) => {
   const notifications = getUserNotifications(req.user.userId);
   const unreadCount = getUnreadCount(req.user.userId);
-  return res.json({ notifications: notifications.map((item) => ({ notificationId: item.NotificationId, productId: item.ProductId, productName: item.ProductName, title: item.Title, message: item.Message, isRead: Boolean(item.IsRead), createdDate: item.CreatedDate })), unreadCount });
+  return res.json({ notifications: notifications.map((item) => ({ notificationId: item.NotificationId, type: item.Type, productId: item.ProductId, productName: item.ProductName, orderId: item.OrderId, orderNumber: item.OrderNumber, title: item.Title, message: item.Message, isRead: Boolean(item.IsRead), readDate: item.ReadDate, createdDate: item.CreatedDate })), unreadCount });
+});
+
+router.patch("/read-all", authRequired, (req, res) => {
+  const result = markAllAsRead(req.user.userId);
+  return res.json({ success: true, updated: result.changes, unreadCount: getUnreadCount(req.user.userId) });
+});
+
+router.delete("/read", authRequired, (req, res) => {
+  const result = deleteReadNotifications(req.user.userId);
+  return res.json({ success: true, deleted: result.changes, unreadCount: getUnreadCount(req.user.userId) });
+});
+
+router.patch("/:notificationId/read", authRequired, param("notificationId").isInt({ min: 1 }), validateRequest, (req, res) => {
+  const result = markAsRead(req.user.userId, Number(req.params.notificationId));
+  if (!result.changes) return res.status(404).json({ success: false, message: "Notification not found." });
+  return res.json({ success: true, unreadCount: getUnreadCount(req.user.userId) });
 });
 
 router.put("/:notificationId/read", authRequired, param("notificationId").isInt({ min: 1 }), validateRequest, (req, res) => {
-  markAsRead(req.user.userId, Number(req.params.notificationId));
+  const result = markAsRead(req.user.userId, Number(req.params.notificationId));
+  if (!result.changes) return res.status(404).json({ success: false, message: "Notification not found." });
   return res.status(204).send();
 });
 
 router.put("/read-all", authRequired, (req, res) => {
   markAllAsRead(req.user.userId);
   return res.status(204).send();
+});
+
+router.delete("/:notificationId", authRequired, param("notificationId").isInt({ min: 1 }), validateRequest, (req, res) => {
+  const notification = getNotification(req.user.userId, Number(req.params.notificationId));
+  if (!notification) return res.status(404).json({ success: false, message: "Notification not found." });
+  if (!notification.IsRead) return res.status(409).json({ success: false, message: "Mark this notification as read before deleting it." });
+  deleteReadNotification(req.user.userId, notification.NotificationId);
+  return res.json({ success: true, unreadCount: getUnreadCount(req.user.userId) });
 });
 
 export default router;

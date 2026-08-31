@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
+import CategoryCombobox from "../components/CategoryCombobox";
 
 const initialForm = {
   productName: "",
@@ -28,6 +29,9 @@ export default function AdminDashboardPage() {
   const [editingId, setEditingId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState("");
 
   const submitLabel = useMemo(() => (editingId ? "Update Product" : "Add Product"), [editingId]);
 
@@ -38,7 +42,9 @@ export default function AdminDashboardPage() {
         api.get("/products/admin")
       ]);
       setSummary(summaryRes.data);
-      setProducts(listRes.data.products || []);
+      const loadedProducts = listRes.data.products || [];
+      console.info("Admin product prices rendered", loadedProducts.map((product) => ({ productId: product.productId, productName: product.productName, priceRetrieved: product.price, priceRendered: formatCurrency(product.price) })));
+      setProducts(loadedProducts);
     } catch (requestError) {
       setError(requestError.response?.status >= 500 ? "The inventory service is temporarily unavailable." : "Unable to load inventory data.");
     }
@@ -46,7 +52,21 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     loadData();
+    loadCategories();
   }, []);
+
+  async function loadCategories() {
+    setCategoriesLoading(true);
+    setCategoriesError("");
+    try {
+      const response = await api.get("/categories");
+      setCategories((response.data.categories || []).sort((first, second) => first.categoryName.localeCompare(second.categoryName)));
+    } catch {
+      setCategoriesError("Unable to load categories. Please try again.");
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }
 
   function onFieldChange(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -85,6 +105,11 @@ export default function AdminDashboardPage() {
     e.preventDefault();
     setMessage("");
     setError("");
+
+    if (!form.category) {
+      setError("Please select a category.");
+      return;
+    }
 
     try {
       const payload = new FormData();
@@ -169,12 +194,7 @@ export default function AdminDashboardPage() {
             onChange={(e) => onFieldChange("productName", e.target.value)}
             required
           />
-          <input
-            placeholder="Category"
-            value={form.category}
-            onChange={(e) => onFieldChange("category", e.target.value)}
-            required
-          />
+          <CategoryCombobox categories={categories} value={form.category} onChange={(value) => onFieldChange("category", value)} loading={categoriesLoading} error={categoriesError} onRetry={loadCategories} onCreate={() => window.location.assign("/admin/categories")} />
           <input placeholder="Fabric (e.g. Pure Silk)" value={form.fabric} onChange={(e) => onFieldChange("fabric", e.target.value)} />
           <input placeholder="Weaving Style" value={form.weavingStyle} onChange={(e) => onFieldChange("weavingStyle", e.target.value)} />
           <input placeholder="Colour" value={form.colour} onChange={(e) => onFieldChange("colour", e.target.value)} />

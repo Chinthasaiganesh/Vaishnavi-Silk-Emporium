@@ -5,5 +5,6 @@ const indianCurrency = new Intl.NumberFormat("en-IN", {
 });
 
 export function formatCurrency(amount) {
-  return indianCurrency.format(Number(amount) || 0);
+  if (amount === null || amount === undefined || amount === "") return "Price unavailable";
+  return indianCurrency.format(Number(amount));
 }
