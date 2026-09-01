@@ -17,44 +17,44 @@ function mapCartItem(item) {
   return { cartItemId: item.CartItemId, productId: item.ProductId, productName: item.ProductName, category: item.Category, imageUrl: item.ImageUrl, quantity: item.Quantity, unitPrice: item.UnitPrice, availableStock: item.AvailableStock, subtotal: item.UnitPrice * item.Quantity, createdDate: item.CreatedDate, updatedDate: item.UpdatedDate };
 }
 
-export function getCart(userId) {
-  const cart = getOrCreateCart(userId);
-  const items = getCartItems(cart.CartId).map(mapCartItem);
+export async function getCart(userId) {
+  const cart = await getOrCreateCart(userId);
+  const items = (await getCartItems(cart.CartId)).map(mapCartItem);
   return { cartId: cart.CartId, items, totals: calculateTotals(items) };
 }
 
-export function addToCart(userId, productId, quantity, requestId) {
+export async function addToCart(userId, productId, quantity, requestId) {
   console.info(JSON.stringify({ level: "info", message: "Cart add service hit", requestId, userId, productId, quantity }));
   assertQuantity(quantity);
-  const cart = getOrCreateCart(userId);
-  const product = getProduct(productId);
+  const cart = await getOrCreateCart(userId);
+  const product = await getProduct(productId);
   console.info(JSON.stringify({ level: "info", message: "Cart product lookup completed", requestId, userId, productId, availableStock: product?.AvailableStock ?? null, productFound: Boolean(product) }));
   if (!product || !product.IsActive) throw Object.assign(new Error("Product is unavailable."), { status: 404 });
-  const existing = getCartItemByProduct(cart.CartId, productId);
+  const existing = await getCartItemByProduct(cart.CartId, productId);
   const nextQuantity = (existing?.Quantity || 0) + quantity;
   assertStock(nextQuantity, product.AvailableStock);
-  saveItem(cart.CartId, productId, nextQuantity, product.Price, existing ? "QUANTITY_UPDATED" : "ADDED", userId, existing?.Quantity || null);
-  return getCart(userId);
+  await saveItem(cart.CartId, productId, nextQuantity, product.Price, existing ? "QUANTITY_UPDATED" : "ADDED", userId, existing?.Quantity || null);
+  return await getCart(userId);
 }
 
-export function updateQuantity(userId, cartItemId, quantity) {
+export async function updateQuantity(userId, cartItemId, quantity) {
   assertQuantity(quantity);
-  const cart = getOrCreateCart(userId);
-  const item = getCartItem(cart.CartId, cartItemId);
+  const cart = await getOrCreateCart(userId);
+  const item = await getCartItem(cart.CartId, cartItemId);
   if (!item) throw Object.assign(new Error("Cart item not found."), { status: 404 });
   assertStock(quantity, item.AvailableStock);
-  saveItem(cart.CartId, item.ProductId, quantity, item.UnitPrice, "QUANTITY_UPDATED", userId, item.Quantity);
-  return getCart(userId);
+  await saveItem(cart.CartId, item.ProductId, quantity, item.UnitPrice, "QUANTITY_UPDATED", userId, item.Quantity);
+  return await getCart(userId);
 }
 
-export function removeCartItem(userId, cartItemId) {
-  const cart = getOrCreateCart(userId);
-  if (!removeItem(cart.CartId, cartItemId, userId)) throw Object.assign(new Error("Cart item not found."), { status: 404 });
-  return getCart(userId);
+export async function removeCartItem(userId, cartItemId) {
+  const cart = await getOrCreateCart(userId);
+  if (!(await removeItem(cart.CartId, cartItemId, userId))) throw Object.assign(new Error("Cart item not found."), { status: 404 });
+  return await getCart(userId);
 }
 
-export function emptyCart(userId) {
-  const cart = getOrCreateCart(userId);
-  clearCart(cart.CartId, userId);
-  return getCart(userId);
+export async function emptyCart(userId) {
+  const cart = await getOrCreateCart(userId);
+  await clearCart(cart.CartId, userId);
+  return await getCart(userId);
 }

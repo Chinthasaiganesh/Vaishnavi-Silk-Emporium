@@ -3,31 +3,31 @@ import { db } from "./db.js";
 import { config } from "./config.js";
 import { nowIso } from "./utils.js";
 
-const existingAdmin = db
+const existingAdmin = await db
   .prepare("SELECT UserId FROM Users WHERE Username = ?")
   .get(config.adminUsername);
 
 if (!existingAdmin) {
   const hash = await bcrypt.hash(config.adminPassword, 12);
-  db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, 'ADMIN')").run(
+  await db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, 'ADMIN')").run(
     config.adminUsername,
     hash
   );
 }
 
-const existingUser = db
+const existingUser = await db
   .prepare("SELECT UserId FROM Users WHERE Username = ?")
   .get(config.userUsername);
 
 if (!existingUser) {
   const hash = await bcrypt.hash(config.userPassword, 12);
-  db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, 'USER')").run(
+  await db.prepare("INSERT INTO Users (Username, PasswordHash, Role) VALUES (?, ?, 'USER')").run(
     config.userUsername,
     hash
   );
 }
 
-const insertProduct = db.prepare(`
+const insertProduct = await db.prepare(`
     INSERT INTO Products
       (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, CreatedDate, UpdatedDate)
     VALUES
@@ -69,12 +69,12 @@ const seedProducts = [
 
 const created = nowIso();
 for (const product of seedProducts) {
-  if (!db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(product[0])) {
-    insertProduct.run(product[0], product[1], product[2], product[3], product[4], product[5], product[6], product[7], created, created);
+  if (!(await db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(product[0]))) {
+    await insertProduct.run(product[0], product[1], product[2], product[3], product[4], product[5], product[6], product[7], created, created);
   }
 }
 
-const insertSaree = db.prepare(`
+const insertSaree = await db.prepare(`
   INSERT INTO Products (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
   VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, '5.5 metres', 1, 'Dry clean only. Store folded in a muslin cloth.', ?, ?, ?)
 `);
@@ -85,8 +85,8 @@ const sarees = [
   ["Indigo Handloom Cotton Saree", "Breathable handloom cotton saree designed for graceful everyday elegance.", "Cotton Sarees", 3499, "https://images.unsplash.com/photo-1594736797933-d0c96e874fcb?auto=format&fit=crop&w=1200&q=85", 0, 0, "Cotton", "Handloom", "Indigo Blue", "Office Wear", 4.6, 3]
 ];
 for (const saree of sarees) {
-  if (!db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(saree[0])) {
-    insertSaree.run(...saree.slice(0, -1), now, now);
+  if (!(await db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(saree[0]))) {
+    await insertSaree.run(...saree.slice(0, -1), now, now);
   }
 }
 
@@ -101,11 +101,11 @@ const categoryDescriptions = {
   "Linen Sarees": "Lightweight linen weaves with effortless elegance.",
   "Handloom Sarees": "Artisan handloom sarees celebrating Indian craft."
 };
-const insertCategory = db.prepare("INSERT OR IGNORE INTO Categories (CategoryName, Description, IsActive, CreatedDate, UpdatedDate) VALUES (?, ?, 1, ?, ?)");
-for (const [name, description] of Object.entries(categoryDescriptions)) insertCategory.run(name, description, now, now);
-for (const row of db.prepare("SELECT DISTINCT Category FROM Products WHERE Category != ''").all()) insertCategory.run(row.Category, categoryDescriptions[row.Category] || "Saree collection.", now, now);
+const insertCategory = await db.prepare("INSERT OR IGNORE INTO Categories (CategoryName, Description, IsActive, CreatedDate, UpdatedDate) VALUES (?, ?, 1, ?, ?)");
+for (const [name, description] of Object.entries(categoryDescriptions)) await insertCategory.run(name, description, now, now);
+for (const row of await db.prepare("SELECT DISTINCT Category FROM Products WHERE Category != ''").all()) await insertCategory.run(row.Category, categoryDescriptions[row.Category] || "Saree collection.", now, now);
 
-db.prepare("INSERT OR IGNORE INTO StoreSettings (SettingsId, StoreName, Tagline, Email, Phone, Address, BusinessDescription, UpdatedDate, UpdatedBy) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)").run(
+await db.prepare("INSERT OR IGNORE INTO StoreSettings (SettingsId, StoreName, Tagline, Email, Phone, Address, BusinessDescription, UpdatedDate, UpdatedBy) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)").run(
   "Vaishnavi Silk Emporium",
   "Where Tradition Meets Elegance",
   "care@vaishnavisilks.example",

@@ -6,24 +6,16 @@
 flowchart LR
   Browser -->|HTTPS| Vercel[React frontend on Vercel]
   Vercel -->|HTTPS REST API| Render[Express API on Render]
-  Render -->|persistent disk| SQLite[(SQLite catalog.db)]
+  Render -->|pg Pool| Supabase[(Supabase PostgreSQL)]
 ```
 
-## 1. SQLite Database (Current)
+## 1. Supabase PostgreSQL Database
 
-The current backend uses SQLite. `backend/data/catalog.db` is suitable for local development, but Render's default filesystem is ephemeral. Without a persistent disk, a redeploy or instance replacement can create a fresh database even when startup seeding is idempotent.
+The backend uses PostgreSQL through the `pg` Pool client. Configure `DATABASE_URL` with the Supabase pooler connection string. The app creates missing tables on startup and logs the PostgreSQL server version.
 
-The Render Blueprint mounts `/var/data` and sets `SQLITE_DATABASE_PATH=/var/data/catalog.db`. Verify that this disk is attached to the live service before deploying. Do not use `DATABASE_URL` to switch the current SQLite adapter to PostgreSQL.
+Use the Supabase pooler URL on Render, for example the Transaction or Session pooler on port `6543`. Do not commit the database password to the repository.
 
 Uploads are also local files and require object storage for durable production media.
-
-## 2. Supabase Database (Future Migration)
-
-Create a Supabase project and apply `docs/supabase-schema.sql` only as part of the planned PostgreSQL migration.
-
-### Migration Gate
-
-The currently implemented backend uses Node's synchronous `node:sqlite` driver and `?` SQLite query placeholders. It cannot connect to PostgreSQL merely by setting `DATABASE_URL`. Before production Supabase cutover, migrate `backend/src/db.js` and all route queries to an async PostgreSQL adapter such as `pg`, use `$1` placeholders, and run integration tests. Until that migration is complete, deploy the existing backend with a persistent SQLite disk or complete the adapter work first.
 
 ## 3. Render Backend
 
@@ -37,7 +29,7 @@ CLIENT_ORIGIN=https://your-vercel-project.vercel.app
 VERCEL_PROJECT_SLUG=your-vercel-project
 PUBLIC_API_ORIGIN=https://your-render-service.onrender.com
 JWT_SECRET=<at-least-32-random-characters>
-DATABASE_URL=<supabase-connection-string-after-postgres-migration>
+DATABASE_URL=<supabase-pooler-connection-string>
 GOOGLE_CLIENT_ID=<optional>
 GOOGLE_CLIENT_SECRET=<optional>
 GITHUB_CLIENT_ID=<optional>
@@ -80,8 +72,8 @@ The frontend normalizes a missing `/api` suffix, but set the full URL above to m
 - [ ] Long random `JWT_SECRET`; no `.env` file committed
 - [ ] OAuth redirect URIs updated to production HTTPS URLs
 - [ ] Render health check is green at `/api/health`
-- [ ] Render persistent disk is attached and `SQLITE_DATABASE_PATH` points to it
-- [ ] Supabase adapter migration and integration tests complete before `DATABASE_URL` cutover
+- [ ] `DATABASE_URL` points to the Supabase pooler connection string
+- [ ] Render startup logs show `PostgreSQL database connected` and no SQLite path
 - [ ] Upload storage migrated from local Render disk to object storage (Supabase Storage/S3) for durable product and avatar images
 - [ ] Postman Development/UAT/Production environments updated with deployed API URLs
 - [ ] GitHub Actions build workflow passes on `main`

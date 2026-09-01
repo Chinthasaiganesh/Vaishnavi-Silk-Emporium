@@ -43,6 +43,19 @@ function auditValues(product) {
   return { productName: product.ProductName, category: product.Category, price: product.Price, quantity: product.Quantity, isActive: product.IsActive, isFeatured: product.IsFeatured };
 }
 
+async function productCounts() {
+  return {
+    totalProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products").get()).count,
+    activeProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 1").get()).count,
+    inactiveProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 0").get()).count,
+    outOfStockProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE Quantity = 0").get()).count
+  };
+}
+
+async function logProductEvent(message, requestId, details = {}) {
+  console.info(JSON.stringify({ level: "info", message, requestId, ...details, counts: await productCounts() }));
+}
+
 router.get(
   "/public",
   optionalAuth,
@@ -54,14 +67,14 @@ router.get(
     .isIn(["", "price_asc", "price_desc", "alpha_asc"])
     .withMessage("Invalid sort option."),
   validateRequest,
-  (req, res) => {
+  async (req, res) => {
     const q = (req.query.q || "").trim().toLowerCase();
     const category = (req.query.category || "").trim().toLowerCase();
     const sort = req.query.sort || "";
     const featuredOnly = req.query.featured === "true";
 
     const canViewPrice = Boolean(req.user);
-    const activeProducts = db.prepare("SELECT * FROM Products WHERE IsActive = 1").all();
+    const activeProducts = await db.prepare("SELECT * FROM Products WHERE IsActive = 1").all();
 
     let products = activeProducts.filter((p) => {
       const text = `${p.ProductName} ${p.Description} ${p.Category} ${p.Fabric} ${p.Colour} ${p.Occasion} ${p.WeavingStyle}`.toLowerCase();
@@ -71,7 +84,7 @@ router.get(
       return keywordMatch && categoryMatch && featuredMatch;
     });
 
-    console.info(JSON.stringify({ level: "info", message: "Product load event", requestId: req.requestId, query: req.query, candidateCount: activeProducts.length, resultCount: products.length, filter: { category, featuredOnly } }));
+    await logProductEvent("Product Loaded", req.requestId, { scope: "public-list", query: req.query, candidateCount: activeProducts.length, resultCount: products.length, filter: { category, featuredOnly } });
 
     if (canViewPrice && sort === "price_asc") {
       products.sort((a, b) => a.Price - b.Price);
@@ -87,28 +100,31 @@ router.get(
   }
 );
 
-router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, (req, res) => {
+router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, async (req, res) => {
   const id = Number(req.params.id);
-  const row = db.prepare("SELECT * FROM Products WHERE ProductId = ? AND IsActive = 1").get(id);
+  const row = await db.prepare("SELECT * FROM Products WHERE ProductId = ? AND IsActive = 1").get(id);
   if (!row) {
+    await logProductEvent("Product Load Miss", req.requestId, { scope: "public-detail", productId: id });
     return res.status(404).json({ message: "Product not found." });
   }
+  await logProductEvent("Product Loaded", req.requestId, { scope: "public-detail", productId: id });
   return res.json({ product: mapProduct(row, Boolean(req.user)) });
 });
 
-router.get("/admin", authRequired, adminOnly, (req, res) => {
-  const rows = db.prepare("SELECT * FROM Products ORDER BY datetime(CreatedDate) DESC").all();
+router.get("/admin", authRequired, adminOnly, async (req, res) => {
+  const rows = await db.prepare("SELECT * FROM Products ORDER BY datetime(CreatedDate) DESC").all();
   const products = rows.map((row) => mapProduct(row, true));
+  await logProductEvent("Product Loaded", req.requestId, { scope: "admin-list", userId: req.user.userId, resultCount: products.length });
   console.info(JSON.stringify({ level: "info", message: "Admin product prices retrieved", requestId: req.requestId, userId: req.user.userId, prices: products.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price })) }));
   return res.json({ products });
 });
 
-router.get("/admin/summary", authRequired, adminOnly, (req, res) => {
-  const totalProducts = db.prepare("SELECT COUNT(*) as count FROM Products").get().count;
-  const activeProducts = db.prepare("SELECT COUNT(*) as count FROM Products WHERE IsActive = 1").get().count;
-  const lowStockProducts = db
+router.get("/admin/summary", authRequired, adminOnly, async (req, res) => {
+  const totalProducts = (await db.prepare("SELECT COUNT(*) as count FROM Products").get()).count;
+  const activeProducts = (await db.prepare("SELECT COUNT(*) as count FROM Products WHERE IsActive = 1").get()).count;
+  const lowStockProducts = (await db
     .prepare("SELECT COUNT(*) as count FROM Products WHERE Quantity BETWEEN 1 AND 5")
-    .get().count;
+    .get()).count;
 
   return res.json({ totalProducts, activeProducts, lowStockProducts });
 });
@@ -131,14 +147,14 @@ router.post(
   body("occasion").optional().trim().isLength({ max: 80 }),
   body("rating").optional().isFloat({ min: 0, max: 5 }),
   validateRequest,
-  (req, res) => {
+  async (req, res) => {
     const { productName, description, category, price, quantity } = req.body;
     const isActive = req.body.isActive === undefined ? true : req.body.isActive === "true";
     const isFeatured = req.body.isFeatured === "true" || req.body.isFeatured === true;
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl || "";
 
     const timestamp = nowIso();
-    const result = db
+    const result = await db
       .prepare(
         `INSERT INTO Products
          (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
@@ -165,10 +181,10 @@ router.post(
         timestamp
       );
 
-    const created = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(result.lastInsertRowid);
-    console.info(JSON.stringify({ level: "info", message: "Product price stored", requestId: req.requestId, productId: created.ProductId, productName: created.ProductName, priceStored: created.Price }));
-    recordProductAudit({ productId: created.ProductId, userId: req.user.userId, action: "CREATED", newValues: auditValues(created) });
-    initializeInventory();
+    const created = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(result.lastInsertRowid);
+    await logProductEvent("Product Created", req.requestId, { productId: created.ProductId, productName: created.ProductName, priceStored: created.Price, quantity: created.Quantity, isActive: created.IsActive });
+    await recordProductAudit({ productId: created.ProductId, userId: req.user.userId, action: "CREATED", newValues: auditValues(created) });
+    await initializeInventory();
     return res.status(201).json({ product: mapProduct(created) });
   }
 );
@@ -192,9 +208,9 @@ router.put(
   body("occasion").optional().trim().isLength({ max: 80 }),
   body("rating").optional().isFloat({ min: 0, max: 5 }),
   validateRequest,
-  (req, res) => {
+  async (req, res) => {
     const id = Number(req.params.id);
-    const existing = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
+    const existing = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
     if (!existing) {
       return res.status(404).json({ message: "Product not found." });
     }
@@ -213,7 +229,7 @@ router.put(
       isActive: toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
       isFeatured: toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true)
     };
-    db.prepare(
+    await db.prepare(
       `UPDATE Products
       SET ProductName = ?, Description = ?, Category = ?, Price = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
        WHERE ProductId = ?`
@@ -238,16 +254,16 @@ router.put(
       id
     );
 
-    recordProductAudit({ productId: id, userId: req.user.userId, action: "UPDATED", oldValues: auditValues(existing), newValues: updatedValues });
-    const updatedProduct = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
-    console.info(JSON.stringify({ level: "info", message: "Product price updated", requestId: req.requestId, productId: id, priceStored: updatedProduct.Price }));
-    synchronizeProductInventory(updatedProduct);
-    if (existing.IsActive !== updatedValues.isActive) recordProductAudit({ productId: id, userId: req.user.userId, action: updatedValues.isActive ? "RESTORED" : "ARCHIVED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
-    if (existing.IsActive !== updatedValues.isActive) recordProductAudit({ productId: id, userId: req.user.userId, action: "VISIBILITY_CHANGED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
+    await recordProductAudit({ productId: id, userId: req.user.userId, action: "UPDATED", oldValues: auditValues(existing), newValues: updatedValues });
+    const updatedProduct = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
+    await logProductEvent("Product Updated", req.requestId, { productId: id, productName: updatedProduct.ProductName, priceStored: updatedProduct.Price, oldQuantity: existing.Quantity, newQuantity: updatedProduct.Quantity, oldIsActive: existing.IsActive, newIsActive: updatedProduct.IsActive });
+    await synchronizeProductInventory(updatedProduct);
+    if (existing.IsActive !== updatedValues.isActive) await recordProductAudit({ productId: id, userId: req.user.userId, action: updatedValues.isActive ? "RESTORED" : "ARCHIVED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
+    if (existing.IsActive !== updatedValues.isActive) await recordProductAudit({ productId: id, userId: req.user.userId, action: "VISIBILITY_CHANGED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
 
     const isBackInStock = existing.Quantity === 0 && Number(req.body.quantity) > 0;
     if (isBackInStock) {
-      sendAvailabilityNotification(id, req.body.productName);
+      await sendAvailabilityNotification(id, req.body.productName);
     }
 
     return res.json({ product: mapProduct(updatedProduct) });
@@ -260,21 +276,22 @@ router.delete(
   adminOnly,
   param("id").isInt({ min: 1 }),
   validateRequest,
-  (req, res) => {
+  async (req, res) => {
     const id = Number(req.params.id);
-    const existing = db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
+    const existing = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
     if (!existing) return res.status(404).json({ message: "Product not found." });
-    recordProductAudit({ productId: id, userId: req.user.userId, action: "DELETED", oldValues: auditValues(existing) });
-    const result = db.prepare("DELETE FROM Products WHERE ProductId = ?").run(id);
+    await recordProductAudit({ productId: id, userId: req.user.userId, action: "DELETED", oldValues: auditValues(existing) });
+    const result = await db.prepare("DELETE FROM Products WHERE ProductId = ?").run(id);
     if (!result.changes) {
       return res.status(404).json({ message: "Product not found." });
     }
+    await logProductEvent("Product Deleted", req.requestId, { productId: id, productName: existing.ProductName, deletedBy: req.user.userId });
     return res.status(204).send();
   }
 );
 
-router.get("/admin/audit", authRequired, adminOnly, (req, res) => {
-  return res.json({ audits: getProductAudit() });
+router.get("/admin/audit", authRequired, adminOnly, async (req, res) => {
+  return res.json({ audits: await getProductAudit() });
 });
 
 export default router;

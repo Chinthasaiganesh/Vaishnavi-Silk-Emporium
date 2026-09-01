@@ -1,8 +1,8 @@
 import { db } from "./db.js";
 import { nowIso } from "./utils.js";
 
-export function recordProductAudit({ productId, userId = null, action, oldValues = null, newValues = null }) {
-  db.prepare("INSERT INTO ProductAuditLog (ProductId, UserId, Action, OldValues, NewValues, CreatedDate) VALUES (?, ?, ?, ?, ?, ?)").run(
+export async function recordProductAudit({ productId, userId = null, action, oldValues = null, newValues = null }) {
+  await db.prepare("INSERT INTO ProductAuditLog (ProductId, UserId, Action, OldValues, NewValues, CreatedDate) VALUES (?, ?, ?, ?, ?, ?)").run(
     productId,
     userId,
     action,
@@ -12,7 +12,7 @@ export function recordProductAudit({ productId, userId = null, action, oldValues
   );
 }
 
-export function getProductAudit(productId = null) {
+export async function getProductAudit(productId = null) {
   const query = `
     SELECT a.AuditId, a.ProductId, p.ProductName, a.UserId, u.Username, a.Action,
       a.OldValues, a.NewValues, a.CreatedDate
@@ -22,5 +22,5 @@ export function getProductAudit(productId = null) {
     ${productId === null ? "" : "WHERE a.ProductId = ?"}
     ORDER BY datetime(a.CreatedDate) DESC, a.AuditId DESC
   `;
-  return productId === null ? db.prepare(query).all() : db.prepare(query).all(productId);
+  return productId === null ? await db.prepare(query).all() : await db.prepare(query).all(productId);
 }

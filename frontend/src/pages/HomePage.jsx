@@ -152,7 +152,7 @@ export default function HomePage() {
           {featuredProducts.map((product, index) => (
             <motion.article
               className="featured-product-card"
-              key={product.id}
+              key={product.productId}
               initial={{ opacity: 0, y: reducedMotion ? 0 : 18 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}

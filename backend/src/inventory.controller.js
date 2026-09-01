@@ -17,25 +17,25 @@ function mapInventory(row) {
   };
 }
 
-export function list(req, res) {
-  const records = getAllInventory(req.user.userId);
+export async function list(req, res) {
+  const records = await getAllInventory(req.user.userId);
   return res.json({ products: records.map(mapInventory) });
 }
 
-export function details(req, res) {
-  const record = getInventory(Number(req.params.id));
+export async function details(req, res) {
+  const record = await getInventory(Number(req.params.id));
   if (!record) return res.status(404).json({ success: false, message: "Inventory record not found." });
   return res.json({ inventory: mapInventory(record) });
 }
 
-export function lowStock(req, res) {
-  return res.json({ inventory: getLowStockInventory().map(mapInventory) });
+export async function lowStock(req, res) {
+  return res.json({ inventory: (await getLowStockInventory()).map(mapInventory) });
 }
 
-export function update(req, res, action = "UPDATED") {
+export async function update(req, res, action = "UPDATED") {
   if (typeof action !== "string") action = "UPDATED";
   const productId = Number(req.params.id || req.body.productId);
-  const record = changeStock(productId, Number(req.body.stock), req.user.userId, action);
+  const record = await changeStock(productId, Number(req.body.stock), req.user.userId, action);
   if (!record) return res.status(404).json({ success: false, message: "Inventory record not found." });
   return res.json({ success: true, message: action === "RESTOCKED" ? "Inventory restocked successfully." : "Inventory updated successfully.", inventory: mapInventory(record) });
 }

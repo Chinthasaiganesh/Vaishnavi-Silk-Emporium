@@ -26,7 +26,7 @@ Import the collection, select an environment, run **Authentication / Login**, an
 sequenceDiagram
   participant QA as Postman Client
   participant API as Express API
-  participant DB as SQLite
+  participant DB as PostgreSQL
   QA->>API: POST /auth/login
   API->>DB: Verify user and bcrypt hash
   API-->>QA: access token + refresh_session cookie

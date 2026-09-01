@@ -27,7 +27,6 @@ export const config = {
   isAllowedOrigin,
   clientOrigin: clientOrigins[0],
   publicApiOrigin: process.env.PUBLIC_API_ORIGIN || `http://localhost:${process.env.PORT || 4000}`,
-  sqliteDatabasePath: process.env.SQLITE_DATABASE_PATH || "",
   jwtSecret: process.env.JWT_SECRET || "development-only-secret-change-me",
   nodeEnv,
   databaseUrl: process.env.DATABASE_URL || "",

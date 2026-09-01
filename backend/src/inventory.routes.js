@@ -19,13 +19,13 @@ router.post(
   body("productId").isInt({ min: 1 }),
   body("quantity").isInt({ min: 1 }).withMessage("Restock quantity must be a positive integer."),
   validateRequest,
-  (req, res, next) => {
+  async (req, res, next) => {
     try {
       const productId = Number(req.body.productId);
-      const current = getInventory(productId);
+      const current = await getInventory(productId);
       if (!current) return res.status(404).json({ success: false, message: "Inventory record not found." });
       req.body.stock = current.CurrentStock + Number(req.body.quantity);
-      return update(req, res, "RESTOCKED");
+      return await update(req, res, "RESTOCKED");
     } catch (error) {
       return next(error);
     }

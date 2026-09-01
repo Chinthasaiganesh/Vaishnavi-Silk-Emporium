@@ -16,8 +16,8 @@ Backend terminal:
 cd "backend"
 cp .env.example .env
 npm install
-SQLITE_DATABASE_PATH="$PWD/data/local-qa.db" npm run seed
-SQLITE_DATABASE_PATH="$PWD/data/local-qa.db" PORT=4010 npm start
+DATABASE_URL="postgresql://..." npm run seed
+DATABASE_URL="postgresql://..." PORT=4010 npm start
 ```
 
 Frontend terminal:
@@ -52,7 +52,7 @@ flowchart LR
   C[Customer Browser] --> F[React Frontend]
   A[Admin Browser] --> F
   F -->|REST API| B[Express Backend]
-  B --> D[(SQLite Database)]
+  B --> D[(Supabase PostgreSQL)]
   B --> U[/uploads Product Images/]
 
   subgraph Frontend
@@ -156,7 +156,7 @@ Cart totals are calculated server-side. Adding an existing product increases its
 - POST /inventory/update-stock
 - POST /inventory/restock
 
-Prices remain numeric in SQLite and are formatted in the frontend with Indian Rupee formatting (`Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })`).
+Prices remain numeric in PostgreSQL and are formatted in the frontend with Indian Rupee formatting (`Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })`).
 
 ## 5. Folder Structure
 
@@ -265,13 +265,13 @@ VITE_API_URL=https://vaishnavi-silk-emporium.onrender.com/api
 
 Vite embeds this value at build time, so redeploy Vercel after changing it. Do not use `NEXT_PUBLIC_API_URL`; this is not a Next.js application. Confirm the generated frontend is calling `https://vaishnavi-silk-emporium.onrender.com/api`, not a localhost URL.
 
-The backend is deployed from `backend/` on Render with `npm ci` and `npm start`. The Render service must use the persistent disk configured in `render.yaml`:
+The backend is deployed from `backend/` on Render with `npm ci` and `npm start`. Configure Render with the Supabase pooler connection string:
 
 ```text
-SQLITE_DATABASE_PATH=/var/data/catalog.db
+DATABASE_URL=postgresql://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres
 ```
 
-After pushing the latest code, redeploy Render and verify `GET https://vaishnavi-silk-emporium.onrender.com/api/health` reports SQLite readiness. Keep `DATABASE_URL` unset until the planned PostgreSQL adapter migration is complete.
+After pushing the latest code, redeploy Render and verify `GET https://vaishnavi-silk-emporium.onrender.com/api/health` reports PostgreSQL readiness and version information.
 
 ## 9. Sample Test Cases
 
@@ -508,7 +508,7 @@ The callback fetches provider profile data, links an existing account by verifie
 - Product detail: `GET /api/products/public/:id` reads the same database row.
 - Admin product create/edit forms manage `IsFeatured` through the `Show on the Home Page (featured)` checkbox.
 
-The SQLite startup migration adds `IsFeatured` to existing `Products` tables without resetting inventory. The seed script marks two active, in-stock starter products as featured so the homepage has an immediate catalog-backed example.
+The PostgreSQL startup schema creates the catalogue tables without resetting inventory. The seed script marks two active, in-stock starter products as featured so the homepage has an immediate catalog-backed example.
 
 ### Featured Product Test Scenarios
 

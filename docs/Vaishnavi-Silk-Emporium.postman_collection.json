@@ -2,85 +2,279 @@
   "info": {
     "_postman_id": "b5e4f8a4-4c52-4e2d-849a-vaishnavi-silk",
     "name": "Vaishnavi Silk Emporium API",
-    "description": "Collection generated from implemented Express routes. Admin routes require Bearer {{accessToken}}. Login test stores accessToken automatically; refresh token is an HttpOnly cookie and is not exposed as a collection variable.",
+    "description": "Updated collection for the current Express API. Login stores {{accessToken}} automatically. Customer routes require a USER token; admin routes require an ADMIN token. Order creation uses Idempotency-Key.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [{ "key": "baseUrl", "value": "http://localhost:4010/api" }, { "key": "accessToken", "value": "" }, { "key": "productId", "value": "1" }, { "key": "cartItemId", "value": "1" }, { "key": "categoryId", "value": "1" }, { "key": "notificationId", "value": "1" }],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4010/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "productId", "value": "1" },
+    { "key": "cartItemId", "value": "1" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "addressId", "value": "1" },
+    { "key": "orderId", "value": "1" },
+    { "key": "orderNumber", "value": "" },
+    { "key": "notificationId", "value": "1" },
+    { "key": "idempotencyKey", "value": "postman-{{$timestamp}}" },
+    { "key": "adminOrderStatus", "value": "PROCESSING" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
   "item": [
     {
       "name": "Authentication",
       "item": [
-        { "name": "Register User", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"displayName\": \"Demo\",\n  \"email\": \"demo@example.com\",\n  \"mobileNumber\": \"9000000001\",\n  \"password\": \"DemoPass123!\",\n  \"confirmPassword\": \"DemoPass123!\"\n}" }, "url": "{{baseUrl}}/auth/register", "description": "Public. Creates USER role only. Validates unique email/mobile and strong password." } },
-        { "name": "Login", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"admin\",\n  \"password\": \"Admin@12345\",\n  \"rememberMe\": true\n}" }, "url": "{{baseUrl}}/auth/login", "description": "Public. Identifier can be username, email, or mobile." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.token).to.be.a('string');", "pm.collectionVariables.set('accessToken', body.token);", "pm.test('response time under 1 second', () => pm.expect(pm.response.responseTime).to.be.below(1000));"] } }] },
-        { "name": "Refresh Session", "request": { "method": "POST", "url": "{{baseUrl}}/auth/refresh", "description": "Uses refresh_session HttpOnly cookie. Run after Login in Postman cookie jar." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('accessToken', pm.response.json().token);"] } }] },
-        { "name": "Current User", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/auth/me" } },
-        { "name": "Update Profile / Settings", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "fullName", "value": "Demo Customer", "type": "text" }, { "key": "displayName", "value": "Demo", "type": "text" }, { "key": "email", "value": "demo@example.com", "type": "text" }, { "key": "mobileNumber", "value": "9000000001", "type": "text" }, { "key": "preferences", "value": "{\"darkMode\":false,\"language\":\"English\"}", "type": "text" }, { "key": "avatar", "type": "file", "src": "" }] }, "url": "{{baseUrl}}/auth/settings", "description": "Authenticated. Avatar accepts JPG/PNG/WEBP, max 5 MB, minimum 100x100." } },
-        { "name": "Change Password", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"Admin@12345\",\n  \"newPassword\": \"NewPass123!\",\n  \"confirmPassword\": \"NewPass123!\"\n}" }, "url": "{{baseUrl}}/auth/password" } },
-        { "name": "Logout", "request": { "method": "POST", "url": "{{baseUrl}}/auth/logout", "description": "Revokes the current refresh session and clears cookie." } },
-        { "name": "OAuth Provider Status", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/providers" } },
-        { "name": "Google OAuth Redirect", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/google", "description": "Browser redirect endpoint; requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET." } },
-        { "name": "GitHub OAuth Redirect", "request": { "method": "GET", "url": "{{baseUrl}}/auth/oauth/github", "description": "Browser redirect endpoint; requires GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET." } }
+        {
+          "name": "Register Customer",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"displayName\": \"Demo\",\n  \"email\": \"demo@example.com\",\n  \"mobileNumber\": \"9000000001\",\n  \"password\": \"DemoPass123!\",\n  \"confirmPassword\": \"DemoPass123!\"\n}" },
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Public. Creates USER accounts only."
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"admin\",\n  \"password\": \"Admin@12345\",\n  \"rememberMe\": true\n}" },
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Use seeded admin credentials for admin folders, or a registered customer for customer folders."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.expect(body.token).to.be.a('string');", "pm.collectionVariables.set('accessToken', body.token);"] } }]
+        },
+        {
+          "name": "Refresh Session",
+          "request": { "auth": { "type": "noauth" }, "method": "POST", "url": "{{baseUrl}}/auth/refresh", "description": "Uses refresh_session HttpOnly cookie from the Postman cookie jar." },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('accessToken', pm.response.json().token);"] } }]
+        },
+        { "name": "Current User", "request": { "method": "GET", "url": "{{baseUrl}}/auth/me" } },
+        {
+          "name": "Update Profile / Settings",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "fullName", "value": "Demo Customer", "type": "text" },
+              { "key": "displayName", "value": "Demo", "type": "text" },
+              { "key": "email", "value": "demo@example.com", "type": "text" },
+              { "key": "mobileNumber", "value": "9000000001", "type": "text" },
+              { "key": "preferences", "value": "{\"darkMode\":false,\"emailNotifications\":true,\"recommendations\":true,\"language\":\"English\"}", "type": "text" },
+              { "key": "avatar", "type": "file", "src": "" }
+            ] },
+            "url": "{{baseUrl}}/auth/settings"
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"Admin@12345\",\n  \"newPassword\": \"NewPass123!\",\n  \"confirmPassword\": \"NewPass123!\"\n}" },
+            "url": "{{baseUrl}}/auth/password"
+          }
+        },
+        { "name": "Logout", "request": { "auth": { "type": "noauth" }, "method": "POST", "url": "{{baseUrl}}/auth/logout" } },
+        { "name": "OAuth Provider Status", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/providers" } },
+        { "name": "Google OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/google" } },
+        { "name": "GitHub OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/github" } }
       ]
     },
     {
       "name": "Products and Search",
       "item": [
-        { "name": "Public Product Catalog / Search", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?q=Kanchipuram&category=Kanchipuram%20Sarees&sort=alpha_asc", "description": "Public. Query supports q, category, featured=true, sort=price_asc|price_desc|alpha_asc. Price is omitted for guests." } },
-        { "name": "Featured Sarees", "request": { "method": "GET", "url": "{{baseUrl}}/products/public?featured=true" } },
-        { "name": "Public Product Detail", "request": { "method": "GET", "url": "{{baseUrl}}/products/public/{{productId}}" } },
-        { "name": "Admin List Sarees", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin" } },
-        { "name": "Admin Inventory Summary", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin/summary" } },
-        { "name": "Create Saree", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "productName", "value": "Bridal Silk Saree", "type": "text" }, { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" }, { "key": "category", "value": "Bridal Sarees", "type": "text" }, { "key": "price", "value": "15999", "type": "text" }, { "key": "quantity", "value": "10", "type": "text" }, { "key": "isActive", "value": "true", "type": "text" }, { "key": "isFeatured", "value": "true", "type": "text" }, { "key": "fabric", "value": "Pure Silk", "type": "text" }, { "key": "weavingStyle", "value": "Handloom", "type": "text" }, { "key": "colour", "value": "Rose Plum", "type": "text" }, { "key": "occasion", "value": "Wedding Collection", "type": "text" }, { "key": "rating", "value": "4.8", "type": "text" }] }, "url": "{{baseUrl}}/products/admin" } },
-        { "name": "Update Saree / Inventory", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "body": { "mode": "formdata", "formdata": [{ "key": "productName", "value": "Bridal Silk Saree", "type": "text" }, { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" }, { "key": "category", "value": "Bridal Sarees", "type": "text" }, { "key": "price", "value": "15999", "type": "text" }, { "key": "quantity", "value": "25", "type": "text" }, { "key": "isActive", "value": "true", "type": "text" }, { "key": "isFeatured", "value": "true", "type": "text" }] }, "url": "{{baseUrl}}/products/admin/{{productId}}", "description": "Updating quantity from 0 to >0 triggers back-in-stock notifications." } },
-        { "name": "Delete Saree", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/products/admin/{{productId}}" } }
+        { "name": "Public Product Catalog / Search", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/products/public?q=Kanchipuram&category=Kanchipuram%20Sarees&sort=alpha_asc", "description": "Supports q, category, featured=true, sort=price_asc|price_desc|alpha_asc. Guests do not receive prices." } },
+        { "name": "Featured Sarees", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/products/public?featured=true" } },
+        { "name": "Public Product Detail", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/products/public/{{productId}}" } },
+        { "name": "Admin List Sarees", "request": { "method": "GET", "url": "{{baseUrl}}/products/admin" } },
+        { "name": "Admin Inventory Summary", "request": { "method": "GET", "url": "{{baseUrl}}/products/admin/summary" } },
+        {
+          "name": "Create Saree",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "productName", "value": "Bridal Silk Saree", "type": "text" },
+              { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" },
+              { "key": "category", "value": "Bridal Sarees", "type": "text" },
+              { "key": "price", "value": "15999", "type": "text" },
+              { "key": "quantity", "value": "10", "type": "text" },
+              { "key": "isActive", "value": "true", "type": "text" },
+              { "key": "isFeatured", "value": "true", "type": "text" },
+              { "key": "fabric", "value": "Pure Silk", "type": "text" },
+              { "key": "weavingStyle", "value": "Handloom", "type": "text" },
+              { "key": "colour", "value": "Rose Plum", "type": "text" },
+              { "key": "occasion", "value": "Wedding Collection", "type": "text" },
+              { "key": "rating", "value": "4.8", "type": "text" },
+              { "key": "image", "type": "file", "src": "" }
+            ] },
+            "url": "{{baseUrl}}/products/admin"
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const body = pm.response.json();", "  const id = body.product?.productId || body.product?.ProductId || body.productId;", "  if (id) pm.collectionVariables.set('productId', id);", "}"] } }]
+        },
+        {
+          "name": "Update Saree / Lifecycle",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "productName", "value": "Bridal Silk Saree", "type": "text" },
+              { "key": "description", "value": "Handwoven bridal silk saree with zari border.", "type": "text" },
+              { "key": "category", "value": "Bridal Sarees", "type": "text" },
+              { "key": "price", "value": "15999", "type": "text" },
+              { "key": "quantity", "value": "25", "type": "text" },
+              { "key": "isActive", "value": "true", "type": "text" },
+              { "key": "isFeatured", "value": "true", "type": "text" },
+              { "key": "fabric", "value": "Pure Silk", "type": "text" },
+              { "key": "weavingStyle", "value": "Handloom", "type": "text" },
+              { "key": "colour", "value": "Rose Plum", "type": "text" },
+              { "key": "occasion", "value": "Wedding Collection", "type": "text" },
+              { "key": "rating", "value": "4.8", "type": "text" }
+            ] },
+            "url": "{{baseUrl}}/products/admin/{{productId}}",
+            "description": "Updating quantity from 0 to greater than 0 can trigger back-in-stock notifications. Product lifecycle changes are audited."
+          }
+        },
+        { "name": "Delete Saree", "request": { "method": "DELETE", "url": "{{baseUrl}}/products/admin/{{productId}}" } },
+        { "name": "Admin Product Audit", "request": { "method": "GET", "url": "{{baseUrl}}/products/admin/audit" } }
       ]
     },
-    { "name": "Cart", "description": "Customer-only cart APIs. Login with the seeded customer account or another USER account first. Cart totals are calculated server-side and quantities are validated against available inventory.", "item": [
-      { "name": "Get Current Cart", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart", "description": "Returns the authenticated customer's cart, items, quantities, INR-ready numeric prices, subtotals, and totals." } },
-      { "name": "Add Item To Cart", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": 1,\n  \"quantity\": 1\n}" }, "url": "{{baseUrl}}/cart/items", "description": "Adds an active, in-stock product. Adding the same product again increases its quantity." }, "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 201', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "pm.expect(body.success).to.eql(true);", "if (body.items?.[0]?.cartItemId) pm.collectionVariables.set('cartItemId', body.items[0].cartItemId);"] } }] },
-      { "name": "Update Cart Quantity", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"quantity\": 2\n}" }, "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
-      { "name": "Remove Cart Item", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
-      { "name": "Clear Cart", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/cart" } }
-    ] },
-    { "name": "Inventory", "description": "Admin-only inventory APIs. Login with the seeded admin account before running these requests.", "item": [
-      { "name": "List Inventory", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory" } },
-      { "name": "Inventory Details", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory/{{productId}}" } },
-      { "name": "Low Stock Inventory", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/inventory/low-stock" } },
-      { "name": "Update Stock", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"stock\": 25\n}" }, "url": "{{baseUrl}}/inventory/{{productId}}" } },
-      { "name": "Restock Product", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": 1,\n  \"quantity\": 5\n}" }, "url": "{{baseUrl}}/inventory/restock" } }
-    ] },
-    { "name": "Categories", "item": [
-      { "name": "Public Categories", "request": { "method": "GET", "url": "{{baseUrl}}/categories/public" } },
-      { "name": "Admin List Categories", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/categories" } },
-      { "name": "Create Category", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"categoryName\":\"Linen Sarees\",\"description\":\"Lightweight linen drapes\",\"isActive\":true}" }, "url": "{{baseUrl}}/categories" } },
-      { "name": "Update Category", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"categoryName\":\"Linen Sarees\",\"description\":\"Lightweight linen drapes\",\"isActive\":true}" }, "url": "{{baseUrl}}/categories/{{categoryId}}" } },
-      { "name": "Delete Category", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/categories/{{categoryId}}" } }
-    ] },
-    { "name": "Wishlist", "item": [
-      { "name": "List Wishlist", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists" } },
-      { "name": "Wishlist Status", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } },
-      { "name": "Save Wishlist", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } },
-      { "name": "Remove Wishlist", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/wishlists/{{productId}}" } }
-    ] },
-    { "name": "Notifications", "item": [
-      { "name": "Subscribe Back In Stock", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
-      { "name": "Subscription Status", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
-      { "name": "List Notifications", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications" } },
-      { "name": "Mark Notification Read", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
-      { "name": "Mark All Notifications Read", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/notifications/read-all" } }
-    ] },
-    { "name": "Translations", "item": [
-      { "name": "Translate Text", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"text\":\"Featured Sarees\",\"targetLanguage\":\"te\"}" }, "url": "{{baseUrl}}/translations" } }
-    ] },
-    { "name": "Settings", "item": [
-      { "name": "Get Store Information", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/settings/store" } },
-      { "name": "Update Store Information", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"storeName\": \"Vaishnavi Silk Emporium\",\n  \"tagline\": \"Where Tradition Meets Elegance\",\n  \"email\": \"care@vaishnavisilks.example\",\n  \"phone\": \"+91 90000 00000\",\n  \"address\": \"Hyderabad, Telangana\",\n  \"businessDescription\": \"Curated heritage sarees for every occasion.\"\n}" }, "url": "{{baseUrl}}/settings/store" } }
-    ] },
-    { "name": "Admin Users", "item": [
-      { "name": "List Admin Users", "request": { "method": "GET", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/admin/users" } },
-      { "name": "Create Admin User", "request": { "method": "POST", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"username\":\"storemanager\",\"fullName\":\"Store Manager\",\"displayName\":\"Manager\",\"email\":\"manager@example.com\",\"mobileNumber\":\"9000000002\",\"password\":\"ManagerPass123!\"}" }, "url": "{{baseUrl}}/admin/users" } },
-      { "name": "Update Admin User / Reset Password", "request": { "method": "PUT", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"fullName\":\"Store Manager\",\"displayName\":\"Manager\",\"email\":\"manager@example.com\",\"mobileNumber\":\"9000000002\",\"isEnabled\":true,\"newPassword\":\"NewManagerPass123!\"}" }, "url": "{{baseUrl}}/admin/users/2" } },
-      { "name": "Delete Admin User", "request": { "method": "DELETE", "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] }, "url": "{{baseUrl}}/admin/users/2" } }
-    ] }
+    {
+      "name": "Categories",
+      "item": [
+        { "name": "Public Categories", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/categories/public" } },
+        { "name": "Admin List Categories", "request": { "method": "GET", "url": "{{baseUrl}}/categories" } },
+        { "name": "Create Category", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"categoryName\": \"Linen Sarees\",\n  \"description\": \"Lightweight linen drapes\",\n  \"isActive\": true\n}" }, "url": "{{baseUrl}}/categories" } },
+        { "name": "Update Category", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"categoryName\": \"Linen Sarees\",\n  \"description\": \"Lightweight linen drapes\",\n  \"isActive\": true\n}" }, "url": "{{baseUrl}}/categories/{{categoryId}}" } },
+        { "name": "Delete Category", "request": { "method": "DELETE", "url": "{{baseUrl}}/categories/{{categoryId}}" } }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Admin-only inventory APIs. Inventory updates synchronize Inventory rows and Products.Quantity.",
+      "item": [
+        { "name": "List Inventory", "request": { "method": "GET", "url": "{{baseUrl}}/inventory" } },
+        { "name": "Inventory Details", "request": { "method": "GET", "url": "{{baseUrl}}/inventory/{{productId}}" } },
+        { "name": "Low Stock Inventory", "request": { "method": "GET", "url": "{{baseUrl}}/inventory/low-stock" } },
+        { "name": "Update Product Stock", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"stock\": 25\n}" }, "url": "{{baseUrl}}/inventory/{{productId}}" } },
+        { "name": "Update Stock Legacy Shape", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"stock\": 25\n}" }, "url": "{{baseUrl}}/inventory/update-stock" } },
+        { "name": "Restock Product", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 5\n}" }, "url": "{{baseUrl}}/inventory/restock" } }
+      ]
+    },
+    {
+      "name": "Cart",
+      "description": "Customer-only cart APIs. Totals are server-calculated and stock is validated server-side.",
+      "item": [
+        { "name": "Get Current Cart", "request": { "method": "GET", "url": "{{baseUrl}}/cart" } },
+        {
+          "name": "Add Item To Cart",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 1\n}" }, "url": "{{baseUrl}}/cart/items" },
+          "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const body = pm.response.json();", "  const id = body.items?.[0]?.cartItemId || body.cart?.items?.[0]?.cartItemId;", "  if (id) pm.collectionVariables.set('cartItemId', id);", "}"] } }]
+        },
+        { "name": "Update Cart Quantity", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"quantity\": 2\n}" }, "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
+        { "name": "Remove Cart Item", "request": { "method": "DELETE", "url": "{{baseUrl}}/cart/items/{{cartItemId}}" } },
+        { "name": "Clear Cart", "request": { "method": "DELETE", "url": "{{baseUrl}}/cart" } }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "description": "Customer-only address APIs used by checkout.",
+      "item": [
+        { "name": "List Addresses", "request": { "method": "GET", "url": "{{baseUrl}}/addresses" } },
+        { "name": "Default Address", "request": { "method": "GET", "url": "{{baseUrl}}/addresses/default" } },
+        {
+          "name": "Create Address",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"mobileNumber\": \"9000000001\",\n  \"addressLine1\": \"12 Silk Street\",\n  \"addressLine2\": \"Near Temple Road\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"postalCode\": \"500001\",\n  \"country\": \"India\",\n  \"isDefault\": true\n}" }, "url": "{{baseUrl}}/addresses" },
+          "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const id = pm.response.json().address?.AddressId;", "  if (id) pm.collectionVariables.set('addressId', id);", "}"] } }]
+        },
+        { "name": "Update Address", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Demo Customer\",\n  \"mobileNumber\": \"9000000001\",\n  \"addressLine1\": \"14 Silk Street\",\n  \"addressLine2\": \"Near Temple Road\",\n  \"city\": \"Hyderabad\",\n  \"state\": \"Telangana\",\n  \"postalCode\": \"500001\",\n  \"country\": \"India\",\n  \"isDefault\": true\n}" }, "url": "{{baseUrl}}/addresses/{{addressId}}" } },
+        { "name": "Delete Address", "request": { "method": "DELETE", "url": "{{baseUrl}}/addresses/{{addressId}}" } }
+      ]
+    },
+    {
+      "name": "Checkout",
+      "description": "Customer-only checkout preflight APIs. Add a cart item and create an address first.",
+      "item": [
+        { "name": "Checkout Summary", "request": { "method": "GET", "url": "{{baseUrl}}/checkout/summary" } },
+        { "name": "Validate Checkout", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}}\n}" }, "url": "{{baseUrl}}/checkout/validate" } }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Customer-only order APIs. Place Order requires Idempotency-Key and clears the cart on success.",
+      "item": [
+        { "name": "List My Orders", "request": { "method": "GET", "url": "{{baseUrl}}/orders" } },
+        { "name": "Get My Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/orders/{{orderId}}" } },
+        {
+          "name": "Place Order",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}}\n}" }, "url": "{{baseUrl}}/orders" },
+          "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const order = pm.response.json().order;", "  if (order?.OrderId) pm.collectionVariables.set('orderId', order.OrderId);", "  if (order?.OrderNumber) pm.collectionVariables.set('orderNumber', order.OrderNumber);", "}"] } }]
+        },
+        { "name": "Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Changed my mind\"\n}" }, "url": "{{baseUrl}}/orders/{{orderId}}/cancel" } }
+      ]
+    },
+    {
+      "name": "Admin Orders",
+      "description": "Admin-only order management APIs.",
+      "item": [
+        { "name": "List All Orders", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?q=&status=" } },
+        { "name": "Filter Orders By Status", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?status=PROCESSING" } },
+        { "name": "Get Admin Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/{{orderId}}" } },
+        { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } }
+      ]
+    },
+    {
+      "name": "Wishlist",
+      "item": [
+        { "name": "List Wishlist", "request": { "method": "GET", "url": "{{baseUrl}}/wishlists" } },
+        { "name": "Wishlist Status", "request": { "method": "GET", "url": "{{baseUrl}}/wishlists/{{productId}}" } },
+        { "name": "Save Wishlist", "request": { "method": "POST", "url": "{{baseUrl}}/wishlists/{{productId}}" } },
+        { "name": "Remove Wishlist", "request": { "method": "DELETE", "url": "{{baseUrl}}/wishlists/{{productId}}" } }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "description": "Customer notification lifecycle. New notifications are unread. Delete is allowed only after read.",
+      "item": [
+        { "name": "Subscribe Back In Stock", "request": { "method": "POST", "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
+        { "name": "Subscription Status", "request": { "method": "GET", "url": "{{baseUrl}}/notifications/subscriptions/{{productId}}" } },
+        {
+          "name": "List Notifications",
+          "request": { "method": "GET", "url": "{{baseUrl}}/notifications" },
+          "event": [{ "listen": "test", "script": { "exec": ["if (pm.response.code === 200) {", "  const notifications = pm.response.json().notifications || [];", "  if (notifications[0]?.notificationId) pm.collectionVariables.set('notificationId', notifications[0].notificationId);", "}"] } }]
+        },
+        { "name": "Mark Notification Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
+        { "name": "Mark Notification Read Legacy PUT", "request": { "method": "PUT", "url": "{{baseUrl}}/notifications/{{notificationId}}/read" } },
+        { "name": "Delete Read Notification", "request": { "method": "DELETE", "url": "{{baseUrl}}/notifications/{{notificationId}}", "description": "Returns 409 if the notification is still unread." } },
+        { "name": "Mark All Notifications Read", "request": { "method": "PATCH", "url": "{{baseUrl}}/notifications/read-all" } },
+        { "name": "Mark All Notifications Read Legacy PUT", "request": { "method": "PUT", "url": "{{baseUrl}}/notifications/read-all" } },
+        { "name": "Clear Read Notifications", "request": { "method": "DELETE", "url": "{{baseUrl}}/notifications/read", "description": "Deletes read notifications only; unread notifications remain." } }
+      ]
+    },
+    {
+      "name": "Translations",
+      "item": [
+        { "name": "Translate Text", "request": { "auth": { "type": "noauth" }, "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"text\": \"Featured Sarees\",\n  \"targetLanguage\": \"te\"\n}" }, "url": "{{baseUrl}}/translations" } }
+      ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        { "name": "Get Store Information", "request": { "method": "GET", "url": "{{baseUrl}}/settings/store" } },
+        { "name": "Update Store Information", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"storeName\": \"Vaishnavi Silk Emporium\",\n  \"tagline\": \"Where Tradition Meets Elegance\",\n  \"email\": \"care@vaishnavisilks.example\",\n  \"phone\": \"+91 90000 00000\",\n  \"address\": \"Hyderabad, Telangana\",\n  \"businessDescription\": \"Curated heritage sarees for every occasion.\"\n}" }, "url": "{{baseUrl}}/settings/store" } }
+      ]
+    },
+    {
+      "name": "Admin Users",
+      "item": [
+        { "name": "List Admin Users", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users" } },
+        { "name": "Create Admin User", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"username\": \"storemanager\",\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"manager@example.com\",\n  \"mobileNumber\": \"9000000002\",\n  \"password\": \"ManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users" } },
+        { "name": "Update Admin User / Reset Password", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"manager@example.com\",\n  \"mobileNumber\": \"9000000002\",\n  \"isEnabled\": true,\n  \"newPassword\": \"NewManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users/2" } },
+        { "name": "Delete Admin User", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/2" } }
+      ]
+    }
   ]
 }

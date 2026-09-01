@@ -61,10 +61,10 @@ function issueAccessToken(user) {
   );
 }
 
-function issueRefreshSession(user, rememberMe) {
+async function issueRefreshSession(user, rememberMe) {
   const sessionId = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + refreshTokenLifetimeDays * 24 * 60 * 60 * 1000).toISOString();
-  db.prepare("INSERT INTO RefreshSessions (SessionId, UserId, ExpiresAt, CreatedDate) VALUES (?, ?, ?, ?)").run(
+  await db.prepare("INSERT INTO RefreshSessions (SessionId, UserId, ExpiresAt, CreatedDate) VALUES (?, ?, ?, ?)").run(
     sessionId,
     user.UserId,
     expiresAt,
@@ -83,9 +83,9 @@ function configuredProvider(provider) {
     : config.githubClientId && config.githubClientSecret;
 }
 
-function startUserSession(res, user) {
+async function startUserSession(res, user) {
   const token = issueAccessToken(user);
-  setRefreshCookie(res, issueRefreshSession(user, true), true);
+  setRefreshCookie(res, await issueRefreshSession(user, true), true);
   return token;
 }
 
@@ -104,20 +104,20 @@ async function getOAuthProfile(provider, code) {
   return { provider: "github", subject: String(profile.id), email, name: profile.name || profile.login, avatarUrl: profile.avatar_url || null };
 }
 
-function findOrCreateOAuthUser(profile) {
+async function findOrCreateOAuthUser(profile) {
   if (!profile.subject || !profile.email) throw new Error("Your social account must provide a verified email address.");
-  let user = db.prepare("SELECT * FROM Users WHERE OAuthProvider = ? AND OAuthSubject = ?").get(profile.provider, profile.subject);
+  let user = await db.prepare("SELECT * FROM Users WHERE OAuthProvider = ? AND OAuthSubject = ?").get(profile.provider, profile.subject);
   if (user) return user;
-  user = db.prepare("SELECT * FROM Users WHERE Email = ?").get(profile.email);
+  user = await db.prepare("SELECT * FROM Users WHERE Email = ?").get(profile.email);
   if (user) {
-    db.prepare("UPDATE Users SET OAuthProvider = ?, OAuthSubject = ?, AvatarUrl = COALESCE(AvatarUrl, ?) WHERE UserId = ?").run(profile.provider, profile.subject, profile.avatarUrl, user.UserId);
-    return db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
+    await db.prepare("UPDATE Users SET OAuthProvider = ?, OAuthSubject = ?, AvatarUrl = COALESCE(AvatarUrl, ?) WHERE UserId = ?").run(profile.provider, profile.subject, profile.avatarUrl, user.UserId);
+    return await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
   }
   const createdDate = new Date().toISOString();
   const username = profile.email;
   const passwordHash = crypto.randomBytes(48).toString("hex");
-  const result = db.prepare("INSERT INTO Users (Username, PasswordHash, Role, FullName, DisplayName, Email, AvatarUrl, CreatedDate, OAuthProvider, OAuthSubject) VALUES (?, ?, 'USER', ?, ?, ?, ?, ?, ?, ?)").run(username, passwordHash, profile.name, profile.name, profile.email, profile.avatarUrl, createdDate, profile.provider, profile.subject);
-  return db.prepare("SELECT * FROM Users WHERE UserId = ?").get(result.lastInsertRowid);
+  const result = await db.prepare("INSERT INTO Users (Username, PasswordHash, Role, FullName, DisplayName, Email, AvatarUrl, CreatedDate, OAuthProvider, OAuthSubject) VALUES (?, ?, 'USER', ?, ?, ?, ?, ?, ?, ?)").run(username, passwordHash, profile.name, profile.name, profile.email, profile.avatarUrl, createdDate, profile.provider, profile.subject);
+  return await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(result.lastInsertRowid);
 }
 
 const loginLimiter = rateLimit({
@@ -128,14 +128,14 @@ const loginLimiter = rateLimit({
   message: { message: "Too many login attempts. Please try again later." }
 });
 
-router.get("/oauth/providers", (req, res) => {
+router.get("/oauth/providers", async (req, res) => {
   return res.json({
     google: Boolean(configuredProvider("google")),
     github: Boolean(configuredProvider("github"))
   });
 });
 
-router.get("/oauth/:provider", (req, res) => {
+router.get("/oauth/:provider", async (req, res) => {
   const provider = req.params.provider;
   if (!["google", "github"].includes(provider) || !configuredProvider(provider)) return res.redirect(`${config.clientOrigin}/login?oauthError=provider_not_configured`);
   const state = jwt.sign({ provider, type: "oauth_state" }, config.jwtSecret, { expiresIn: oauthStateLifetime });
@@ -151,9 +151,9 @@ router.get("/oauth/:provider/callback", async (req, res) => {
   try {
     const state = jwt.verify(req.query.state, config.jwtSecret);
     if (state.type !== "oauth_state" || state.provider !== provider || !req.query.code || !configuredProvider(provider)) throw new Error("Invalid OAuth response.");
-    const user = findOrCreateOAuthUser(await getOAuthProfile(provider, req.query.code));
-    db.prepare("UPDATE Users SET LastLogin = ? WHERE UserId = ?").run(new Date().toISOString(), user.UserId);
-    startUserSession(res, user);
+    const user = await findOrCreateOAuthUser(await getOAuthProfile(provider, req.query.code));
+    await db.prepare("UPDATE Users SET LastLogin = ? WHERE UserId = ?").run(new Date().toISOString(), user.UserId);
+    await startUserSession(res, user);
     return res.redirect(`${config.clientOrigin}/oauth/callback`);
   } catch (error) {
     console.error("OAuth callback failed:", error.message);
@@ -176,7 +176,7 @@ router.post(
     try {
       const passwordHash = await bcrypt.hash(password, 12);
       const createdDate = new Date().toISOString();
-      const result = db.prepare("INSERT INTO Users (Username, PasswordHash, Role, FullName, DisplayName, Email, MobileNumber, CreatedDate) VALUES (?, ?, 'USER', ?, ?, ?, ?, ?)").run(
+      const result = await db.prepare("INSERT INTO Users (Username, PasswordHash, Role, FullName, DisplayName, Email, MobileNumber, CreatedDate) VALUES (?, ?, 'USER', ?, ?, ?, ?, ?)").run(
         email,
         passwordHash,
         fullName,
@@ -185,9 +185,9 @@ router.post(
         mobileNumber,
         createdDate
       );
-      const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(result.lastInsertRowid);
+      const user = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(result.lastInsertRowid);
       const token = issueAccessToken(user);
-      setRefreshCookie(res, issueRefreshSession(user, true), true);
+      setRefreshCookie(res, await issueRefreshSession(user, true), true);
       return res.status(201).json({ token, user: mapUser(user) });
     } catch (error) {
       if (String(error.message).includes("UNIQUE")) {
@@ -206,7 +206,7 @@ router.post(
   validateRequest,
   async (req, res) => {
     const { identifier, password } = req.body;
-    const user = db.prepare("SELECT * FROM Users WHERE Username = ? OR Email = ? OR MobileNumber = ?").get(identifier, identifier, identifier);
+    const user = await db.prepare("SELECT * FROM Users WHERE Username = ? OR Email = ? OR MobileNumber = ?").get(identifier, identifier, identifier);
 
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
@@ -222,10 +222,10 @@ router.post(
 
     const rememberMe = Boolean(req.body.rememberMe);
     const lastLogin = new Date().toISOString();
-    db.prepare("UPDATE Users SET LastLogin = ? WHERE UserId = ?").run(lastLogin, user.UserId);
-    const authenticatedUser = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
+    await db.prepare("UPDATE Users SET LastLogin = ? WHERE UserId = ?").run(lastLogin, user.UserId);
+    const authenticatedUser = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
     const token = issueAccessToken(authenticatedUser);
-    setRefreshCookie(res, issueRefreshSession(authenticatedUser, rememberMe), rememberMe);
+    setRefreshCookie(res, await issueRefreshSession(authenticatedUser, rememberMe), rememberMe);
 
     return res.json({
       token,
@@ -234,7 +234,7 @@ router.post(
   }
 );
 
-router.post("/refresh", (req, res) => {
+router.post("/refresh", async (req, res) => {
   const refreshToken = readRefreshToken(req);
   if (!refreshToken) {
     return res.status(401).json({ message: "Session expired. Please sign in again." });
@@ -246,37 +246,37 @@ router.post("/refresh", (req, res) => {
       return res.status(401).json({ message: "Invalid session." });
     }
 
-    const session = db.prepare("SELECT * FROM RefreshSessions WHERE SessionId = ?").get(payload.sessionId);
+    const session = await db.prepare("SELECT * FROM RefreshSessions WHERE SessionId = ?").get(payload.sessionId);
     if (!session || new Date(session.ExpiresAt) <= new Date()) {
-      db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
+      await db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
       return res.status(401).json({ message: "Session expired. Please sign in again." });
     }
 
-    const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(session.UserId);
+    const user = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(session.UserId);
     if (!user || !["ADMIN", "USER"].includes(user.Role)) {
       return res.status(403).json({ message: "Account access is unavailable." });
     }
     if (!user.IsEnabled) {
-      db.prepare("DELETE FROM RefreshSessions WHERE UserId = ?").run(user.UserId);
+      await db.prepare("DELETE FROM RefreshSessions WHERE UserId = ?").run(user.UserId);
       return res.status(403).json({ message: "This account has been disabled. Contact an administrator." });
     }
 
-    db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
+    await db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
     const rememberMe = Boolean(payload.rememberMe);
-    setRefreshCookie(res, issueRefreshSession(user, rememberMe), rememberMe);
+    setRefreshCookie(res, await issueRefreshSession(user, rememberMe), rememberMe);
     return res.json({ token: issueAccessToken(user), user: mapUser(user) });
   } catch {
     return res.status(401).json({ message: "Session expired. Please sign in again." });
   }
 });
 
-router.post("/logout", (req, res) => {
+router.post("/logout", async (req, res) => {
   const refreshToken = readRefreshToken(req);
   if (refreshToken) {
     try {
       const payload = jwt.verify(refreshToken, config.jwtSecret);
       if (payload.type === "refresh" && payload.sessionId) {
-        db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
+        await db.prepare("DELETE FROM RefreshSessions WHERE SessionId = ?").run(payload.sessionId);
       }
     } catch {
       // The expired token is still cleared from the browser below.
@@ -286,8 +286,8 @@ router.post("/logout", (req, res) => {
   return res.status(204).send();
 });
 
-router.get("/me", authRequired, (req, res) => {
-  const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
+router.get("/me", authRequired, async (req, res) => {
+  const user = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
   if (!user) {
     return res.status(404).json({ message: "User not found." });
   }
@@ -313,8 +313,8 @@ router.put(
   }),
   body("removeAvatar").optional().isBoolean().withMessage("removeAvatar must be true/false."),
   validateRequest,
-  (req, res) => {
-    const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
+  async (req, res) => {
+    const user = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
@@ -326,7 +326,7 @@ router.put(
       : user.AvatarUrl;
 
     try {
-      db.prepare(
+      await db.prepare(
         "UPDATE Users SET FullName = ?, DisplayName = ?, Email = ?, AvatarUrl = ?, MobileNumber = ?, Preferences = ? WHERE UserId = ?"
       ).run(
         req.body.fullName,
@@ -344,7 +344,7 @@ router.put(
       throw error;
     }
 
-    const updated = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
+    const updated = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(user.UserId);
     return res.json({ user: mapUser(updated) });
   }
 );
@@ -357,13 +357,13 @@ router.put(
   body("confirmPassword").custom((value, { req }) => value === req.body.newPassword).withMessage("Passwords do not match."),
   validateRequest,
   async (req, res) => {
-    const user = db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
+    const user = await db.prepare("SELECT * FROM Users WHERE UserId = ?").get(req.user.userId);
     if (!user || !(await bcrypt.compare(req.body.currentPassword, user.PasswordHash))) {
       return res.status(400).json({ message: "Current password is incorrect." });
     }
 
     const passwordHash = await bcrypt.hash(req.body.newPassword, 12);
-    db.prepare("UPDATE Users SET PasswordHash = ? WHERE UserId = ?").run(passwordHash, user.UserId);
+    await db.prepare("UPDATE Users SET PasswordHash = ? WHERE UserId = ?").run(passwordHash, user.UserId);
     return res.json({ message: "Password updated successfully." });
   }
 );
