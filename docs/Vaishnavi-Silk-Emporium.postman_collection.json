@@ -24,6 +24,21 @@
   },
   "item": [
     {
+      "name": "System",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "description": "Verifies API readiness, PostgreSQL connectivity, database version, and product/inventory counts."
+          },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('status is 200', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "pm.test('database is PostgreSQL', () => pm.expect(body.database).to.eql('postgresql'));", "pm.test('database version returned', () => pm.expect(body.version).to.be.a('string').and.not.empty);", "pm.test('inventory counts returned', () => pm.expect(body.inventory).to.have.property('productCount'));"] } }]
+        }
+      ]
+    },
+    {
       "name": "Authentication",
       "item": [
         {
