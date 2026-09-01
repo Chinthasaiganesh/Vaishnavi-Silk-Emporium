@@ -3,6 +3,7 @@ import { body, param, query } from "express-validator";
 import { db } from "./db.js";
 import { authRequired, adminOnly, optionalAuth, validateRequest } from "./middleware.js";
 import { upload } from "./upload.js";
+import { uploadImage, deleteImage } from "./s3-storage.service.js";
 import { nowIso, toBoolInt } from "./utils.js";
 import { sendAvailabilityNotification } from "./notification.service.js";
 import { initializeInventory, synchronizeProductInventory } from "./inventory.service.js";
@@ -151,7 +152,9 @@ router.post(
     const { productName, description, category, price, quantity } = req.body;
     const isActive = req.body.isActive === undefined ? true : req.body.isActive === "true";
     const isFeatured = req.body.isFeatured === "true" || req.body.isFeatured === true;
-    const imageUrl = req.file ? `/uploads/${req.file.filename}` : req.body.imageUrl || "";
+    const imageUrl = req.file
+      ? (await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "products" })).url
+      : req.body.imageUrl || "";
 
     const timestamp = nowIso();
     const result = await db
@@ -216,10 +219,14 @@ router.put(
     }
 
     const imageUrl = req.file
-      ? `/uploads/${req.file.filename}`
+      ? (await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "products" })).url
       : req.body.imageUrl !== undefined
       ? req.body.imageUrl
       : existing.ImageUrl;
+
+    if (req.file && existing.ImageUrl && existing.ImageUrl !== imageUrl) {
+      await deleteImage(existing.ImageUrl);
+    }
 
     const updatedValues = {
       productName: req.body.productName,

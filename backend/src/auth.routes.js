@@ -8,6 +8,7 @@ import { db } from "./db.js";
 import { config } from "./config.js";
 import { authRequired, validateRequest } from "./middleware.js";
 import { upload, validateAvatarDimensions } from "./upload.js";
+import { uploadImage, deleteImage } from "./s3-storage.service.js";
 
 const router = Router();
 const accessTokenLifetime = "15m";
@@ -320,10 +321,14 @@ router.put(
     }
 
     const avatarUrl = req.file
-      ? `/uploads/${req.file.filename}`
+      ? (await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "avatars" })).url
       : req.body.removeAvatar === "true"
       ? null
       : user.AvatarUrl;
+
+    if (req.file && user.AvatarUrl && user.AvatarUrl !== avatarUrl) {
+      await deleteImage(user.AvatarUrl);
+    }
 
     try {
       await db.prepare(

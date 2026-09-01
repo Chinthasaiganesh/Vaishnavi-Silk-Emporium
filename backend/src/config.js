@@ -37,5 +37,12 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
   githubClientId: process.env.GITHUB_CLIENT_ID || "",
-  githubClientSecret: process.env.GITHUB_CLIENT_SECRET || ""
+  githubClientSecret: process.env.GITHUB_CLIENT_SECRET || "",
+  s3: {
+    endpoint: process.env.S3_ENDPOINT || "",
+    region: process.env.S3_REGION || "",
+    accessKeyId: process.env.S3_ACCESS_KEY || "",
+    secretAccessKey: process.env.S3_SECRET_KEY || "",
+    bucket: process.env.S3_BUCKET || ""
+  }
 };
