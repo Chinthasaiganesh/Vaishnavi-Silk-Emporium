@@ -28,7 +28,7 @@ export default function AdminLoginPage() {
     try {
       const providers = await api.get("/auth/oauth/providers");
       if (!providers.data[provider]) {
-        setError(`${provider === "google" ? "Google" : "GitHub"} Sign-In is not configured correctly.`);
+        setError(`${provider === "google" ? "Google" : "Social"} Sign-In is not configured correctly.`);
         return;
       }
       const apiRoot = apiBaseUrl.replace(/\/api$/, "");
@@ -113,7 +113,7 @@ export default function AdminLoginPage() {
         <button className="btn btn-primary auth-submit" type="submit" disabled={loading}>
           {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create User Account"}
         </button>
-        {mode === "login" && <><div className="auth-divider"><span>OR</span></div><button className="oauth-button google" type="button" onClick={() => startOAuth("google")}>Continue with Google</button><button className="oauth-button github" type="button" onClick={() => startOAuth("github")}>Continue with GitHub</button><p className="auth-switch">Don't have an account? <button type="button" onClick={() => setMode("register")}>Create Account</button></p></>}
+        {mode === "login" && <><div className="auth-divider"><span>OR</span></div><button className="oauth-button google" type="button" onClick={() => startOAuth("google")}>Continue with Google</button><p className="auth-switch">Don't have an account? <button type="button" onClick={() => setMode("register")}>Create Account</button></p></>}
         {mode === "register" && <p className="auth-switch">Already have an account? <button type="button" onClick={() => setMode("login")}>Sign In</button></p>}
       </form>
     </main>
