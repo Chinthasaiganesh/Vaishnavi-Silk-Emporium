@@ -104,7 +104,6 @@ export default function Header() {
             {suggestions.length > 0 && <div className="search-suggestions">{suggestions.map((product) => <Link key={product.productId} to={`/products/${product.productId}`} onClick={() => { setTerm(""); setSuggestions([]); }}><img src={resolveImage(product.imageUrl)} alt="" /><span><strong>{product.productName}</strong><small>{product.category} | {product.fabric}</small></span></Link>)}</div>}
           </form>
           <label className="language-select" aria-label={t("language")}>
-            <span>Language</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value)}>
               <option value="en">{t("english")}</option>
               <option value="te">{t("telugu")}</option>
