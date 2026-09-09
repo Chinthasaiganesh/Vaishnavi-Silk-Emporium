@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import AdminLayout from "./components/AdminLayout";
 import PublicLayout from "./components/PublicLayout";
 import HomePage from "./pages/HomePage";
@@ -80,6 +81,7 @@ export default function App() {
   return (
     <>
       <DocumentTitle />
+      <SpeedInsights />
       <Routes>
       <Route element={<PublicOnlyRoute />}>
         <Route element={<PublicLayout />}>
