@@ -19,6 +19,14 @@ services:
         generateValue: true
       - key: DATABASE_URL
         sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: USER_USERNAME
+        sync: false
+      - key: USER_PASSWORD
+        sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
