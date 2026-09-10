@@ -6,11 +6,26 @@ import { api } from "../api";
 import { useLanguage } from "../LanguageContext";
 import { useCart } from "../CartContext";
 
-function playNotificationSound() {
-  if (window.localStorage.getItem("deviceNotificationsAudio") !== "enabled") return;
+let notificationAudioContext;
+
+function getNotificationAudioContext() {
+  if (notificationAudioContext) return notificationAudioContext;
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextClass) return;
-  const audioContext = new AudioContextClass();
+  if (!AudioContextClass) return null;
+  notificationAudioContext = new AudioContextClass();
+  return notificationAudioContext;
+}
+
+async function unlockNotificationAudio() {
+  const audioContext = getNotificationAudioContext();
+  if (audioContext?.state === "suspended") await audioContext.resume();
+}
+
+async function playNotificationSound() {
+  if (window.localStorage.getItem("deviceNotificationsAudio") !== "enabled") return;
+  const audioContext = getNotificationAudioContext();
+  if (!audioContext) return;
+  if (audioContext.state === "suspended") await audioContext.resume();
   const oscillator = audioContext.createOscillator();
   const gain = audioContext.createGain();
   oscillator.frequency.value = 880;
@@ -77,6 +92,10 @@ export default function Header() {
 
   useEffect(() => {
     if (user?.role !== "USER") return undefined;
+    const unlock = () => { unlockNotificationAudio().catch(() => undefined); };
+    window.addEventListener("pointerdown", unlock, { passive: true });
+    window.addEventListener("keydown", unlock, { passive: true });
+    window.addEventListener("notifications:audio-enabled", unlock);
     let active = true;
     async function loadNotificationCount() {
       try {
@@ -85,8 +104,8 @@ export default function Header() {
         if (active && previousUnreadNotifications.current !== null && unreadCount > previousUnreadNotifications.current && "Notification" in window && Notification.permission === "granted") {
           const newest = (response.data.notifications || []).find((notification) => !notification.isRead);
           if (newest) {
-            new Notification(newest.title, { body: newest.message, silent: false });
-            playNotificationSound();
+            try { new Notification(newest.title, { body: newest.message, silent: false }); } catch (error) { console.warn("Device notification could not be displayed.", error); }
+            playNotificationSound().catch((error) => console.warn("Notification sound could not be played.", error));
           }
         }
         previousUnreadNotifications.current = unreadCount;
@@ -102,7 +121,7 @@ export default function Header() {
       else loadNotificationCount();
     }
     window.addEventListener("notifications:changed", handleNotificationChange);
-    return () => { active = false; window.clearInterval(interval); window.removeEventListener("notifications:changed", handleNotificationChange); };
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("notifications:changed", handleNotificationChange); window.removeEventListener("pointerdown", unlock); window.removeEventListener("keydown", unlock); window.removeEventListener("notifications:audio-enabled", unlock); };
   }, [user]);
 
   return (

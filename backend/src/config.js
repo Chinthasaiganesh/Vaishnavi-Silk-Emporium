@@ -13,12 +13,15 @@ const vercelProjectPattern = process.env.VERCEL_PROJECT_SLUG
 
 function isAllowedOrigin(origin) {
   if (!origin || clientOrigins.includes(origin)) return true;
-  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+  if (nodeEnv !== "production" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
   return Boolean(vercelProjectPattern?.test(origin));
 }
 
 if (nodeEnv === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
   throw new Error("JWT_SECRET must be at least 32 characters in production.");
+}
+if (nodeEnv === "production" && (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD || !process.env.USER_USERNAME || !process.env.USER_PASSWORD)) {
+  throw new Error("ADMIN_USERNAME, ADMIN_PASSWORD, USER_USERNAME, and USER_PASSWORD are required in production.");
 }
 
 export const config = {

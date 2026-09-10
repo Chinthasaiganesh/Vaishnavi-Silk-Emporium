@@ -194,4 +194,7 @@ ensureAdminUser().then(() => {
   app.listen(config.port, () => {
     console.log(`Backend running on http://localhost:${config.port}`);
   });
+}).catch((error) => {
+  console.error(JSON.stringify({ level: "fatal", message: "Backend initialization failed", error: error.message, code: error.code, stack: error.stack }));
+  process.exitCode = 1;
 });
