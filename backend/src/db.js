@@ -251,3 +251,5 @@ export async function initializeDatabase() {
 
 await assertDatabaseConnection();
 await initializeDatabase();
+// Ensure PaymentReference column exists for Orders (adds safely on startup)
+await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');

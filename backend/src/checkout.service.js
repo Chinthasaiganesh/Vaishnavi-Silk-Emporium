@@ -26,7 +26,7 @@ export async function validateCheckout(userId, addressId = null) {
   return { valid: true, addressId: address.AddressId, items, subtotal: cart.totals.subtotal, shipping: 0, discount: 0, grandTotal: cart.totals.subtotal };
 }
 
-export async function placeOrder(userId, addressId, idempotencyKey, requestId) {
+export async function placeOrder(userId, addressId, idempotencyKey, requestId, paymentMethod = 'COD', paymentReference = null) {
   console.info(JSON.stringify({ level: "info", message: "Entered Order Service", requestId, userId, addressId }));
   const existingOrder = await getOrderByIdempotencyKey(userId, idempotencyKey);
   if (existingOrder) return existingOrder;
@@ -38,5 +38,5 @@ export async function placeOrder(userId, addressId, idempotencyKey, requestId) {
     if (!product || !product.IsActive || product.Quantity < item.Quantity) throw Object.assign(new Error("Insufficient inventory available."), { status: 409 });
     orderItems.push({ ...item, ProductName: product.ProductName, Price: Number(product.Price) });
   }
-  return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0), shipping: 0, discount: 0, grandTotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0) });
+  return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0), shipping: 0, discount: 0, grandTotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0), paymentMethod, paymentReference });
 }

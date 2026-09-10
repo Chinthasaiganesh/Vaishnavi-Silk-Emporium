@@ -14,7 +14,9 @@ router.post("/", body("addressId").isInt({ min: 1 }).withMessage("Address requir
 	console.info(JSON.stringify({ level: "info", message: "Entered Order Controller", requestId: req.requestId, userId: req.user.userId, role: req.user.role, addressId: req.body.addressId, idempotencyKeyPresent: Boolean(req.get("Idempotency-Key")) }));
 	try {
 		const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 100);
-		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId);
+		const paymentMethod = req.body.paymentMethod || 'COD';
+		const paymentReference = req.body.paymentReference || null;
+		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference);
 		return res.status(201).json({ success: true, message: "Order placed successfully.", order });
 	} catch (error) { return next(error); }
 });
