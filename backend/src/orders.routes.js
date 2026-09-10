@@ -11,14 +11,18 @@ router.use(authRequired, (req, res, next) => req.user.role === "USER" ? next() :
 router.get("/", async (req, res) => res.json({ orders: await listOrders(req.user.userId) }));
 router.get("/:id", param("id").isInt({ min: 1 }), validateRequest, async (req, res) => { const order = await getOrder(req.user.userId, Number(req.params.id)); return order ? res.json({ order }) : res.status(404).json({ success: false, message: "Order not found." }); });
 router.post("/", body("addressId").isInt({ min: 1 }).withMessage("Address required."), validateRequest, async (req, res, next) => {
-	console.info(JSON.stringify({ level: "info", message: "Entered Order Controller", requestId: req.requestId, userId: req.user.userId, role: req.user.role, addressId: req.body.addressId, idempotencyKeyPresent: Boolean(req.get("Idempotency-Key")) }));
+	console.info(JSON.stringify({ level: "info", message: "Order request received", requestId: req.requestId, userId: req.user.userId, role: req.user.role, payload: { ...req.body, paymentReference: req.body.paymentReference ? "[present]" : null }, addressId: req.body.addressId, idempotencyKeyPresent: Boolean(req.get("Idempotency-Key")) }));
 	try {
 		const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 100);
 		const paymentMethod = req.body.paymentMethod || 'COD';
 		const paymentReference = req.body.paymentReference || null;
 		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference);
+		console.info(JSON.stringify({ level: "info", message: "Order response ready", requestId: req.requestId, userId: req.user.userId, orderId: order.OrderId, orderNumber: order.OrderNumber }));
 		return res.status(201).json({ success: true, message: "Order placed successfully.", order });
-	} catch (error) { return next(error); }
+	} catch (error) {
+		console.error(JSON.stringify({ level: "error", message: "Order controller failed", requestId: req.requestId, userId: req.user.userId, addressId: req.body.addressId, error: error.message, code: error.code, constraint: error.constraint, table: error.table, column: error.column, stack: error.stack }));
+		return next(error);
+	}
 });
 router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").optional().trim().isLength({ max: 300 }), validateRequest, async (req, res, next) => {
 	try {

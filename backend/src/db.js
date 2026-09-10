@@ -110,8 +110,14 @@ export async function transaction(work) {
       get: async (sql, params = []) => (await client.query(normalizeSql(sql), params)).rows[0],
       all: async (sql, params = []) => (await client.query(normalizeSql(sql), params)).rows,
       run: async (sql, params = []) => {
-        const result = await client.query(normalizeSql(appendReturning(sql)), params);
-        return { changes: result.rowCount, lastInsertRowid: Object.values(result.rows[0] || {})[0] };
+        const normalizedSql = normalizeSql(appendReturning(sql));
+        try {
+          const result = await client.query(normalizedSql, params);
+          return { changes: result.rowCount, lastInsertRowid: Object.values(result.rows[0] || {})[0] };
+        } catch (error) {
+          console.error(JSON.stringify({ level: "error", message: "Database query failed", sql: normalizedSql, parameterCount: params.length, code: error.code, detail: error.detail, constraint: error.constraint, table: error.table, column: error.column, error: error.message, stack: error.stack }));
+          throw error;
+        }
       }
     };
     const value = await work(tx);
@@ -247,9 +253,18 @@ export async function initializeDatabase() {
     FROM "Products"
     ON CONFLICT("ProductId") DO NOTHING
   `);
+
+  await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');
+
+  const requiredTables = ["Users", "Addresses", "Products", "Inventory", "Orders", "OrderItems"];
+  const tableCheck = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)", [requiredTables]);
+  const foundTables = tableCheck.rows.map((row) => row.table_name);
+  const missingTables = requiredTables.filter((table) => !foundTables.includes(table));
+  console.info(JSON.stringify({ level: missingTables.length ? "error" : "info", message: "Order schema check", requiredTables, foundTables, missingTables }));
+  if (missingTables.length) throw Object.assign(new Error(`Required database tables are missing: ${missingTables.join(", ")}`), { code: "42P01" });
+  const columnCheck = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Orders' AND column_name = ANY($1)", [["PaymentReference"]]);
+  console.info(JSON.stringify({ level: columnCheck.rows.length ? "info" : "error", message: "Order column check", requiredColumns: ["PaymentReference"], foundColumns: columnCheck.rows.map((row) => row.column_name) }));
 }
 
 await assertDatabaseConnection();
 await initializeDatabase();
-// Ensure PaymentReference column exists for Orders (adds safely on startup)
-await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');

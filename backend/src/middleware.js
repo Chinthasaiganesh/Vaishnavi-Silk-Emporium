@@ -56,7 +56,7 @@ export function validateRequest(req, res, next) {
 }
 
 export function errorHandler(err, req, res, next) {
-  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", requestId: req.requestId, method: req.method, url: req.originalUrl, params: req.params, body: req.body, error: err.message, stack: err.stack }));
+  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", requestId: req.requestId, method: req.method, url: req.originalUrl, userId: req.user?.userId || null, params: req.params, body: { ...req.body, paymentReference: req.body?.paymentReference ? "[present]" : null }, error: err.message, code: err.code, detail: err.detail, constraint: err.constraint, table: err.table, column: err.column, stack: err.stack }));
   if (res.headersSent) {
     return next(err);
   }
@@ -66,5 +66,15 @@ export function errorHandler(err, req, res, next) {
   if (err.message === "Only JPG, PNG, and WEBP images are allowed.") {
     return res.status(400).json({ message: err.message });
   }
-  return res.status(err.status || 500).json({ success: false, message: err.status ? err.message : "Internal server error.", requestId: req.requestId });
+  const postgresMessages = {
+    "42P01": "Required database table is missing.",
+    "42703": "Required database column is missing. Run the database migrations.",
+    "23503": "Referenced user, address, product, or order record does not exist.",
+    "23505": "This order already exists. Retry with a new checkout request.",
+    "23502": "A required order field is missing.",
+    "40001": "The order transaction conflicted with another update. Please retry."
+  };
+  const status = err.status || (postgresMessages[err.code] ? (err.code === "23505" ? 409 : err.code === "23503" ? 404 : 500) : 500);
+  const message = err.status ? err.message : postgresMessages[err.code] || "Database transaction failed.";
+  return res.status(status).json({ success: false, message, requestId: req.requestId, diagnosticCode: err.code || "APPLICATION_ERROR" });
 }
