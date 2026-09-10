@@ -67,6 +67,7 @@ export default function CheckoutPage() {
       if (amountPaise < 100) throw new Error("Minimum amount is ₹1.00");
 
       const createResp = await api.post("/create-order", { amount: amountPaise, currency: "INR", receipt: idempotencyKey.current });
+      console.info("create-order response", createResp?.data);
       const { order_id, amount, currency } = createResp.data;
 
       const options = {
@@ -77,23 +78,36 @@ export default function CheckoutPage() {
         description: "Order payment",
         order_id: order_id,
             handler: async function (response) {
-          try {
-            const verify = await api.post("/verify-payment", {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            });
-            if (!verify.data.success) { setError("Payment verification failed."); setPlacing(false); return; }
-            // create application order after successful payment — include payment metadata
-            const resp = await api.post("/orders", { addressId: Number(addressId), paymentMethod: "RAZORPAY", paymentReference: response.razorpay_payment_id }, { headers: { "Idempotency-Key": idempotencyKey.current } });
-            try { await refreshCart(); } catch { /* ignore */ }
-            navigate(`/orders/${resp.data.order.OrderId}`, { replace: true });
-          } catch (err) {
-            console.error("Payment handler error", err);
-            setError(err.response?.data?.message || err.message || "Payment handling failed.");
-            setPlacing(false);
-          }
-        },
+            try {
+              const verify = await api.post("/verify-payment", {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              });
+              console.info("verify-payment response", verify?.data);
+              if (!verify.data.success) { setError("Payment verification failed."); setPlacing(false); return; }
+              // create application order after successful payment — include payment metadata
+              const resp = await api.post("/orders", { addressId: Number(addressId), paymentMethod: "RAZORPAY", paymentReference: response.razorpay_payment_id }, { headers: { "Idempotency-Key": idempotencyKey.current } });
+              console.info("create app order response", resp?.status, resp?.data);
+              try { await refreshCart(); } catch { /* ignore */ }
+              const orderId = resp?.data?.order?.OrderId || resp?.data?.order?.orderId || resp?.data?.orderId || resp?.data?.order?.OrderId;
+              if (orderId) {
+                navigate(`/orders/${orderId}`, { replace: true });
+                return;
+              }
+              // fallback: if response doesn't include order id, attempt to fetch orders and find by idempotency
+              console.warn("Order creation returned unexpected payload; attempting to locate order by idempotency key.");
+              const ordersList = await api.get("/orders");
+              const found = (ordersList.data.orders || []).find((o) => String(o.IdempotencyKey || o.idempotencyKey || "") === idempotencyKey.current || String(o.IdempotencyKey || "") === idempotencyKey.current);
+              if (found) { navigate(`/orders/${found.OrderId || found.orderId}`, { replace: true }); return; }
+              setError("Payment succeeded but order creation response was unexpected. Check server logs.");
+              setPlacing(false);
+            } catch (err) {
+              console.error("Payment handler error (order/verify)", err?.response?.data || err.message || err);
+              setError(err.response?.data?.message || err.message || "Payment handling failed.");
+              setPlacing(false);
+            }
+          },
         modal: {
           ondismiss: function () { setPlacing(false); setError("Payment cancelled."); }
         }
