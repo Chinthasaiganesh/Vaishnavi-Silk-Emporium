@@ -21,7 +21,6 @@ import addressRoutes from "./address.routes.js";
 import checkoutRoutes from "./checkout.routes.js";
 import ordersRoutes from "./orders.routes.js";
 import adminOrdersRoutes from "./admin-orders.routes.js";
-import paymentsRoutes from "./payments.routes.js";
 
 const app = express();
 
@@ -188,9 +187,6 @@ app.use("/api/translations", translationRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/admin", adminUsersRoutes);
-
-// Razorpay payment endpoints (create order, verify signature)
-app.use("/api", paymentsRoutes);
 
 app.use(errorHandler);
 

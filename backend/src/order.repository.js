@@ -47,7 +47,7 @@ export async function getOrderByIdempotencyKey(userId, idempotencyKey) {
   return existing ? await getOrder(userId, existing.OrderId) : null;
 }
 
-export async function createOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, requestId, paymentMethod = 'COD', paymentReference = null }) {
+export async function createOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotUrl = null }) {
   console.info(JSON.stringify({ level: "info", message: "Order repository entry", requestId, userId, addressId, itemCount: items.length, subtotal, grandTotal, paymentMethod, paymentReferencePresent: Boolean(paymentReference) }));
   const timestamp = nowIso();
   const orderId = await transaction(async (tx) => {
@@ -57,7 +57,7 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
     }
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "PaymentReference", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, \'PENDING\', ?, ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, subtotal, shipping, discount, grandTotal, paymentReference, timestamp, timestamp]);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', \'PENDING\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
     console.info(JSON.stringify({ level: "info", message: "Orders insert result", requestId, orderId: orderResult.lastInsertRowid, changes: orderResult.changes }));
     console.info(JSON.stringify({ level: "info", message: "Order database row created", requestId, orderId: orderResult.lastInsertRowid, orderNumber, subtotal, grandTotal }));
     for (const item of items) {
@@ -91,6 +91,14 @@ export async function updateOrderStatus(orderId, newStatus, adminUserId) {
   });
   if (statusChanged === null) return null;
   return { ...(await getAdminOrder(orderId)), statusChanged };
+}
+
+export async function updatePaymentStatus(orderId, paymentStatus, adminUserId) {
+  if (!["VERIFIED", "REJECTED"].includes(paymentStatus)) throw Object.assign(new Error("Invalid payment status."), { status: 400 });
+  const result = await db.prepare("UPDATE Orders SET PaymentStatus = ?, UpdatedDate = ? WHERE OrderId = ? AND PaymentStatus = 'PENDING'").run(paymentStatus, nowIso(), orderId);
+  if (!result.changes) return null;
+  await db.prepare("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)").run(orderId, adminUserId, nowIso());
+  return getAdminOrder(orderId);
 }
 
 export async function cancelOrder(userId, orderId, reason = "Customer requested cancellation") {
