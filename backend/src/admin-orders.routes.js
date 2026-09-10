@@ -2,7 +2,7 @@ import { Router } from "express";
 import { body, param, query } from "express-validator";
 import { db } from "./db.js";
 import { adminOnly, authRequired, validateRequest } from "./middleware.js";
-import { ORDER_STATUSES, getAdminOrder, listAllOrders, updateOrderStatus } from "./order.repository.js";
+import { ORDER_STATUSES, getAdminOrder, listAllOrders, updateOrderStatus, updatePaymentStatus } from "./order.repository.js";
 import { nowIso } from "./utils.js";
 
 const router = Router();
@@ -55,5 +55,12 @@ router.patch(
     }
   }
 );
+
+router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1 }), body("paymentStatus").isIn(["VERIFIED", "REJECTED"]), validateRequest, async (req, res, next) => {
+  try {
+    const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.user.userId);
+    return order ? res.json({ success: true, message: "Payment status updated.", order }) : res.status(409).json({ success: false, message: "Payment has already been reviewed or the order was not found." });
+  } catch (error) { return next(error); }
+});
 
 export default router;

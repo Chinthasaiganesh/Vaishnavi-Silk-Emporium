@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 import { useCart } from "../CartContext";
+import QRCode from "qrcode";
 
 const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India", isDefault: false };
 
@@ -17,6 +18,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
+  const [upiPayment, setUpiPayment] = useState(null);
+  const [upiReference, setUpiReference] = useState("");
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const idempotencyKey = useRef(crypto.randomUUID());
 
   async function load() {
@@ -38,89 +42,44 @@ export default function CheckoutPage() {
     catch (requestError) { setError(requestError.response?.data?.message || "Unable to save address."); }
   }
 
-  async function placeOrder() {
-    setPlacing(true); setError("");
-    try {
-      const validation = await api.post("/checkout/validate", { addressId: Number(addressId) });
-      if (!validation.data.success) throw new Error("Checkout validation failed.");
-      const response = await api.post("/orders", { addressId: Number(addressId) }, { headers: { "Idempotency-Key": idempotencyKey.current } });
-      try { await refreshCart(); } catch (refreshError) { console.warn("Order placed, but cart refresh failed", { status: refreshError.response?.status || null, response: refreshError.response?.data || null, message: refreshError.message }); }
-      navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
-    }
-    catch (requestError) {
-      const status = requestError.response?.status;
-      const message = status === 401 ? "Your session has expired. Please log in again." : status === 403 ? "You do not have permission to perform this action." : status >= 500 ? "Order creation failed. Please try again." : requestError.response?.data?.message || (!requestError.response ? "Order service is unavailable. Check the API connection and try again." : requestError.message);
-      console.error("Place Order failed", { status: status || null, response: requestError.response?.data || null, message: requestError.message });
-      setError(message);
-      setPlacing(false);
-    }
-  }
-
-  async function handleRazorpay() {
-    setPlacing(true);
+  async function startUpiPayment() {
     setError("");
     try {
       const validation = await api.post("/checkout/validate", { addressId: Number(addressId) });
       if (!validation.data.success) throw new Error("Checkout validation failed.");
-
-      const amountPaise = Math.round(Number(validation.data.grandTotal ?? validation.data.subtotal ?? 0) * 100);
-      if (amountPaise < 100) throw new Error("Minimum amount is ₹1.00");
-
-      const createResp = await api.post("/create-order", { amount: amountPaise, currency: "INR", receipt: idempotencyKey.current });
-      console.info("create-order response", createResp?.data);
-      const { order_id, amount, currency } = createResp.data;
-
-      const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: amount,
-        currency,
-        name: "Vaishnavi Silk Emporium",
-        description: "Order payment",
-        order_id: order_id,
-            handler: async function (response) {
-            try {
-              const verify = await api.post("/verify-payment", {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature
-              });
-              console.info("verify-payment response", verify?.data);
-              if (!verify.data.success) { setError("Payment verification failed."); setPlacing(false); return; }
-              // create application order after successful payment — include payment metadata
-              const resp = await api.post("/orders", { addressId: Number(addressId), paymentMethod: "RAZORPAY", paymentReference: response.razorpay_payment_id }, { headers: { "Idempotency-Key": idempotencyKey.current } });
-              console.info("create app order response", resp?.status, resp?.data);
-              try { await refreshCart(); } catch { /* ignore */ }
-              const orderId = resp?.data?.order?.OrderId || resp?.data?.order?.orderId || resp?.data?.orderId || resp?.data?.order?.OrderId;
-              if (orderId) {
-                navigate(`/orders/${orderId}`, { replace: true });
-                return;
-              }
-              // fallback: if response doesn't include order id, attempt to fetch orders and find by idempotency
-              console.warn("Order creation returned unexpected payload; attempting to locate order by idempotency key.");
-              const ordersList = await api.get("/orders");
-              const found = (ordersList.data.orders || []).find((o) => String(o.IdempotencyKey || o.idempotencyKey || "") === idempotencyKey.current || String(o.IdempotencyKey || "") === idempotencyKey.current);
-              if (found) { navigate(`/orders/${found.OrderId || found.orderId}`, { replace: true }); return; }
-              setError("Payment succeeded but order creation response was unexpected. Check server logs.");
-              setPlacing(false);
-            } catch (err) {
-              console.error("Payment handler error (order/verify)", err?.response?.data || err.message || err);
-              setError(err.response?.data?.message || err.message || "Payment handling failed.");
-              setPlacing(false);
-            }
-          },
-        modal: {
-          ondismiss: function () { setPlacing(false); setError("Payment cancelled."); }
-        }
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on("payment.failed", function (response) { setError(response.error?.description || "Payment failed."); setPlacing(false); });
-      rzp.open();
+      const upiId = import.meta.env.VITE_UPI_ID;
+      if (!upiId) throw new Error("UPI payment is not configured. Set VITE_UPI_ID in the frontend environment.");
+      const amount = Number(validation.data.grandTotal ?? validation.data.subtotal ?? 0).toFixed(2);
+      const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("Vaishnavi Silk Emporium")}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${idempotencyKey.current}`)}`;
+      const qrDataUrl = await QRCode.toDataURL(upiUri, { width: 280, margin: 2 });
+      setUpiReference("");
+      setUpiPayment({ amount, upiId, qrDataUrl });
     } catch (err) {
-      console.error("Razorpay flow failed", err);
+      console.error("UPI payment initialization failed", err);
       setError(err.response?.data?.message || err.message || "Payment initialization failed.");
-      setPlacing(false);
     }
+  }
+
+  async function confirmUpiPayment() {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{5,63}$/.test(upiReference.trim())) {
+      setError("Enter a valid UPI transaction reference or UTR.");
+      return;
+    }
+    if (!paymentScreenshot) { setError("Upload your payment screenshot before continuing."); return; }
+    setPlacing(true); setError("");
+    try {
+      const formData = new FormData();
+      formData.append("addressId", addressId);
+      formData.append("paymentMethod", "UPI_MANUAL");
+      formData.append("paymentReference", upiReference.trim());
+      formData.append("paymentScreenshot", paymentScreenshot);
+      const response = await api.post("/orders", formData, { headers: { "Idempotency-Key": idempotencyKey.current } });
+      try { await refreshCart(); } catch { /* order was created */ }
+      setUpiPayment(null); setPaymentScreenshot(null);
+      navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to create the order after payment.");
+    } finally { setPlacing(false); }
   }
 
   if (loading) return <main className="container section"><p>Loading checkout...</p></main>;
@@ -144,12 +103,12 @@ export default function CheckoutPage() {
             {summary.items.map((item) => <div className="checkout-item" key={item.cartItemId}><span>{item.productName} × {item.quantity}</span><strong>{formatCurrency(item.subtotal)}</strong></div>)}
             <div className="cart-total"><span>Grand Total</span><strong>{formatCurrency(summary.grandTotal)}</strong></div>
             <div className="checkout-actions">
-              <button className="btn btn-primary" disabled={!addressId || placing} onClick={placeOrder}>{placing ? "Placing Order..." : "Place Order"}</button>
-              <button className="btn btn-secondary" disabled={!addressId || placing} onClick={handleRazorpay} style={{ marginLeft: "8px" }}>{placing ? "Processing..." : "Pay with Razorpay"}</button>
+              <button className="btn btn-primary" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : "Pay with UPI QR"}</button>
             </div>
           </article>
         </section>
       </div>
+      {upiPayment && <div className="payment-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="upi-payment-title"><section className="payment-modal"><button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button><h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2><p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p><img src={upiPayment.qrDataUrl} alt="UPI payment QR code" /><p><strong>{upiPayment.upiId}</strong></p><input value={upiReference} onChange={(event) => setUpiReference(event.target.value)} placeholder="UPI transaction reference / UTR" autoComplete="off" /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPaymentScreenshot(event.target.files?.[0] || null)} /><button className="btn btn-primary" disabled={placing} onClick={confirmUpiPayment}>{placing ? "Submitting..." : "Submit Payment Proof"}</button><small>Payment remains pending until an administrator verifies the reference and screenshot.</small></section></div>}
     </main>
   );
 }

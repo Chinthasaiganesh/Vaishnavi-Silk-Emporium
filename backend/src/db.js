@@ -255,6 +255,8 @@ export async function initializeDatabase() {
   `);
 
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');
+  await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentScreenshotUrl" TEXT');
+  await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentStatus" TEXT NOT NULL DEFAULT \'PENDING\'');
 
   const requiredTables = ["Users", "Addresses", "Products", "Inventory", "Orders", "OrderItems"];
   const tableCheck = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)", [requiredTables]);
