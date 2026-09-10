@@ -1,10 +1,27 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import Avatar from "./Avatar";
 import { api } from "../api";
 import { useLanguage } from "../LanguageContext";
 import { useCart } from "../CartContext";
+
+function playNotificationSound() {
+  if (window.localStorage.getItem("deviceNotificationsAudio") !== "enabled") return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const audioContext = new AudioContextClass();
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  oscillator.frequency.value = 880;
+  gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.18);
+  oscillator.connect(gain).connect(audioContext.destination);
+  oscillator.start();
+  oscillator.stop(audioContext.currentTime + 0.18);
+  oscillator.addEventListener("ended", () => audioContext.close(), { once: true });
+}
 
 export default function Header() {
   const navigate = useNavigate();
@@ -13,6 +30,7 @@ export default function Header() {
   const [suggestions, setSuggestions] = useState([]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const previousUnreadNotifications = useRef(null);
   const displayName = user?.displayName || user?.fullName || user?.username;
   const { language, setLanguage, t } = useLanguage();
   const { cartCount } = useCart();
@@ -63,7 +81,16 @@ export default function Header() {
     async function loadNotificationCount() {
       try {
         const response = await api.get("/notifications");
-        if (active) setUnreadNotifications(response.data.unreadCount || 0);
+        const unreadCount = response.data.unreadCount || 0;
+        if (active && previousUnreadNotifications.current !== null && unreadCount > previousUnreadNotifications.current && "Notification" in window && Notification.permission === "granted") {
+          const newest = (response.data.notifications || []).find((notification) => !notification.isRead);
+          if (newest) {
+            new Notification(newest.title, { body: newest.message, silent: false });
+            playNotificationSound();
+          }
+        }
+        previousUnreadNotifications.current = unreadCount;
+        if (active) setUnreadNotifications(unreadCount);
       } catch {
         if (active) setUnreadNotifications(0);
       }

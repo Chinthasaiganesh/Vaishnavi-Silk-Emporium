@@ -3,10 +3,9 @@ import { body, param } from "express-validator";
 import { authRequired, validateRequest } from "./middleware.js";
 import { placeOrder } from "./checkout.service.js";
 import { cancelOrder, getOrder, listOrders } from "./order.repository.js";
-import { db } from "./db.js";
-import { nowIso } from "./utils.js";
 import { upload } from "./upload.js";
 import { uploadImage } from "./s3-storage.service.js";
+import { sendOrderNotification } from "./notification.service.js";
 
 const router = Router();
 router.use(authRequired, (req, res, next) => req.user.role === "USER" ? next() : res.status(403).json({ success: false, message: "Customer access required." }));
@@ -21,6 +20,7 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		if (paymentMethod !== "UPI_MANUAL" || !paymentReference || !req.file) return res.status(400).json({ success: false, message: "UPI reference and payment screenshot are required." });
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
 		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url);
+		await sendOrderNotification(order, "Order Placed", `Your order ${order.OrderNumber} has been placed successfully.`);
 		console.info(JSON.stringify({ level: "info", message: "Order response ready", requestId: req.requestId, userId: req.user.userId, orderId: order.OrderId, orderNumber: order.OrderNumber }));
 		return res.status(201).json({ success: true, message: "Order placed successfully.", order });
 	} catch (error) {
@@ -33,7 +33,7 @@ router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").optiona
 		const order = await cancelOrder(req.user.userId, Number(req.params.id), req.body.reason || "Customer requested cancellation");
 		if (!order) return res.status(404).json({ success: false, message: "Order not found." });
 		const refundMessage = order.RefundStatus === "NOT_APPLICABLE" ? "Since no payment was collected, no refund is required." : "Refunds, if applicable, will be credited to your original payment method within 2-3 business days.";
-		await db.prepare("INSERT INTO Notifications (UserId, ProductId, OrderId, Type, Title, Message, CreatedDate) VALUES (?, NULL, ?, 'ORDER_STATUS', ?, ?, ?)").run(req.user.userId, order.OrderId, "Order Cancelled", `Your order ${order.OrderNumber} has been cancelled successfully. ${refundMessage}`, nowIso());
+		await sendOrderNotification(order, "Order Cancelled", `Your order ${order.OrderNumber} has been cancelled successfully. ${refundMessage}`);
 		return res.json({ success: true, message: "Order cancelled successfully", refundMessage, order });
 	} catch (error) { return next(error); }
 });

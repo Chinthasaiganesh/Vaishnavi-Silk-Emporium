@@ -38,6 +38,7 @@ export default function CustomerFeaturePage({ type }) {
   const [bulkBusy, setBulkBusy] = useState("");
   const [activeNotificationId, setActiveNotificationId] = useState(null);
   const [canHover, setCanHover] = useState(false);
+  const [deviceNotice, setDeviceNotice] = useState("");
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -108,6 +109,34 @@ export default function CustomerFeaturePage({ type }) {
     }
   }
 
+  async function enableDeviceNotifications() {
+    if (!("Notification" in window)) {
+      setDeviceNotice("Device notifications are not supported by this browser.");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      window.localStorage.setItem("deviceNotificationsAudio", "enabled");
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        const audioContext = new AudioContextClass();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.frequency.value = 880;
+        gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.18);
+        oscillator.connect(gain).connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.18);
+        oscillator.addEventListener("ended", () => audioContext.close(), { once: true });
+      }
+      setDeviceNotice("Device notifications and sound enabled.");
+    } else {
+      setDeviceNotice("Device notifications are blocked. Enable them in your browser settings.");
+    }
+  }
+
   if (type === "notifications") {
     const unreadCount = notifications.filter((notification) => !notification.isRead).length;
     const readCount = notifications.length - unreadCount;
@@ -120,9 +149,11 @@ export default function CustomerFeaturePage({ type }) {
             <p>{unreadCount ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}` : "All caught up"}</p>
           </div>
           <div className="notification-bulk-actions">
+            {"Notification" in window && (Notification.permission !== "granted" || window.localStorage.getItem("deviceNotificationsAudio") !== "enabled") && <button className="btn btn-outline" onClick={enableDeviceNotifications}>Enable Device Notifications & Sound</button>}
             <button className="btn btn-outline" disabled={!unreadCount || bulkBusy === "read"} onClick={markAllRead}>Mark All Read</button>
             <button className="btn btn-primary" disabled={!readCount || bulkBusy === "clear"} onClick={clearRead}>Clear Read Notifications</button>
           </div>
+          {deviceNotice && <p className="success-text">{deviceNotice}</p>}
         </div>
 
         {notifications.length === 0 ? (
