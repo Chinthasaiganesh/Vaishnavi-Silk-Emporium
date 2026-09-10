@@ -63,7 +63,7 @@ export default function AdminOrdersPage() {
       setSelectedOrder(response.data.order);
       setMessage(response.data.message);
       await load();
-    } catch (requestError) { setError(requestError.response?.data?.message || "Unable to update payment status."); }
+    } catch (requestError) { setError(requestError.response?.data?.message || `Unable to update payment status${requestError.response?.data?.requestId ? ` (request ${requestError.response.data.requestId})` : ""}.`); }
   }
 
   return <main className="container section admin-layout">

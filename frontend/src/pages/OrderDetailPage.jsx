@@ -8,6 +8,14 @@ const statuses = ["PENDING", "PROCESSING", "PACKED", "SHIPPED", "OUT_FOR_DELIVER
 const terminalStatuses = ["CANCELLED", "REFUNDED"];
 
 function prettyStatus(status = "") { return status.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase()); }
+function refundLabel(order) {
+  if (order.PaymentMethod === "COD") return "Not applicable";
+  if (order.RefundStatus === "PENDING") return "Refund pending";
+  if (order.RefundStatus === "NOT_APPLICABLE" && order.PaymentStatus === "VERIFIED") return "Refund available on cancellation";
+  return prettyStatus(order.RefundStatus || "PENDING");
+}
+
+function withRefundLabel(order) { return { ...order, RefundStatus: refundLabel(order) }; }
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -18,7 +26,7 @@ export default function OrderDetailPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const reducedMotion = useReducedMotion();
-  useEffect(() => { api.get(`/orders/${id}`).then((response) => setOrder(response.data.order)).catch((requestError) => setError(requestError.response?.data?.message || "Unable to load order.")); }, [id]);
+  useEffect(() => { api.get(`/orders/${id}`).then((response) => setOrder(withRefundLabel(response.data.order))).catch((requestError) => setError(requestError.response?.data?.message || "Unable to load order.")); }, [id]);
   if (error) return <main className="container section"><p className="error-text">{error}</p><Link className="btn btn-outline" to="/orders">View Orders</Link></main>;
   if (!order) return <main className="container section"><p>Loading order...</p></main>;
   const canCancel = ["PENDING", "PROCESSING", "PACKED"].includes(order.OrderStatus);
@@ -27,7 +35,7 @@ export default function OrderDetailPage() {
   const progressScale = statuses.length > 1 ? currentIndex / (statuses.length - 1) : 0;
   async function cancelOrder() {
     setCancelling(true); setError(""); setMessage("");
-    try { const response = await api.post(`/orders/${order.OrderId}/cancel`, { reason: cancelReason }); setOrder(response.data.order); setMessage(`${response.data.message}. ${response.data.refundMessage}`); setShowCancel(false); }
+    try { const response = await api.post(`/orders/${order.OrderId}/cancel`, { reason: cancelReason }); setOrder(withRefundLabel(response.data.order)); setMessage(`${response.data.message}. ${response.data.refundMessage}`); setShowCancel(false); }
     catch (requestError) { setError(requestError.response?.data?.message || "Unable to cancel order."); }
     finally { setCancelling(false); }
   }

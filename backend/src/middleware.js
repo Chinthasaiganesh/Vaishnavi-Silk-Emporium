@@ -68,7 +68,7 @@ export function errorHandler(err, req, res, next) {
   }
   const postgresMessages = {
     "42P01": "Required database table is missing.",
-    "42703": "Required database column is missing. Run the database migrations.",
+    "42703": "Payment database migration is incomplete. Restart the backend so its startup migrations can run, or add PaymentStatus and PaymentScreenshotUrl to Orders in Supabase.",
     "23503": "Referenced user, address, product, or order record does not exist.",
     "23505": "This order already exists. Retry with a new checkout request.",
     "23502": "A required order field is missing.",
