@@ -43,7 +43,7 @@ export async function sendAvailabilityNotification(productId, productName) {
 }
 
 export async function sendOrderNotification(order, title, message) {
-  const existing = await db.prepare("SELECT NotificationId FROM Notifications WHERE UserId = ? AND OrderId = ? AND Type = 'ORDER_STATUS' AND Title = ? LIMIT 1").get(order.UserId, order.OrderId, title);
+  const existing = await db.prepare("SELECT NotificationId FROM Notifications WHERE UserId = ? AND OrderId = ? AND Type = 'ORDER_STATUS' AND Title = ? AND Message = ? LIMIT 1").get(order.UserId, order.OrderId, title, message);
   if (existing) return existing;
   return await db.prepare("INSERT INTO Notifications (UserId, ProductId, OrderId, Type, Title, Message, CreatedDate) VALUES (?, NULL, ?, 'ORDER_STATUS', ?, ?, ?)").run(order.UserId, order.OrderId, title, message, nowIso());
 }

@@ -101,6 +101,15 @@ export async function updatePaymentStatus(orderId, paymentStatus, adminUserId) {
   return getAdminOrder(orderId);
 }
 
+export async function updateRefundStatus(orderId, refundStatus, refundReference, adminUserId) {
+  if (!["PROCESSING", "COMPLETED", "FAILED"].includes(refundStatus)) throw Object.assign(new Error("Invalid refund status."), { status: 400 });
+  const timestamp = nowIso();
+  const result = await db.prepare("UPDATE Orders SET RefundStatus = ?, RefundReference = COALESCE(?, RefundReference), OrderStatus = CASE WHEN ? = 'COMPLETED' THEN 'REFUNDED' ELSE OrderStatus END, UpdatedDate = ? WHERE OrderId = ? AND PaymentStatus = 'VERIFIED' AND RefundStatus IN ('PENDING', 'PROCESSING')").run(refundStatus, refundReference || null, refundStatus, timestamp, orderId);
+  if (!result.changes) return null;
+  await db.prepare("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)").run(orderId, adminUserId, timestamp);
+  return getAdminOrder(orderId);
+}
+
 export async function cancelOrder(userId, orderId, reason = "Customer requested cancellation") {
   const timestamp = nowIso();
   const cancelled = await transaction(async (tx) => {
