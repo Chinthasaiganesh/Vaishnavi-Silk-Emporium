@@ -232,7 +232,10 @@ a {
   gap: 0.8rem;
   color: var(--muted);
   font-weight: 700;
+  min-width: 0;
 }
+
+.admin-profile > span { min-width: 0; overflow-wrap: anywhere; }
 
 .admin-workspace {
   display: grid;
@@ -1353,6 +1356,8 @@ a {
   border-color: rgba(142, 58, 89, 0.16);
 }
 
+.admin-form .form-grid > small { grid-column: 1 / -1; color: var(--muted); font-size: 0.8rem; }
+
 .skeleton-card {
   min-height: 21rem;
   border-radius: 0.9rem;
@@ -2123,6 +2128,8 @@ a {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .admin-profile { width: 100%; flex-wrap: wrap; justify-content: space-between; }
 
   .admin-workspace {
     grid-template-columns: 1fr;
