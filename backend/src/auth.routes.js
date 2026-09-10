@@ -149,15 +149,22 @@ router.get("/oauth/:provider", async (req, res) => {
 
 router.get("/oauth/:provider/callback", async (req, res) => {
   const provider = req.params.provider;
+  let oauthStage = "validate_response";
   try {
     const state = jwt.verify(req.query.state, config.jwtSecret);
     if (state.type !== "oauth_state" || state.provider !== provider || !req.query.code || !configuredProvider(provider)) throw new Error("Invalid OAuth response.");
-    const user = await findOrCreateOAuthUser(await getOAuthProfile(provider, req.query.code));
+    oauthStage = "provider_profile";
+    const profile = await getOAuthProfile(provider, req.query.code);
+    oauthStage = "user_persistence";
+    const user = await findOrCreateOAuthUser(profile);
+    oauthStage = "last_login_update";
     await db.prepare("UPDATE Users SET LastLogin = ? WHERE UserId = ?").run(new Date().toISOString(), user.UserId);
+    oauthStage = "session_creation";
     await startUserSession(res, user);
+    oauthStage = "client_redirect";
     return res.redirect(`${config.clientOrigin}/oauth/callback`);
   } catch (error) {
-    console.error("OAuth callback failed:", error.message);
+    console.error(JSON.stringify({ level: "error", message: "OAuth callback failed", requestId: req.requestId, provider, stage: oauthStage, error: error.message, code: error.code || null, status: error.status || null }));
     return res.redirect(`${config.clientOrigin}/login?oauthError=authentication_failed`);
   }
 });
