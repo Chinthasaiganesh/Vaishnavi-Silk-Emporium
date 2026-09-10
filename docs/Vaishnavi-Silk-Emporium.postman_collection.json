@@ -245,7 +245,8 @@
         { "name": "Filter Orders By Status", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?status=PROCESSING" } },
         { "name": "Get Admin Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/{{orderId}}" } },
         { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } },
-        { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. VERIFIED sends a payment confirmation notification to the customer." } }
+        { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. VERIFIED sends a payment confirmation notification to the customer." } },
+        { "name": "Update Refund Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refundStatus\": \"PROCESSING\",\n  \"refundReference\": \"REF-123456\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/refund", "description": "Admin-only. Accepted statuses: PROCESSING, COMPLETED, FAILED. Payment must be verified first." } }
       ]
     },
     {

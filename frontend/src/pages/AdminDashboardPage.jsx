@@ -19,7 +19,8 @@ const initialForm = {
   isActive: true,
   isFeatured: false,
   imageUrl: "",
-  imageFile: null
+  imageFile: null,
+  imageFiles: []
 };
 
 export default function AdminDashboardPage() {
@@ -90,7 +91,8 @@ export default function AdminDashboardPage() {
       isActive: product.isActive,
       isFeatured: product.isFeatured,
       imageUrl: product.imageUrl || "",
-      imageFile: null
+      imageFile: null,
+      imageFiles: []
     });
     setMessage("");
     setError("");
@@ -130,7 +132,9 @@ export default function AdminDashboardPage() {
       if (form.imageUrl) {
         payload.append("imageUrl", form.imageUrl);
       }
-      if (form.imageFile) {
+      if (form.imageFiles.length) {
+        form.imageFiles.forEach((file) => payload.append("images", file));
+      } else if (form.imageFile) {
         payload.append("image", form.imageFile);
       }
 
@@ -226,8 +230,10 @@ export default function AdminDashboardPage() {
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => onFieldChange("imageFile", e.target.files?.[0] || null)}
+            multiple
+            onChange={(e) => onFieldChange("imageFiles", Array.from(e.target.files || []).slice(0, 8))}
           />
+          <small>Select up to 8 images. They rotate automatically on the product page.</small>
         </div>
         <textarea
           placeholder="Description"

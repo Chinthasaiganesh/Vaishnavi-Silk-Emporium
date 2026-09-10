@@ -14,6 +14,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const { user } = useAuth();
   const { t } = useLanguage();
 
@@ -27,6 +28,7 @@ export default function ProductDetailPage() {
         const response = await api.get(`/products/public/${id}`);
         if (!cancelled) {
           setProduct(response.data.product);
+          setActiveImageIndex(0);
           if (user?.role === "USER") {
             addRecentlyViewed(user.userId, response.data.product);
           }
@@ -48,6 +50,16 @@ export default function ProductDetailPage() {
     };
   }, [id, user]);
 
+  const imageUrls = product?.imageUrls?.length ? product.imageUrls : product?.imageUrl ? [product.imageUrl] : [];
+
+  useEffect(() => {
+    if (imageUrls.length < 2) return undefined;
+    const timer = window.setInterval(() => {
+      setActiveImageIndex((index) => (index + 1) % imageUrls.length);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [imageUrls.length]);
+
   if (loading) {
     return <main className="container section">Loading product...</main>;
   }
@@ -56,12 +68,13 @@ export default function ProductDetailPage() {
     return <main className="container section error-text">{error || "Product unavailable."}</main>;
   }
 
-  const imageSrc = resolveImage(product.imageUrl);
+  const imageSrc = resolveImage(imageUrls[activeImageIndex] || product.imageUrl);
 
   return (
     <main className="container section detail-grid">
       <section className="detail-media">
-        <img data-cart-product={product.productId} src={imageSrc} alt={product.productName} />
+        <img data-cart-product={product.productId} src={imageSrc} alt={`${product.productName}, image ${activeImageIndex + 1} of ${imageUrls.length || 1}`} />
+        {imageUrls.length > 1 && <div className="product-image-dots" aria-label="Product images">{imageUrls.map((url, index) => <button className={index === activeImageIndex ? "active" : ""} type="button" key={url} aria-label={`Show image ${index + 1}`} aria-pressed={index === activeImageIndex} onClick={() => setActiveImageIndex(index)} />)}</div>}
       </section>
       <section className="detail-content">
         <p className="pill">{product.category}</p>

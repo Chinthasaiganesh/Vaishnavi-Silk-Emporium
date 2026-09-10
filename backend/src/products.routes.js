@@ -15,6 +15,7 @@ function mapProduct(row, canViewPrice = true) {
   if (!row) {
     return null;
   }
+  const imageUrls = parseImageUrls(row.ImageUrl);
   return {
     productId: row.ProductId,
     productName: row.ProductName,
@@ -22,7 +23,8 @@ function mapProduct(row, canViewPrice = true) {
     category: row.Category,
     ...(canViewPrice ? { price: Number(row.Price) } : {}),
     canViewPrice,
-    imageUrl: row.ImageUrl,
+    imageUrl: imageUrls[0] || "",
+    imageUrls,
     quantity: row.Quantity,
     isActive: Boolean(row.IsActive),
     isFeatured: Boolean(row.IsFeatured),
@@ -38,6 +40,20 @@ function mapProduct(row, canViewPrice = true) {
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
+}
+
+function parseImageUrls(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [value];
+  } catch {
+    return [value];
+  }
+}
+
+function imageFiles(req) {
+  return [...(req.files?.image || []), ...(req.files?.images || [])];
 }
 
 function auditValues(product) {
@@ -134,7 +150,7 @@ router.post(
   "/admin",
   authRequired,
   adminOnly,
-  upload.single("image"),
+  upload.fields([{ name: "image", maxCount: 1 }, { name: "images", maxCount: 8 }]),
   body("productName").trim().isLength({ min: 2 }).withMessage("Product name is required."),
   body("description").trim().isLength({ min: 10 }).withMessage("Description must be at least 10 chars."),
   body("category").trim().isLength({ min: 2 }).withMessage("Category is required."),
@@ -152,9 +168,10 @@ router.post(
     const { productName, description, category, price, quantity } = req.body;
     const isActive = req.body.isActive === undefined ? true : req.body.isActive === "true";
     const isFeatured = req.body.isFeatured === "true" || req.body.isFeatured === true;
-    const imageUrl = req.file
-      ? (await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "products" })).url
-      : req.body.imageUrl || "";
+    const uploadedFiles = imageFiles(req);
+    const uploadedUrls = await Promise.all(uploadedFiles.map((file) => uploadImage(file.buffer, { originalName: file.originalname, mimetype: file.mimetype, folder: "products" }).then((result) => result.url)));
+    const imageUrls = uploadedUrls.length ? uploadedUrls : parseImageUrls(req.body.imageUrls || req.body.imageUrl);
+    const imageUrl = JSON.stringify(imageUrls);
 
     const timestamp = nowIso();
     const result = await db
@@ -196,7 +213,7 @@ router.put(
   "/admin/:id",
   authRequired,
   adminOnly,
-  upload.single("image"),
+  upload.fields([{ name: "image", maxCount: 1 }, { name: "images", maxCount: 8 }]),
   param("id").isInt({ min: 1 }),
   body("productName").trim().isLength({ min: 2 }).withMessage("Product name is required."),
   body("description").trim().isLength({ min: 10 }).withMessage("Description must be at least 10 chars."),
@@ -218,14 +235,19 @@ router.put(
       return res.status(404).json({ message: "Product not found." });
     }
 
-    const imageUrl = req.file
-      ? (await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "products" })).url
-      : req.body.imageUrl !== undefined
-      ? req.body.imageUrl
-      : existing.ImageUrl;
+    const uploadedFiles = imageFiles(req);
+    const uploadedUrls = await Promise.all(uploadedFiles.map((file) => uploadImage(file.buffer, { originalName: file.originalname, mimetype: file.mimetype, folder: "products" }).then((result) => result.url)));
+    const imageUrls = uploadedUrls.length
+      ? uploadedUrls
+      : req.body.imageUrls !== undefined || req.body.imageUrl !== undefined
+      ? parseImageUrls(req.body.imageUrls || req.body.imageUrl)
+      : parseImageUrls(existing.ImageUrl);
+    const imageUrl = JSON.stringify(imageUrls);
 
-    if (req.file && existing.ImageUrl && existing.ImageUrl !== imageUrl) {
-      await deleteImage(existing.ImageUrl);
+    if (uploadedUrls.length) {
+      for (const oldImageUrl of parseImageUrls(existing.ImageUrl)) {
+        await deleteImage(oldImageUrl);
+      }
     }
 
     const updatedValues = {
@@ -287,6 +309,9 @@ router.delete(
     const id = Number(req.params.id);
     const existing = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
     if (!existing) return res.status(404).json({ message: "Product not found." });
+    for (const imageUrl of parseImageUrls(existing.ImageUrl)) {
+      await deleteImage(imageUrl);
+    }
     await recordProductAudit({ productId: id, userId: req.user.userId, action: "DELETED", oldValues: auditValues(existing) });
     const result = await db.prepare("DELETE FROM Products WHERE ProductId = ?").run(id);
     if (!result.changes) {
