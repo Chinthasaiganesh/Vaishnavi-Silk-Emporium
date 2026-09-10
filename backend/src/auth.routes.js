@@ -266,7 +266,8 @@ router.post("/refresh", async (req, res) => {
     const rememberMe = Boolean(payload.rememberMe);
     setRefreshCookie(res, await issueRefreshSession(user, rememberMe), rememberMe);
     return res.json({ token: issueAccessToken(user), user: mapUser(user) });
-  } catch {
+  } catch (error) {
+    console.warn(JSON.stringify({ level: "warn", message: "Refresh session failed", requestId: req.requestId, error: error.message, code: error.code, stack: error.stack }));
     return res.status(401).json({ message: "Session expired. Please sign in again." });
   }
 });

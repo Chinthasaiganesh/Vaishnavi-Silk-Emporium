@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "test": "node --test test/**/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1123.0",

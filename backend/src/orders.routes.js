@@ -15,6 +15,7 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 	console.info(JSON.stringify({ level: "info", message: "Order request received", requestId: req.requestId, userId: req.user.userId, role: req.user.role, payload: { ...req.body, paymentReference: req.body.paymentReference ? "[present]" : null }, addressId: req.body.addressId, idempotencyKeyPresent: Boolean(req.get("Idempotency-Key")) }));
 	try {
 		const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 100);
+		if (!idempotencyKey) return res.status(400).json({ success: false, message: "Idempotency-Key header is required. Please retry checkout." });
 		const paymentMethod = req.body.paymentMethod || 'UPI_MANUAL';
 		const paymentReference = req.body.paymentReference || null;
 		if (paymentMethod !== "UPI_MANUAL" || !paymentReference || !req.file) return res.status(400).json({ success: false, message: "UPI reference and payment screenshot are required." });

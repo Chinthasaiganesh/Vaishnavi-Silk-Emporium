@@ -16,7 +16,8 @@
     { "key": "orderNumber", "value": "" },
     { "key": "notificationId", "value": "1" },
     { "key": "idempotencyKey", "value": "postman-{{$timestamp}}" },
-    { "key": "adminOrderStatus", "value": "PROCESSING" }
+    { "key": "adminOrderStatus", "value": "PROCESSING" },
+    { "key": "paymentStatus", "value": "VERIFIED" }
   ],
   "auth": {
     "type": "bearer",
@@ -225,7 +226,12 @@
         { "name": "Get My Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/orders/{{orderId}}" } },
         {
           "name": "Place Order",
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}}\n}" }, "url": "{{baseUrl}}/orders" },
+          "request": { "method": "POST", "header": [{ "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "formdata", "formdata": [
+            { "key": "addressId", "value": "{{addressId}}", "type": "text" },
+            { "key": "paymentMethod", "value": "UPI_MANUAL", "type": "text" },
+            { "key": "paymentReference", "value": "UTR123456789", "type": "text" },
+            { "key": "paymentScreenshot", "type": "file", "src": "" }
+          ] }, "url": "{{baseUrl}}/orders" },
           "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const order = pm.response.json().order;", "  if (order?.OrderId) pm.collectionVariables.set('orderId', order.OrderId);", "  if (order?.OrderNumber) pm.collectionVariables.set('orderNumber', order.OrderNumber);", "}"] } }]
         },
         { "name": "Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Changed my mind\"\n}" }, "url": "{{baseUrl}}/orders/{{orderId}}/cancel" } }
@@ -238,7 +244,8 @@
         { "name": "List All Orders", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?q=&status=" } },
         { "name": "Filter Orders By Status", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?status=PROCESSING" } },
         { "name": "Get Admin Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/{{orderId}}" } },
-        { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } }
+        { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } },
+        { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. VERIFIED sends a payment confirmation notification to the customer." } }
       ]
     },
     {

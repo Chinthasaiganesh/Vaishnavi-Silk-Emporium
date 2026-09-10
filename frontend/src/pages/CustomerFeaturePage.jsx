@@ -120,6 +120,7 @@ export default function CustomerFeaturePage({ type }) {
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (AudioContextClass) {
         const audioContext = new AudioContextClass();
+        if (audioContext.state === "suspended") await audioContext.resume();
         const oscillator = audioContext.createOscillator();
         const gain = audioContext.createGain();
         oscillator.frequency.value = 880;
@@ -132,6 +133,7 @@ export default function CustomerFeaturePage({ type }) {
         oscillator.addEventListener("ended", () => audioContext.close(), { once: true });
       }
       setDeviceNotice("Device notifications and sound enabled.");
+      window.dispatchEvent(new CustomEvent("notifications:audio-enabled"));
     } else {
       setDeviceNotice("Device notifications are blocked. Enable them in your browser settings.");
     }
