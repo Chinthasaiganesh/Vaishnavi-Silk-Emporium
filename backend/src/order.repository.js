@@ -57,7 +57,7 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
     }
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const orderResult = await tx.run("INSERT INTO Orders (UserId, AddressId, OrderNumber, IdempotencyKey, PaymentMethod, OrderStatus, SubTotal, ShippingAmount, DiscountAmount, GrandTotal, PaymentReference, CreatedDate, UpdatedDate) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?)", [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, subtotal, shipping, discount, grandTotal, paymentReference, timestamp, timestamp]);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "PaymentReference", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, \'PENDING\', ?, ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, subtotal, shipping, discount, grandTotal, paymentReference, timestamp, timestamp]);
     console.info(JSON.stringify({ level: "info", message: "Order database row created", requestId, orderId: orderResult.lastInsertRowid, orderNumber, subtotal, grandTotal }));
     for (const item of items) {
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, Quantity, LineTotal, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)", [orderResult.lastInsertRowid, item.ProductId, item.ProductName, item.Price, item.Quantity, item.Price * item.Quantity, timestamp]);
