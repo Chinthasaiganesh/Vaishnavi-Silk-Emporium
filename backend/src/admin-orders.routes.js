@@ -1,26 +1,14 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { db } from "./db.js";
 import { adminOnly, authRequired, validateRequest } from "./middleware.js";
 import { ORDER_STATUSES, getAdminOrder, listAllOrders, updateOrderStatus, updatePaymentStatus } from "./order.repository.js";
 import { sendOrderNotification } from "./notification.service.js";
-  await sendOrderNotification(order, "Order Status Updated", `Your order ${order.OrderNumber} is now ${readable}.`);
-      const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.user.userId);
-      if (order && req.body.paymentStatus === "VERIFIED") {
-        await sendOrderNotification(order, "Payment Confirmed", `Payment for your order ${order.OrderNumber} has been confirmed. Your order is being processed.`);
-      }
 
 const router = Router();
 
 async function notifyOrderStatus(order) {
   const readable = order.OrderStatus.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-  await db.prepare("INSERT INTO Notifications (UserId, ProductId, OrderId, Type, Title, Message, CreatedDate) VALUES (?, NULL, ?, 'ORDER_STATUS', ?, ?, ?)").run(
-    order.UserId,
-    order.OrderId,
-    "Order Status Updated",
-    `Your order ${order.OrderNumber} is now ${readable}.`,
-    nowIso()
-  );
+  await sendOrderNotification(order, "Order Status Updated", `Your order ${order.OrderNumber} is now ${readable}.`);
 }
 
 router.get(
@@ -64,6 +52,9 @@ router.patch(
 router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1 }), body("paymentStatus").isIn(["VERIFIED", "REJECTED"]), validateRequest, async (req, res, next) => {
   try {
     const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.user.userId);
+    if (order && req.body.paymentStatus === "VERIFIED") {
+      await sendOrderNotification(order, "Payment Confirmed", `Payment for your order ${order.OrderNumber} has been confirmed. Your order is being processed.`);
+    }
     return order ? res.json({ success: true, message: "Payment status updated.", order }) : res.status(409).json({ success: false, message: "Payment has already been reviewed or the order was not found." });
   } catch (error) { return next(error); }
 });
