@@ -44,6 +44,7 @@ export default function Header() {
   const [term, setTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const previousUnreadNotifications = useRef(null);
   const displayName = user?.displayName || user?.fullName || user?.username;
@@ -134,7 +135,11 @@ export default function Header() {
           <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Where Tradition Meets Elegance</small></span>
         </Link>
 
-        <nav className="nav-links">
+        <button className="mobile-menu-toggle" type="button" onClick={() => setMobileNavOpen((open) => !open)} aria-expanded={mobileNavOpen} aria-controls="primary-navigation" aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}>
+          {mobileNavOpen ? "Close" : "Menu"}
+        </button>
+
+        <nav className={`nav-links${mobileNavOpen ? " mobile-nav-open" : ""}`} id="primary-navigation">
           <NavLink to="/" end>{t("home")}</NavLink>
           <NavLink to="/collections" end>Collections</NavLink>
           <NavLink to="/categories" end>Categories</NavLink>
