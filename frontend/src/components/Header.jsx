@@ -162,7 +162,10 @@ export default function Header() {
               <option value="te">{t("telugu")}</option>
             </select>
           </label>
-          <Link className={`cart-link${cartBump ? " cart-link-bump" : ""}`} to="/cart" aria-label={`Cart with ${cartCount} items`}><span aria-hidden="true">Cart</span>{cartCount > 0 && <strong>{cartCount}</strong>}</Link>
+          <Link className={`cart-link${cartBump ? " cart-link-bump" : ""}`} to="/cart" aria-label={`Cart with ${cartCount} items`}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.1 10.1a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L20.5 8H6" /><circle cx="9" cy="19" r="1.2" /><circle cx="18" cy="19" r="1.2" /></svg>
+            {cartCount > 0 && <strong>{cartCount}</strong>}
+          </Link>
           {!checking && !user && (
             <Link className="btn btn-outline" to="/login">{t("signIn")}</Link>
           )}
