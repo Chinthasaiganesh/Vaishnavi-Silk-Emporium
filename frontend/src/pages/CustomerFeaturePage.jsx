@@ -208,5 +208,12 @@ export default function CustomerFeaturePage({ type }) {
   }
 
   const title = type === "wishlist" ? "My Wishlist" : "Recently Viewed";
-  return <main className="container section"><h1>{title}</h1>{items.length === 0 ? <div className="customer-empty"><p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p><Link className="btn btn-primary" to="/products">Explore Products</Link></div> : <div className="customer-product-grid">{items.map((product) => <article className="customer-product" key={product.productId}><img src={product.imageUrl} alt={product.productName} /><h3>{product.productName}</h3><RatingBadge rating={product.rating} /><p>{formatCurrency(product.price)}</p>{product.viewedAt && <small>Viewed {new Date(product.viewedAt).toLocaleDateString()}</small>}<Link to={`/products/${product.productId}`}>View Details</Link>{type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems(items.filter((item) => item.productId !== product.productId)); }}>Remove</button>}</article>)}</div>}</main>;
+  return <main className="container section"><h1>{title}</h1>{items.length === 0 ? <div className="customer-empty"><p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p><Link className="btn btn-primary" to="/products">Explore Products</Link></div> : <div className="customer-product-grid">{items.map((product) => <article className="customer-product" key={product.productId}><img src={resolveImage(product.imageUrl)} alt={product.productName} /><h3>{product.productName}</h3><RatingBadge rating={product.rating} /><p>{formatCurrency(product.price)}</p>{product.viewedAt && <small>Viewed {new Date(product.viewedAt).toLocaleDateString()}</small>}<Link to={`/products/${product.productId}`}>View Details</Link>{type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems(items.filter((item) => item.productId !== product.productId)); }}>Remove</button>}</article>)}</div>}</main>;
+}
+
+function resolveImage(url) {
+  if (!url) return "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80";
+  if (url.startsWith("http")) return url;
+  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
+  return `${apiRoot}${url}`;
 }

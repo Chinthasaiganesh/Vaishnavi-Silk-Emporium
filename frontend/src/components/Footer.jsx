@@ -64,7 +64,7 @@ export default function Footer() {
         </div>
         <div>
           <h4>Contact</h4>
-          <p>Email: care@vaishnavisilks.example</p>
+          <p>Email: vaishnavisilkemporiumdmm@gmail.com</p>
           <p>Phone: +91 99667 64430</p>
           <p>Dharmavaram, Andhra Pradesh - 515671</p>
         </div>
@@ -73,7 +73,7 @@ export default function Footer() {
           <div className="social-icons" aria-label="social icons">
             <span>in</span>
             <span>x</span>
-            <span>ig</span>
+            <a href="https://www.instagram.com/vaishnavi_silk_emporium?stkn=MWk3aHoycXRxOGVjcQ==" target="_blank" rel="noreferrer" aria-label="Instagram">Instagram</a>
           </div>
         </div>
       </div>
