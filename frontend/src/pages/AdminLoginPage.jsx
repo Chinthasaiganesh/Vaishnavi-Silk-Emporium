@@ -32,7 +32,8 @@ export default function AdminLoginPage() {
         return;
       }
       const apiRoot = apiBaseUrl.replace(/\/api$/, "");
-      window.location.assign(`${apiRoot}/api/auth/oauth/${provider}`);
+      const clientOrigin = encodeURIComponent(window.location.origin);
+      window.location.assign(`${apiRoot}/api/auth/oauth/${provider}?clientOrigin=${clientOrigin}`);
     } catch {
       setError("Social Sign-In is unavailable. Check that the authentication service is running.");
     }

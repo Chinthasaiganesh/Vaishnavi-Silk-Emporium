@@ -78,6 +78,10 @@ function oauthRedirectUri(provider) {
   return `${config.publicApiOrigin}/api/auth/oauth/${provider}/callback`;
 }
 
+function resolveClientOrigin(origin) {
+  return origin && config.isAllowedOrigin(origin) ? origin : config.clientOrigin;
+}
+
 function configuredProvider(provider) {
   return provider === "google"
     ? config.googleClientId && config.googleClientSecret
@@ -139,7 +143,8 @@ router.get("/oauth/providers", async (req, res) => {
 router.get("/oauth/:provider", async (req, res) => {
   const provider = req.params.provider;
   if (!["google", "github"].includes(provider) || !configuredProvider(provider)) return res.redirect(`${config.clientOrigin}/login?oauthError=provider_not_configured`);
-  const state = jwt.sign({ provider, type: "oauth_state" }, config.jwtSecret, { expiresIn: oauthStateLifetime });
+  const clientOrigin = resolveClientOrigin(req.query.clientOrigin);
+  const state = jwt.sign({ provider, type: "oauth_state", clientOrigin }, config.jwtSecret, { expiresIn: oauthStateLifetime });
   const redirectUri = oauthRedirectUri(provider);
   const authorizationUrl = provider === "google"
     ? `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({ client_id: config.googleClientId, redirect_uri: redirectUri, response_type: "code", scope: "openid email profile", state, prompt: "select_account" })}`
@@ -153,6 +158,7 @@ router.get("/oauth/:provider/callback", async (req, res) => {
   try {
     const state = jwt.verify(req.query.state, config.jwtSecret);
     if (state.type !== "oauth_state" || state.provider !== provider || !req.query.code || !configuredProvider(provider)) throw new Error("Invalid OAuth response.");
+    const clientOrigin = resolveClientOrigin(state.clientOrigin);
     oauthStage = "provider_profile";
     const profile = await getOAuthProfile(provider, req.query.code);
     oauthStage = "user_persistence";
@@ -162,7 +168,7 @@ router.get("/oauth/:provider/callback", async (req, res) => {
     oauthStage = "session_creation";
     await startUserSession(res, user);
     oauthStage = "client_redirect";
-    return res.redirect(`${config.clientOrigin}/oauth/callback`);
+    return res.redirect(`${clientOrigin}/oauth/callback`);
   } catch (error) {
     console.error(JSON.stringify({ level: "error", message: "OAuth callback failed", requestId: req.requestId, provider, stage: oauthStage, error: error.message, code: error.code || null, status: error.status || null }));
     return res.redirect(`${config.clientOrigin}/login?oauthError=authentication_failed`);
