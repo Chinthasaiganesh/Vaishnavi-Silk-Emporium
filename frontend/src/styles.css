@@ -2101,6 +2101,77 @@ a {
 }
 
 @media (max-width: 700px) {
+  .site-header .header-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+    padding: 0.45rem 0;
+  }
+
+  .site-header .logo {
+    min-width: 0;
+  }
+
+  .site-header .brand-logo {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .site-header .brand-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+
+  .site-header .nav-links {
+    order: 3;
+    width: 100%;
+    gap: 0.2rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .site-header .nav-links::-webkit-scrollbar { display: none; }
+  .site-header .nav-links a { flex: 0 0 auto; padding: 0.3rem 0.5rem; font-size: 0.82rem; }
+
+  .site-header .header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .site-header .header-search {
+    grid-column: 1 / -1;
+  }
+
+  .site-header .header-search input {
+    padding-top: 0.58rem;
+    padding-bottom: 0.58rem;
+    font-size: 0.85rem;
+  }
+
+  .site-header .language-select select {
+    min-width: 3.9rem;
+    min-height: 2.15rem;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.75rem;
+  }
+
+  .site-header .cart-link,
+  .site-header .notification-bell,
+  .site-header .account-trigger,
+  .site-header .header-actions > .btn {
+    min-height: 2.15rem;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .site-header .account-menu {
+    min-width: 0;
+  }
+
   .auth-page { grid-template-columns: 1fr; }
   .auth-editorial { min-height: 13rem; padding: 2rem 6vw; }
   .auth-editorial h1 { font-size: 2.5rem; }
