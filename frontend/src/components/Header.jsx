@@ -168,7 +168,10 @@ export default function Header() {
           )}
           {!checking && user?.role === "USER" && (
             <div className="account-menu">
-              <Link className="notification-bell" to="/notifications" aria-label={t("notifications")}>Bell{unreadNotifications > 0 && <span>{unreadNotifications}</span>}</Link>
+              <Link className="notification-bell" to="/notifications" aria-label={t("notifications")}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+                {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
+              </Link>
               <button
                 className="account-trigger"
                 onClick={() => setProfileOpen((open) => !open)}
