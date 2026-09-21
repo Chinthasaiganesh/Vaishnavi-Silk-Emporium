@@ -70,10 +70,13 @@ export default function Footer() {
         </div>
         <div>
           <h4>Social</h4>
-          <div className="social-icons" aria-label="social icons">
-            <span>in</span>
-            <span>x</span>
-            <a href="https://www.instagram.com/vaishnavi_silk_emporium?stkn=MWk3aHoycXRxOGVjcQ==" target="_blank" rel="noreferrer" aria-label="Instagram">Instagram</a>
+          <div className="social-icons" aria-label="social links">
+            <a className="social-icon-link" href="https://www.instagram.com/vaishnavi_silk_emporium" target="_blank" rel="noreferrer" aria-label="Follow Vaishnavi Silk Emporium on Instagram">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="18" height="18" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r="1" className="social-icon-fill" /></svg>
+            </a>
+            <a className="social-icon-link" href="mailto:vaishnavisilkemporiumdmm@gmail.com" aria-label="Email Vaishnavi Silk Emporium">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+            </a>
           </div>
         </div>
       </div>
