@@ -78,10 +78,28 @@ function DocumentTitle() {
   return null;
 }
 
+function ScrollToTop() {
+  const { pathname, search, hash } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      const target = document.getElementById(hash.slice(1));
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+  }, [pathname, search, hash]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <>
       <DocumentTitle />
+      <ScrollToTop />
       <SpeedInsights />
       <Analytics />
       <Routes>
