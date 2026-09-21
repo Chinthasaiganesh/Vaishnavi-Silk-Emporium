@@ -2181,64 +2181,77 @@ a {
 
 @media (max-width: 700px) {
   .site-header .header-inner {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.45rem;
-    padding: 0.45rem 0;
+    display: flex;
+    gap: 0.35rem;
+    min-height: 3.25rem;
+    padding: 0.25rem 0;
   }
 
   .site-header .logo {
+    order: 2;
     min-width: 0;
+    flex: 0 0 auto;
+    gap: 0.35rem;
   }
 
   .site-header .brand-logo {
-    width: 2.35rem;
-    height: 2.35rem;
+    width: 2.25rem;
+    height: 2.25rem;
   }
 
-  .site-header .brand-copy strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.9rem;
-  }
+  .site-header .brand-copy { display: none; }
 
   .site-header .mobile-menu-toggle {
+    order: 1;
     display: block;
-    grid-column: 2;
-    grid-row: 1;
+    flex: 0 0 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+  }
+
+  .site-header .mobile-menu-toggle::before {
+    content: "☰";
+    font-size: 1.15rem;
   }
 
   .site-header .nav-links {
     display: none;
-    grid-column: 1 / -1;
-    grid-row: 3;
-    width: 100%;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    width: auto;
+    padding: 0.5rem 1rem;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
     gap: 0.2rem;
-    overflow-x: auto;
-    scrollbar-width: none;
+    flex-direction: column;
   }
 
   .site-header .nav-links.mobile-nav-open { display: flex; }
-  .site-header .nav-links::-webkit-scrollbar { display: none; }
-  .site-header .nav-links a { flex: 0 0 auto; padding: 0.3rem 0.5rem; font-size: 0.82rem; }
+  .site-header .nav-links a { padding: 0.55rem 0.5rem; font-size: 0.85rem; }
 
   .site-header .header-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    gap: 0.4rem;
-    width: 100%;
-    grid-column: 1 / -1;
-    grid-row: 2;
+    order: 3;
+    display: flex;
+    align-items: center;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 0.35rem;
   }
 
   .site-header .header-search {
-    grid-column: 1 / -1;
+    flex: 1 1 auto;
+    min-width: 2.5rem;
   }
 
   .site-header .header-search input {
-    padding-top: 0.58rem;
-    padding-bottom: 0.58rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.55rem 0.55rem 2.1rem;
     font-size: 0.85rem;
   }
 
@@ -2263,7 +2276,30 @@ a {
   .site-header .cart-link { width: 2.75rem; }
 
   .site-header .account-menu {
-    min-width: 0;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 0.25rem;
+  }
+
+  .site-header .account-trigger {
+    width: 2.75rem;
+    height: 2.75rem;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .site-header .account-trigger > span { display: none; }
+
+  .site-header .header-actions > .btn {
+    width: 2.75rem;
+    overflow: hidden;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .site-header .header-actions > .btn::before {
+    content: "→";
+    font-size: 1.1rem;
   }
 
   .auth-page { grid-template-columns: 1fr; }
