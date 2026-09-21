@@ -25,12 +25,5 @@ export default function AddToCartButton({ product, inCart = false, className = "
     }
   }
 
-  const label = inCart ? (added ? "Added" : "In Cart") : outOfStock ? "Out Of Stock" : adding ? "Adding" : "Add To Cart";
-  const compactLabel = inCart ? (added ? "Added" : "Cart") : outOfStock ? "Out" : adding ? "Adding" : "Add";
-
-  return <button className={`${inCart ? "in-cart-button" : className} add-to-cart-button${added ? " add-to-cart-added" : ""}`} disabled={(!inCart && outOfStock) || adding || added} onClick={handleAdd} aria-label={label} aria-live="polite">
-    {adding && <span className="button-spinner" aria-hidden="true" />}
-    <span className="cart-button-label">{label}</span>
-    <span className="cart-button-label-compact">{compactLabel}</span>
-  </button>;
+  return <button className={`${inCart ? "in-cart-button" : className} add-to-cart-button${added ? " add-to-cart-added" : ""}`} disabled={(!inCart && outOfStock) || adding || added} onClick={handleAdd} aria-live="polite">{inCart ? (added ? "✓ Added" : "✓ In Cart") : outOfStock ? "Out Of Stock" : adding ? <><span className="button-spinner" aria-hidden="true" />Adding...</> : "Add To Cart"}</button>;
 }
