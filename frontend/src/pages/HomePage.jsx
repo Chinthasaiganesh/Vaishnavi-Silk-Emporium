@@ -169,7 +169,7 @@ export default function HomePage() {
                 <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
                 <RatingBadge rating={product.rating} productId={product.productId} />
                 <div className="featured-price-row">
-                  <ProductPrice product={product} />
+                  <ProductPrice product={product} showSavings={false} />
                   <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
                     {product.quantity > 0 ? t("inStock") : t("outOfStock")}
                   </span>
