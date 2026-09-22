@@ -84,6 +84,15 @@ export default function AdminLayout() {
           aria-label="Admin navigation"
           aria-hidden={!mobileNavOpen}
         >
+          <button
+            type="button"
+            className="admin-navigation-close"
+            onClick={() => setMobileNavOpen(false)}
+            aria-label="Close admin navigation"
+          >
+            <span aria-hidden="true">×</span>
+            <span>Close</span>
+          </button>
           {adminLinks.map((link) => (
             <NavLink key={link.to} to={link.to}>{link.label}</NavLink>
           ))}
