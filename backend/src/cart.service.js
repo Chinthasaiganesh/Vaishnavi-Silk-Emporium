@@ -14,7 +14,10 @@ export function calculateTotals(items) {
 }
 
 function mapCartItem(item) {
-  return { cartItemId: item.CartItemId, productId: item.ProductId, productName: item.ProductName, category: item.Category, imageUrl: item.ImageUrl, quantity: item.Quantity, unitPrice: item.UnitPrice, availableStock: item.AvailableStock, subtotal: item.UnitPrice * item.Quantity, createdDate: item.CreatedDate, updatedDate: item.UpdatedDate };
+  const originalPrice = Number(item.OriginalPrice ?? item.UnitPrice ?? 0);
+  const unitPrice = Number(item.UnitPrice ?? originalPrice);
+  const discountPercentage = unitPrice < originalPrice ? Math.round(((originalPrice - unitPrice) / originalPrice) * 100) : 0;
+  return { cartItemId: item.CartItemId, productId: item.ProductId, productName: item.ProductName, category: item.Category, imageUrl: item.ImageUrl, quantity: item.Quantity, originalPrice, discountedPrice: unitPrice < originalPrice ? unitPrice : null, unitPrice, discountPercentage, availableStock: item.AvailableStock, subtotal: unitPrice * item.Quantity, createdDate: item.CreatedDate, updatedDate: item.UpdatedDate };
 }
 
 export async function getCart(userId) {
