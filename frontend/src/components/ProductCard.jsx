@@ -1,21 +1,29 @@
-import ProductPrice from "./ProductPrice";
-import AddToCartButton from "./AddToCartButton";
-import { NotifyWhenAvailableButton } from "./ProductCardActions";
-import { useCart } from "../CartContext";
 import { Link } from "react-router-dom";
+import { useLanguage } from "../LanguageContext";
+import RatingBadge from "./RatingBadge";
+import ProductCardActions from "./ProductCardActions";
+import ProductPrice from "./ProductPrice";
 
 export default function ProductCard({ product }) {
-  const { cart } = useCart();
-  const inCart = cart.items.some((item) => item.productId === product.productId);
+  const { t } = useLanguage();
   return (
     <article className="product-card">
       <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
       <div className="product-card-body">
-        <p className="product-card-category">{product.category}</p>
+        <p className="pill">{product.category}</p>
         <h3>{product.productName}</h3>
-        <ProductPrice product={product} />
-        <Link className="product-card-details" to={`/products/${product.productId}`}>View Details</Link>
-        {product.quantity > 0 ? <AddToCartButton product={product} inCart={inCart} /> : <NotifyWhenAvailableButton product={product} />}
+        <p className="product-desc">{product.description}</p>
+        <RatingBadge rating={product.rating} productId={product.productId} />
+        <div className="product-meta">
+          <span className={product.quantity > 0 ? "status in" : "status out"}>
+            {product.quantity > 0 ? t("inStock") : t("outOfStock")}
+          </span>
+          <ProductPrice product={product} />
+        </div>
+        <Link className="btn btn-outline" to={`/products/${product.productId}`}>
+          {t("viewDetails")}
+        </Link>
+        <ProductCardActions product={product} />
       </div>
     </article>
   );

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLanguage } from "../LanguageContext";
-import AddToCartButton from "../components/AddToCartButton";
-import { NotifyWhenAvailableButton } from "../components/ProductCardActions";
+import RatingBadge from "../components/RatingBadge";
+import ProductCardActions from "../components/ProductCardActions";
 import ProductPrice from "../components/ProductPrice";
 
 const valueMessages = [
@@ -166,9 +166,16 @@ export default function HomePage() {
               <div className="featured-product-body">
                 <p className="featured-category">{product.category}</p>
                 <h3>{product.productName}</h3>
-                <ProductPrice product={product} />
-                <Link className="featured-details-link" to={`/products/${product.productId}`}>View Details</Link>
-                {product.quantity > 0 ? <AddToCartButton product={product} /> : <NotifyWhenAvailableButton product={product} />}
+                <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
+                <RatingBadge rating={product.rating} productId={product.productId} />
+                <div className="featured-price-row">
+                  <ProductPrice product={product} />
+                  <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
+                    {product.quantity > 0 ? t("inStock") : t("outOfStock")}
+                  </span>
+                </div>
+                <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
+                <ProductCardActions product={product} compact />
               </div>
             </motion.article>
           ))}
