@@ -88,7 +88,7 @@ export default function ProductDetailPage() {
           <dt>Blouse Piece</dt><dd>{product.blousePieceIncluded ? "Included" : "Not included"}</dd>
           <dt>Care</dt><dd>{product.careInstructions || "Dry clean only"}</dd>
         </dl>
-        <RatingBadge rating={product.rating} />
+        <RatingBadge rating={product.rating} productId={product.productId} />
         <ProductPrice product={product} className="detail-product-price" />
         <p className={product.quantity > 0 ? "status in" : "status out"}>
           {product.quantity > 0 ? t("inStock") : t("outOfStock")}

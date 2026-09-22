@@ -1225,6 +1225,17 @@ a {
   color: #b12d55;
 }
 
+.discount-percentage {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.42rem;
+  color: #9b294c;
+  background: #fff0f4;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
 .detail-product-price {
   margin: 0.75rem 0;
   font-size: 1.5rem;
