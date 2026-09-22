@@ -600,8 +600,59 @@ a {
 /* Responsive admin adjustments */
 @media (max-width: 900px) {
   .admin-workspace {
-    grid-template-columns: 1fr;
+    display: block;
   }
+
+  .order-detail .section-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .order-detail .cancel-order-trigger {
+    width: 100%;
+  }
+
+  .modal-backdrop {
+    align-items: end;
+    padding: 0.65rem;
+  }
+
+  .confirm-modal {
+    width: 100%;
+    max-height: calc(100vh - 1.3rem);
+    overflow-y: auto;
+    gap: 0.7rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+
+  .confirm-modal h2 {
+    font-size: 1.25rem;
+  }
+
+  .confirm-modal p {
+    overflow-wrap: anywhere;
+    font-size: 0.88rem;
+  }
+
+  .confirm-modal textarea {
+    width: 100%;
+    min-height: 6rem;
+    max-width: 100%;
+  }
+
+  .confirm-modal .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .confirm-modal .form-actions .btn {
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
   .admin-shell.sidebar-collapsed .admin-workspace {
     grid-template-columns: 1fr;
   }
