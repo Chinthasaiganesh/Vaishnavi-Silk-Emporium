@@ -1956,6 +1956,7 @@ a {
 .wishlist-action:hover, .notify-action:hover { border-color: var(--primary); background: #fff3f5; transform: translateY(-1px); }
 .wishlist-action-saved { border-color: #d65a5a; color: #b62d2d; background: #fff3f3; }
 .notify-action { border-style: dashed; color: #8a5b24; background: #fff9ed; }
+.notify-action-subscribed { border-style: solid; border-color: #2d7652; color: #fff; background: #2d7652; cursor: default; }
 .notify-action:disabled { cursor: wait; opacity: 0.7; }
 .product-action-notice { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
 .product-card-actions .add-to-cart-button { order: 2; }
