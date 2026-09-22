@@ -19,5 +19,41 @@ export default function AdminOverviewPage() {
   const featured = products.filter((product) => product.isFeatured).length;
   const recent = products.slice(0, 5);
 
-  return <main className="container section admin-layout"><div className="admin-head"><div><p className="eyebrow">Vaishnavi Silk Emporium</p><h1>Admin Dashboard</h1></div></div><div className="stats-grid"><article><h3>Total Sarees</h3><p>{summary.totalProducts}</p></article><article><h3>Available Sarees</h3><p>{summary.activeProducts - outOfStock}</p></article><article><h3>Out Of Stock</h3><p>{outOfStock}</p></article><article><h3>Featured Sarees</h3><p>{featured}</p></article></div>{error && <p className="error-text">{error}</p>}<section className="admin-table-wrap"><h2>Recent Updates</h2><div className="table-scroll"><table className="admin-table"><thead><tr><th>Saree</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead><tbody>{recent.map((product) => <tr key={product.productId}><td>{product.productName}</td><td>{product.category}</td><td>{product.quantity}</td><td>{product.quantity > 0 ? "Available" : "Out Of Stock"}</td></tr>)}</tbody></table></div></section></main>;
+  return (
+    <main className="container section admin-layout">
+      <div className="admin-head">
+        <div>
+          <p className="eyebrow">Vaishnavi Silk Emporium</p>
+          <h1>Admin Dashboard</h1>
+        </div>
+      </div>
+      <div className="stats-grid">
+        <article><h3>Total Sarees</h3><p>{summary.totalProducts}</p></article>
+        <article><h3>Available Sarees</h3><p>{summary.activeProducts - outOfStock}</p></article>
+        <article><h3>Out Of Stock</h3><p>{outOfStock}</p></article>
+        <article><h3>Featured Sarees</h3><p>{featured}</p></article>
+      </div>
+      {error && <p className="error-text">{error}</p>}
+      <section className="admin-table-wrap">
+        <h2>Recent Updates</h2>
+        <div className="table-scroll">
+          <table className="admin-table">
+            <thead>
+              <tr><th>Saree</th><th>Category</th><th>Stock</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {recent.map((product) => (
+                <tr key={product.productId}>
+                  <td data-label="Saree">{product.productName}</td>
+                  <td data-label="Category">{product.category}</td>
+                  <td data-label="Stock">{product.quantity}</td>
+                  <td data-label="Status">{product.quantity > 0 ? "Available" : "Out Of Stock"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  );
 }

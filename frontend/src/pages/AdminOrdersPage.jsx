@@ -66,19 +66,89 @@ export default function AdminOrdersPage() {
     } catch (requestError) { setError(requestError.response?.data?.message || `Unable to update payment status${requestError.response?.data?.requestId ? ` (request ${requestError.response.data.requestId})` : ""}.`); }
   }
 
-  return <main className="container section admin-layout">
-    <div className="admin-head"><div><p className="eyebrow">Fulfillment</p><h1>Order Management</h1></div></div>
-    {message && <p className="success-text">{message}</p>}
-    {error && <p className="error-text">{error}</p>}
-    <section className="admin-table-wrap">
-      <div className="order-admin-toolbar">
-        <input className="admin-search" placeholder="Search order, customer, email" value={query} onChange={(event) => setQuery(event.target.value)} />
-        <select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select>
-        <button className="btn btn-outline" onClick={load}>Apply</button>
-      </div>
-      <div className="table-scroll"><table className="admin-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Date</th><th>Items</th><th>Amount</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead><tbody>{pagedOrders.map((order) => <tr key={order.OrderId}><td>{order.OrderNumber}</td><td>{order.FullName || order.Username}<br /><small>{order.Email}</small></td><td>{new Date(order.CreatedDate).toLocaleDateString()}</td><td>{order.ItemCount}</td><td>{formatCurrency(order.GrandTotal)}</td><td>{order.PaymentMethod || "COD"}</td><td><span className="order-status-badge">{prettyStatus(order.OrderStatus)}</span></td><td><button className="link-btn" onClick={() => viewOrder(order.OrderId)}>View</button></td></tr>)}</tbody></table></div>
-      <div className="pagination-row"><button className="btn btn-outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {pageCount}</span><button className="btn btn-outline" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>Next</button></div>
-    </section>
-    {selectedOrder && <section className="admin-table-wrap order-admin-detail"><div className="checkout-section-heading"><h2>{selectedOrder.OrderNumber}</h2><button className="link-btn" onClick={() => setSelectedOrder(null)}>Close</button></div><div className="order-admin-grid"><article><h3>Customer</h3><p>{selectedOrder.CustomerName || selectedOrder.Username}<br />{selectedOrder.Email}<br />{selectedOrder.CustomerMobile}</p><h3>Shipping Address</h3><p>{selectedOrder.FullName}<br />{selectedOrder.AddressLine1}{selectedOrder.AddressLine2 ? `, ${selectedOrder.AddressLine2}` : ""}<br />{selectedOrder.City}, {selectedOrder.State} {selectedOrder.PostalCode}<br />{selectedOrder.Country}</p></article><article><h3>Payment</h3><p>Status: <strong>{prettyStatus(selectedOrder.PaymentStatus || "PENDING")}</strong><br />UTR: {selectedOrder.PaymentReference || "Not provided"}</p>{selectedOrder.PaymentScreenshotUrl && <p><a href={selectedOrder.PaymentScreenshotUrl} target="_blank" rel="noreferrer">Open payment screenshot</a></p>}{selectedOrder.PaymentStatus === "PENDING" && <div><button className="btn btn-primary" onClick={() => updatePayment("VERIFIED")}>Verify Payment</button><button className="btn btn-outline" onClick={() => updatePayment("REJECTED")}>Reject Payment</button></div>}<h3>Status</h3><select value={selectedOrder.OrderStatus} onChange={(event) => updateStatus(event.target.value)}>{statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select><h3>Timeline</h3><div className="admin-status-history">{(selectedOrder.history || []).map((entry) => <p key={entry.StatusHistoryId}><strong>{prettyStatus(entry.NewStatus)}</strong><span>{new Date(entry.ChangedAt).toLocaleString()} {entry.Username ? `by ${entry.Username}` : ""}</span></p>)}</div></article></div><h3>Products</h3><div className="table-scroll"><table className="admin-table"><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead><tbody>{selectedOrder.items.map((item) => <tr key={item.OrderItemId}><td>{item.ProductName}</td><td>{item.Quantity}</td><td>{formatCurrency(item.ProductPrice)}</td><td>{formatCurrency(item.LineTotal)}</td></tr>)}</tbody></table></div></section>}
-  </main>;
+  return (
+    <main className="container section admin-layout">
+      <div className="admin-head"><div><p className="eyebrow">Fulfillment</p><h1>Order Management</h1></div></div>
+      {message && <p className="success-text">{message}</p>}
+      {error && <p className="error-text">{error}</p>}
+
+      <section className="admin-table-wrap">
+        <div className="order-admin-toolbar">
+          <input className="admin-search" placeholder="Search order, customer, email" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="">All statuses</option>
+            {statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}
+          </select>
+          <button className="btn btn-outline" onClick={load}>Apply</button>
+        </div>
+
+        <div className="table-scroll">
+          <table className="admin-table">
+            <thead>
+              <tr><th>Order ID</th><th>Customer</th><th>Date</th><th>Items</th><th>Amount</th><th>Payment</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {pagedOrders.map((order) => (
+                <tr key={order.OrderId}>
+                  <td data-label="Order ID">{order.OrderNumber}</td>
+                  <td data-label="Customer">{order.FullName || order.Username}<br /><small>{order.Email}</small></td>
+                  <td data-label="Date">{new Date(order.CreatedDate).toLocaleDateString()}</td>
+                  <td data-label="Items">{order.ItemCount}</td>
+                  <td data-label="Amount">{formatCurrency(order.GrandTotal)}</td>
+                  <td data-label="Payment">{order.PaymentMethod || "COD"}</td>
+                  <td data-label="Status"><span className="order-status-badge">{prettyStatus(order.OrderStatus)}</span></td>
+                  <td data-label="Actions"><button className="link-btn" onClick={() => viewOrder(order.OrderId)}>View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pagination-row"><button className="btn btn-outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>Previous</button><span>Page {page} of {pageCount}</span><button className="btn btn-outline" disabled={page >= pageCount} onClick={() => setPage((value) => value + 1)}>Next</button></div>
+      </section>
+
+      {selectedOrder && (
+        <section className="admin-table-wrap order-admin-detail">
+          <div className="checkout-section-heading"><h2>{selectedOrder.OrderNumber}</h2><button className="link-btn" onClick={() => setSelectedOrder(null)}>Close</button></div>
+          <div className="order-admin-grid">
+            <article>
+              <h3>Customer</h3>
+              <p>{selectedOrder.CustomerName || selectedOrder.Username}<br />{selectedOrder.Email}<br />{selectedOrder.CustomerMobile}</p>
+              <h3>Shipping Address</h3>
+              <p>{selectedOrder.FullName}<br />{selectedOrder.AddressLine1}{selectedOrder.AddressLine2 ? `, ${selectedOrder.AddressLine2}` : ""}<br />{selectedOrder.City}, {selectedOrder.State} {selectedOrder.PostalCode}<br />{selectedOrder.Country}</p>
+            </article>
+            <article>
+              <h3>Payment</h3>
+              <p>Status: <strong>{prettyStatus(selectedOrder.PaymentStatus || "PENDING")}</strong><br />UTR: {selectedOrder.PaymentReference || "Not provided"}</p>
+              {selectedOrder.PaymentScreenshotUrl && <p><a href={selectedOrder.PaymentScreenshotUrl} target="_blank" rel="noreferrer">Open payment screenshot</a></p>}
+              {selectedOrder.PaymentStatus === "PENDING" && <div><button className="btn btn-primary" onClick={() => updatePayment("VERIFIED")}>Verify Payment</button><button className="btn btn-outline" onClick={() => updatePayment("REJECTED")}>Reject Payment</button></div>}
+              <h3>Status</h3>
+              <select value={selectedOrder.OrderStatus} onChange={(event) => updateStatus(event.target.value)}>{statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select>
+              <h3>Timeline</h3>
+              <div className="admin-status-history">{(selectedOrder.history || []).map((entry) => <p key={entry.StatusHistoryId}><strong>{prettyStatus(entry.NewStatus)}</strong><span>{new Date(entry.ChangedAt).toLocaleString()} {entry.Username ? `by ${entry.Username}` : ""}</span></p>)}</div>
+            </article>
+          </div>
+
+          <h3>Products</h3>
+          <div className="table-scroll">
+            <table className="admin-table">
+              <thead>
+                <tr><th>Product</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr>
+              </thead>
+              <tbody>
+                {(selectedOrder.items || []).map((it) => (
+                  <tr key={it.productId || it.id}>
+                    <td data-label="Product">{it.productName || it.name}</td>
+                    <td data-label="Qty">{it.quantity || it.qty}</td>
+                    <td data-label="Price">{formatCurrency(it.price || it.unitPrice || 0)}</td>
+                    <td data-label="Subtotal">{formatCurrency((it.quantity || it.qty || 0) * (it.price || it.unitPrice || 0))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+    </main>
+  );
 }
