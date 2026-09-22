@@ -9,14 +9,16 @@ const router = Router();
 
 router.post("/subscriptions/:productId", authRequired, param("productId").isInt({ min: 1 }), validateRequest, async (req, res) => {
   const productId = Number(req.params.productId);
-  const product = await db.prepare("SELECT ProductId, Quantity, IsActive FROM Products WHERE ProductId = ?").get(productId);
+  const product = await db.prepare("SELECT ProductId, ProductName, Quantity, IsActive FROM Products WHERE ProductId = ?").get(productId);
   if (!product || !product.IsActive) return res.status(404).json({ message: "Product not found." });
   if (product.Quantity > 0) return res.status(400).json({ message: "This product is already available." });
   const existing = await db.prepare("SELECT SubscriptionId, IsActive FROM NotificationSubscriptions WHERE UserId = ? AND ProductId = ? AND NotificationType = 'BACK_IN_STOCK'").get(req.user.userId, productId);
   if (existing?.IsActive) return res.status(409).json({ message: "You are already subscribed to this availability alert." });
   if (existing) await db.prepare("UPDATE NotificationSubscriptions SET IsActive = 1, IsSent = 0, SentDate = NULL, CreatedDate = ? WHERE SubscriptionId = ?").run(nowIso(), existing.SubscriptionId);
   else await db.prepare("INSERT INTO NotificationSubscriptions (UserId, ProductId, CreatedDate) VALUES (?, ?, ?)").run(req.user.userId, productId, nowIso());
-  return res.status(201).json({ message: "We will notify you when this product is back in stock." });
+  await db.prepare("INSERT INTO Notifications (UserId, ProductId, Type, Title, Message, CreatedDate) VALUES (?, ?, 'AVAILABILITY_SUBSCRIPTION', 'Stock alert enabled', ?, ?)").run(req.user.userId, productId, `You are on the list for ${product.ProductName || "this product"}. We will notify you when it is back in stock.`, nowIso());
+  const unreadCount = (await db.prepare("SELECT COUNT(*) AS count FROM Notifications WHERE UserId = ? AND IsRead = 0").get(req.user.userId)).count;
+  return res.status(201).json({ message: "Notification enabled. We'll let you know when this product is back in stock.", unreadCount });
 });
 
 router.get("/subscriptions/:productId", authRequired, param("productId").isInt({ min: 1 }), validateRequest, async (req, res) => {
