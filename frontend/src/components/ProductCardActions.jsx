@@ -11,6 +11,7 @@ export default function ProductCardActions({ product, compact = false }) {
   const [saved, setSaved] = useState(false);
   const [notice, setNotice] = useState("");
   const [subscribing, setSubscribing] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
   const { cart } = useCart();
   const inCart = cart.items.some((item) => item.productId === product.productId);
 
@@ -20,6 +21,13 @@ export default function ProductCardActions({ product, compact = false }) {
     api.get(`/wishlists/${product.productId}`).then((response) => {
       if (active) setSaved(response.data.saved);
     }).catch(() => {});
+    if (product.quantity <= 0) {
+      api.get(`/notifications/subscriptions/${product.productId}`).then((response) => {
+        if (active) setSubscribed(Boolean(response.data.subscribed));
+      }).catch(() => {});
+    } else {
+      setSubscribed(false);
+    }
     return () => { active = false; };
   }, [product.productId, user?.userId]);
 
@@ -48,7 +56,9 @@ export default function ProductCardActions({ product, compact = false }) {
     setSubscribing(true);
     try {
       const response = await api.post(`/notifications/subscriptions/${product.productId}`);
-      setNotice(response.data.message);
+      setSubscribed(true);
+      setNotice("Notification Enabled. We'll let you know when this product is back in stock.");
+      window.setTimeout(() => setNotice(""), 4200);
     } catch (error) {
       setNotice(error.response?.data?.message || "Unable to save notification request.");
     } finally {
@@ -59,7 +69,7 @@ export default function ProductCardActions({ product, compact = false }) {
   return <div className={`product-card-actions${compact ? " product-card-actions-compact" : ""}`}>
     <button className={saved ? "wishlist-action wishlist-action-saved" : "wishlist-action"} onClick={toggleWishlist} aria-pressed={saved}>{saved ? "♥ Saved to Wishlist" : "♡ Save to Wishlist"}</button>
     {product.quantity > 0 && <AddToCartButton product={product} inCart={inCart} />}
-    {product.quantity <= 0 && <button className="notify-action" onClick={notifyWhenAvailable} disabled={subscribing}>{subscribing ? "Saving..." : "Notify Me When Available"}</button>}
+    {product.quantity <= 0 && <button className={`notify-action${subscribed ? " notify-action-subscribed" : ""}`} onClick={notifyWhenAvailable} disabled={subscribing || subscribed} aria-pressed={subscribed}>{subscribing ? "Registering..." : subscribed ? "✓ You'll Be Notified" : "Notify Me When Available"}</button>}
     {notice && <span className="product-action-notice" role="status">{notice}</span>}
   </div>;
 }
