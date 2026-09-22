@@ -213,10 +213,10 @@ a {
 
 .admin-header {
   min-height: 4.5rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.9rem;
   padding: 0.75rem max(4vw, 1rem);
   background: rgba(255, 249, 247, 0.94);
   border-bottom: 1px solid var(--border);
@@ -224,18 +224,26 @@ a {
 
 .admin-logo {
   color: var(--text);
+  min-width: 0;
 }
 
 .admin-profile {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  justify-self: end;
   color: var(--muted);
   font-weight: 700;
   min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.admin-profile > span { min-width: 0; overflow-wrap: anywhere; }
+.admin-profile > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .admin-workspace {
   display: grid;
@@ -264,6 +272,16 @@ a {
 
 .admin-navigation-close {
   display: none;
+}
+
+.admin-drawer-backdrop {
+  display: none;
+}
+
+@media (max-width: 1200px) {
+  .admin-profile > span {
+    display: none;
+  }
 }
 
 .admin-navigation a:hover,
@@ -412,6 +430,21 @@ a {
   .admin-workspace {
     grid-template-columns: 1fr;
   }
+  .admin-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.55rem;
+    min-height: auto;
+    padding: 0.55rem 0.75rem;
+  }
+  .admin-profile {
+    gap: 0.55rem;
+  }
+  .admin-profile > span {
+    display: none;
+  }
+  .admin-profile .btn {
+    padding: 0.45rem 0.7rem;
+  }
   .admin-navigation {
     display: grid;
     grid-auto-flow: row;
@@ -427,6 +460,16 @@ a {
     padding: 1rem;
     overflow-y: auto;
     overflow-x: hidden;
+  }
+  .admin-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    border: 0;
+    background: rgba(20, 8, 13, 0.48);
+    backdrop-filter: blur(2px);
+    cursor: pointer;
   }
   .admin-navigation.mobile-open {
     transform: translateX(0);
@@ -462,7 +505,7 @@ a {
     margin-right: 0.6rem;
   }
   .admin-header {
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.75rem;
   }
   .brand-logo { width: 3rem; height: 3rem; }
   .brand-copy small { display: none; }
@@ -1701,6 +1744,9 @@ a {
 .admin-layout {
   display: grid;
   gap: 1rem;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .admin-head {
@@ -2446,11 +2492,10 @@ a {
   }
 
   .admin-header {
-    align-items: flex-start;
-    flex-direction: column;
+    min-height: auto;
   }
 
-  .admin-profile { width: 100%; flex-wrap: wrap; justify-content: space-between; }
+  .admin-profile { width: auto; flex-wrap: nowrap; justify-content: flex-end; }
 
   .admin-section-page {
     margin: 1rem;
