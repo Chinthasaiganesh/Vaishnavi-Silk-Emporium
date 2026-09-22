@@ -43,7 +43,7 @@ export async function placeOrder(userId, addressId, idempotencyKey, requestId, p
     const discountedPrice = Number(product.Price);
     const savingsAmount = Math.max(0, originalPrice - discountedPrice);
     const discountPercentage = originalPrice > 0 ? Math.round((savingsAmount / originalPrice) * 100) : 0;
-    orderItems.push({ ...item, ProductName: product.ProductName, Price: discountedPrice, OriginalPrice: originalPrice, DiscountedPrice: discountedPrice, SavingsAmount: savingsAmount, DiscountPercentage: discountPercentage });
+    orderItems.push({ ...item, ProductName: product.ProductName, ImageUrl: item.ImageUrl, Price: discountedPrice, OriginalPrice: originalPrice, DiscountedPrice: discountedPrice, SavingsAmount: savingsAmount, DiscountPercentage: discountPercentage });
   }
   const subtotal = orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0);
   const savings = orderItems.reduce((sum, item) => sum + item.SavingsAmount * item.Quantity, 0);

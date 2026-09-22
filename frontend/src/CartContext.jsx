@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api, apiBaseUrl } from "./api";
 import { useAuth } from "./AuthContext";
 import { formatCurrency } from "./utils/currency";
+import { resolveImageUrl } from "./utils/image";
 
 const CartContext = createContext(null);
 
@@ -103,9 +104,7 @@ export function CartProvider({ children }) {
 }
 
 function resolveImage(url) {
-  if (!url) return "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=500&q=80";
-  if (url.startsWith("http")) return url;
-  return `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}`;
+  return resolveImageUrl(url);
 }
 
 function wait(duration) {

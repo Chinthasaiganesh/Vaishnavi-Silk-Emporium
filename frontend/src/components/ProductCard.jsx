@@ -22,7 +22,7 @@ export default function ProductCard({ product }) {
           <span className={product.quantity > 0 ? "status in" : "status out"}>
             {product.quantity > 0 ? t("inStock") : t("outOfStock")}
           </span>
-          <ProductPrice product={product} />
+          <ProductPrice product={product} showSavings={false} />
         </div>
         <Link className="btn btn-outline" to={`/products/${product.productId}`}>
           {t("viewDetails")}

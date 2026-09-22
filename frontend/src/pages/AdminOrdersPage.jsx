@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
+import { resolveImageUrl } from "../utils/image";
 
 function prettyStatus(status = "") {
   return status.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
@@ -164,4 +165,4 @@ export default function AdminOrdersPage() {
   );
 }
 
-function resolveImage(url) { return url?.startsWith("http") ? url : url ? `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}` : "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=300&q=80"; }
+function resolveImage(url) { return resolveImageUrl(url); }
