@@ -77,6 +77,9 @@ export default function Footer() {
             <a className="social-icon-link" href="mailto:vaishnavisilkemporiumdmm@gmail.com" aria-label="Email Vaishnavi Silk Emporium">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
             </a>
+            <a className="social-icon-link" href="https://wa.me/919966764430" target="_blank" rel="noreferrer" aria-label="Chat with Vaishnavi Silk Emporium on WhatsApp">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4.1A8 8 0 1 1 20 11.5Z" /><path d="M8.5 8.5c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.6 1.4c.1.2 0 .4-.1.6l-.5.6c.7 1.1 1.4 1.7 2.5 2.2l.5-.6c.2-.2.4-.2.6-.1l1.4.7c.2.1.3.3.2.5-.2.8-.8 1.3-1.5 1.3-2.1-.1-5.8-3.4-5.9-5.6 0-.4.2-.7.5-1Z" /></svg>
+            </a>
           </div>
         </div>
       </div>
