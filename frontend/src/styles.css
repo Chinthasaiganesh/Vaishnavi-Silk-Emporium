@@ -1937,7 +1937,7 @@ a {
 .product-card-actions-compact { gap: 0.5rem; margin-top: 0.1rem; padding-top: 0.65rem; }
 .product-card-actions .add-to-cart-button,
 .product-card-actions .wishlist-action,
-.product-card-actions .notify-action { width: 100%; min-height: 2.65rem; }
+.product-card-actions .add-to-cart-button { width: 100%; min-height: 2.65rem; }
 .add-to-cart-button { gap: 0.45rem; }
 .button-spinner {
   width: 0.9rem;
@@ -1952,16 +1952,14 @@ a {
 .cart-button-label-compact { display: none; }
 .in-cart-button { border: 1px solid #9bc9ae; border-radius: 0.65rem; padding: 0.65rem 0.8rem; color: #236c45; background: #edf8f0; font: inherit; font-weight: 800; cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
 .in-cart-button:hover { border-color: #4c9b6c; background: #e1f3e6; transform: translateY(-1px); }
-.wishlist-action, .notify-action { border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.65rem 0.8rem; color: var(--primary); background: var(--card); font: inherit; font-size: 0.86rem; font-weight: 800; cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
-.wishlist-action:hover, .notify-action:hover { border-color: var(--primary); background: #fff3f5; transform: translateY(-1px); }
+.wishlist-action { border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.65rem 0.8rem; color: var(--primary); background: var(--card); font: inherit; font-size: 0.86rem; font-weight: 800; cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
+.wishlist-action:hover { border-color: var(--primary); background: #fff3f5; transform: translateY(-1px); }
 .wishlist-action-saved { border-color: #d65a5a; color: #b62d2d; background: #fff3f3; }
-.notify-action { border-style: dashed; color: #8a5b24; background: #fff9ed; }
-.notify-action-subscribed { border-style: solid; border-color: #2d7652; color: #fff; background: #2d7652; cursor: default; }
-.notify-action:disabled { cursor: wait; opacity: 0.7; }
+.add-to-cart-notify-success { border-color: #2d7652; color: #fff; background: #2d7652; cursor: default; }
+.add-to-cart-button:disabled { cursor: wait; opacity: 0.78; }
 .product-action-notice { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
 .product-card-actions .add-to-cart-button { order: 2; }
 .product-card-actions .wishlist-action { order: 1; }
-.product-card-actions .notify-action { order: 3; }
 
 .status {
   font-size: 0.8rem;
