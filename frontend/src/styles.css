@@ -3065,6 +3065,60 @@ a {
   }
 }
 
+@media (max-width: 700px) {
+  .settings-page {
+    width: min(100% - 1rem, 780px);
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  .settings-page h1 {
+    margin-bottom: 0.75rem;
+    font-size: clamp(1.65rem, 7vw, 2.2rem);
+  }
+
+  .settings-form {
+    gap: 0.7rem;
+    padding: 0.85rem;
+  }
+
+  .settings-form label {
+    font-size: 0.82rem;
+  }
+
+  .settings-form input:not([type="checkbox"]),
+  .settings-form select {
+    min-height: 2.65rem;
+    padding: 0.6rem 0.7rem;
+  }
+
+  .avatar-upload-preview {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.55rem;
+    padding: 0.65rem;
+  }
+
+  .avatar-upload-preview span {
+    font-size: 0.76rem;
+  }
+
+  .settings-form fieldset {
+    gap: 0.55rem;
+    padding: 0.65rem;
+  }
+
+  .settings-form .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .settings-form .form-actions .btn {
+    width: 100%;
+  }
+}
+
 /* Keep the compact header arrangement consistent on wide screens. */
 @media (min-width: 1025px) {
   .site-header .header-inner {
