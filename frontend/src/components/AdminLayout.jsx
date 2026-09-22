@@ -83,7 +83,7 @@ export default function AdminLayout() {
         </button>
         <NavLink className="logo admin-logo" to="/admin/dashboard">
           <img className="brand-logo" src="/brand/vaishnavi-vs-monogram.png" alt="Vaishnavi Silk Emporium" />
-          <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Store Management</small></span>
+          <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Where Tradition Meets Elegance</small></span>
         </NavLink>
         <button className="admin-sidebar-toggle" type="button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-controls="admin-navigation" aria-label={sidebarCollapsed ? "Expand admin navigation" : "Collapse admin navigation"}>
           <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>

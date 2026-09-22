@@ -137,7 +137,7 @@ body {
 }
 
 :root[data-theme="dark"] .admin-navigation {
-  background: #181818;
+  background: linear-gradient(180deg, #163b39 0%, #0e282b 100%);
 }
 
 h1,
@@ -300,19 +300,35 @@ a {
 }
 
 .admin-logo .brand-copy {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
+  display: grid;
+  gap: 0.08rem;
   min-width: 0;
 }
 
-.admin-logo .brand-copy strong,
-.admin-logo .brand-copy small {
+.admin-logo .brand-copy strong {
+  overflow: hidden;
+  color: var(--primary);
+  font-family: var(--font-brand);
+  font-size: clamp(1.15rem, 1.7vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  line-height: 0.95;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .admin-logo .brand-copy small {
-  display: none;
+  display: block;
+  overflow: hidden;
+  color: var(--accent);
+  font-family: var(--font-brand-meta);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .admin-profile {
@@ -349,7 +365,7 @@ a {
   align-content: start;
   gap: 0.15rem;
   padding: 1rem;
-  background: linear-gradient(180deg, #6e2946 0%, #4b1f31 100%);
+  background: linear-gradient(180deg, #1d4642 0%, #102f32 100%);
   overflow-x: hidden;
   transition: padding 220ms ease;
 }
@@ -375,7 +391,7 @@ a {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 0.45rem;
-  color: #f8d7c8;
+  color: #f5d19a;
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -430,8 +446,8 @@ a {
 .admin-navigation a:hover,
 .admin-navigation a.active {
   color: #fff;
-  background: linear-gradient(90deg, var(--primary), #ad5572);
-  box-shadow: inset 3px 0 0 var(--accent);
+  background: linear-gradient(90deg, #2e665f, #3b7a70);
+  box-shadow: inset 3px 0 0 #e0b66f;
 }
 
 .admin-content {
@@ -674,7 +690,7 @@ a {
   .admin-navigation a.active {
     transform: translateX(2px);
     border-color: rgba(212, 163, 115, 0.45);
-    background: linear-gradient(90deg, rgba(142, 58, 89, 0.95), rgba(173, 85, 114, 0.95));
+    background: linear-gradient(90deg, #2e665f, #3b7a70);
   }
   .admin-content[aria-hidden="true"] { filter: blur(0.2px); }
   .admin-navigation a:focus, .admin-navigation button:focus { outline: 3px solid rgba(142,58,89,0.18); outline-offset: 2px; }
@@ -695,6 +711,12 @@ a {
   }
   .brand-logo { width: 3rem; height: 3rem; }
   .brand-copy small { display: none; }
+  .admin-logo .brand-copy {
+    display: grid;
+  }
+  .admin-logo .brand-copy small {
+    display: block;
+  }
 }
 
 /* Tables: provide card fallback at small widths */
@@ -797,6 +819,18 @@ a {
   background: #f9edf0;
   color: var(--primary);
   font-size: 0;
+}
+
+.site-header .header-actions > .cart-link {
+  order: 1;
+}
+
+.site-header .header-actions > .notification-bell {
+  order: 2;
+}
+
+.site-header .header-actions > .account-menu {
+  order: 3;
 }
 
 .notification-bell span {
@@ -3068,6 +3102,7 @@ a {
 @media (max-width: 700px) {
   .settings-page {
     width: min(100% - 1rem, 780px);
+    min-width: 0;
     padding-top: 1.25rem;
     padding-bottom: 2rem;
   }
@@ -3078,6 +3113,8 @@ a {
   }
 
   .settings-form {
+    min-width: 0;
+    overflow: hidden;
     gap: 0.7rem;
     padding: 0.85rem;
   }
@@ -3088,8 +3125,27 @@ a {
 
   .settings-form input:not([type="checkbox"]),
   .settings-form select {
+    min-width: 0;
     min-height: 2.65rem;
     padding: 0.6rem 0.7rem;
+  }
+
+  .settings-form input[type="file"] {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.72rem;
+  }
+
+  .settings-form .checkbox-line {
+    align-items: flex-start;
+    gap: 0.45rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .settings-form .checkbox-line input {
+    flex: 0 0 auto;
+    margin-top: 0.2rem;
   }
 
   .avatar-upload-preview {

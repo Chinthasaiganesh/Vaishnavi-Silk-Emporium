@@ -232,11 +232,12 @@ export default function Header() {
             <Link className="btn btn-outline" to="/login">{t("signIn")}</Link>
           )}
           {!checking && user?.role === "USER" && (
-            <div className="account-menu">
+            <>
               <Link className="notification-bell" to="/notifications" aria-label={t("notifications")}>
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
                 {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
               </Link>
+              <div className="account-menu">
               <button
                 className="account-trigger"
                 onClick={() => setProfileOpen((open) => !open)}
@@ -261,7 +262,8 @@ export default function Header() {
                   <button onClick={handleLogout}>{t("logout")}</button>
                 </div>
               )}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
