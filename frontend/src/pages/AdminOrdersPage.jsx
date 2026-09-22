@@ -104,7 +104,7 @@ export default function AdminOrdersPage() {
                   <td data-label="Customer">{order.FullName || order.Username}<br /><small>{order.Email}</small></td>
                   <td data-label="Date">{new Date(order.CreatedDate).toLocaleDateString()}</td>
                   <td data-label="Items">{order.ItemCount}</td>
-                  <td data-label="Amount">{formatCurrency(order.GrandTotal)}</td>
+                  <td data-label="Amount"><span className="order-amount"><strong>{formatCurrency(order.GrandTotal)}</strong>{Number(order.DiscountAmount) > 0 && <small>Saved {formatCurrency(order.DiscountAmount)}</small>}</span></td>
                   <td data-label="Payment">{order.PaymentMethod || "COD"}</td>
                   <td data-label="Status"><span className="order-status-badge">{prettyStatus(order.OrderStatus)}</span></td>
                   <td data-label="Actions"><button className="link-btn" onClick={() => viewOrder(order.OrderId)}>View</button></td>
@@ -120,6 +120,7 @@ export default function AdminOrdersPage() {
       {selectedOrder && (
         <section ref={detailRef} tabIndex="-1" className="admin-table-wrap order-admin-detail" aria-label={`Details for ${selectedOrder.OrderNumber}`}>
           <div className="checkout-section-heading"><h2>{selectedOrder.OrderNumber}</h2><button className="link-btn" onClick={() => setSelectedOrder(null)}>Close</button></div>
+          {Number(selectedOrder.DiscountAmount) > 0 && <p className="order-savings-callout"><strong>Customer saved {formatCurrency(selectedOrder.DiscountAmount)}</strong></p>}
           <div className="order-admin-grid">
             <article>
               <h3>Customer</h3>
@@ -150,7 +151,7 @@ export default function AdminOrdersPage() {
                   <tr key={it.OrderItemId || it.orderItemId || it.ProductId || it.productId || it.id}>
                     <td data-label="Product">{it.ProductName ?? it.productName ?? it.name ?? "Unknown product"}</td>
                     <td data-label="Qty">{it.Quantity ?? it.quantity ?? it.qty ?? 0}</td>
-                    <td data-label="Price">{formatCurrency(it.ProductPrice ?? it.price ?? it.unitPrice ?? 0)}</td>
+                    <td data-label="Price"><span className="order-item-pricing"><strong>{formatCurrency(it.DiscountedPrice || it.ProductPrice || it.price || it.unitPrice || 0)}</strong><small>{formatCurrency(it.OriginalPrice || it.ProductPrice || 0)} original · Save {formatCurrency(it.SavingsAmount || 0)} ({Number(it.DiscountPercentage || 0).toFixed(0)}%)</small></span></td>
                     <td data-label="Subtotal">{formatCurrency(it.LineTotal ?? ((it.Quantity ?? it.quantity ?? it.qty ?? 0) * (it.ProductPrice ?? it.price ?? it.unitPrice ?? 0)))}</td>
                   </tr>
                 ))}

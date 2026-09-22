@@ -10,7 +10,9 @@ function assertStock(quantity, availableStock) {
 
 export function calculateTotals(items) {
   const subtotal = items.reduce((total, item) => total + item.unitPrice * item.quantity, 0);
-  return { itemCount: items.reduce((total, item) => total + item.quantity, 0), subtotal, grandTotal: subtotal };
+  const discount = items.reduce((total, item) => total + Math.max(0, item.originalPrice - item.unitPrice) * item.quantity, 0);
+  const originalSubtotal = items.reduce((total, item) => total + item.originalPrice * item.quantity, 0);
+  return { itemCount: items.reduce((total, item) => total + item.quantity, 0), originalSubtotal, discount, subtotal, grandTotal: subtotal };
 }
 
 function mapCartItem(item) {

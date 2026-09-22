@@ -98,15 +98,17 @@ export default function CheckoutPage() {
             {addresses.length > 0 && <div className="address-list">{addresses.map((address) => <label className={`address-option${String(address.AddressId) === addressId ? " selected" : ""}`} key={address.AddressId}><input type="radio" name="address" value={address.AddressId} checked={String(address.AddressId) === addressId} onChange={(event) => setAddressId(event.target.value)} /><span><strong>{address.FullName}</strong><small>{address.AddressLine1}{address.AddressLine2 ? `, ${address.AddressLine2}` : ""}, {address.City}, {address.State} {address.PostalCode}</small><small>{address.MobileNumber}</small></span></label>)}</div>}
             {showForm && <form className="address-form" onSubmit={addAddress}>{Object.entries(emptyAddress).filter(([key]) => key !== "isDefault").map(([key]) => <input key={key} required={!["addressLine2", "country"].includes(key)} placeholder={key.replace(/([A-Z])/g, " $1")} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} />)}<label className="checkbox-line"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />Use as default address</label><button className="btn btn-outline">Save Address</button></form>}
           </article>
-          <article className="checkout-section">
-            <h2>Order Summary</h2>
-            {summary.items.map((item) => <div className="checkout-item checkout-item-detailed" key={item.cartItemId}><div><strong>{item.productName}</strong><span>{item.quantity} × {formatCurrency(item.unitPrice)}</span><small>{item.discountPercentage > 0 ? `${formatCurrency(item.originalPrice)} original · -${item.discountPercentage}% discount` : "Regular price"}</small></div><strong>{formatCurrency(item.subtotal)}</strong></div>)}
-            <div className="cart-total"><span>Grand Total</span><strong>{formatCurrency(summary.grandTotal)}</strong></div>
-            <div className="checkout-actions">
-              <button className="btn btn-primary" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : "Pay with UPI QR"}</button>
-            </div>
-          </article>
         </section>
+        <aside className="checkout-summary-panel">
+          <article className="checkout-section checkout-summary-card">
+            <div className="checkout-section-heading"><h2>Order Summary</h2><Link className="link-btn" to="/cart">Edit cart</Link></div>
+            <div className="checkout-summary-items">{summary.items.map((item) => <div className="checkout-item checkout-item-detailed" key={item.cartItemId}><div><strong>{item.productName}</strong><span>{item.quantity} × {formatCurrency(item.unitPrice)}</span><small>{item.discountPercentage > 0 ? `${formatCurrency(item.originalPrice)} original · Save ${formatCurrency((item.originalPrice - item.unitPrice) * item.quantity)} · -${item.discountPercentage}% discount` : "Regular price"}</small></div><strong>{formatCurrency(item.subtotal)}</strong></div>)}</div>
+            <div className="checkout-price-breakdown"><div><span>Original price</span><strong>{formatCurrency(summary.originalSubtotal ?? summary.items.reduce((total, item) => total + item.originalPrice * item.quantity, 0))}</strong></div><div><span>Discount</span><strong className="checkout-savings">-{formatCurrency(summary.discount)}</strong></div><div><span>Delivery</span><strong>Free</strong></div><div className="checkout-grand-total"><span>Final payable</span><strong>{formatCurrency(summary.grandTotal)}</strong></div></div>
+            {Number(summary.discount) > 0 && <div className="order-savings-callout"><strong>You save {formatCurrency(summary.discount)} on this order</strong><span>Discounts are locked in at checkout.</span></div>}
+            <div className="checkout-trust"><span aria-hidden="true">✓</span><div><strong>Secure checkout</strong><small>Safe UPI payment and order protection.</small></div></div>
+            <button className="btn btn-primary checkout-pay-button" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : "Pay securely with UPI QR"}</button>
+          </article>
+        </aside>
       </div>
       {upiPayment && <div className="payment-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="upi-payment-title" tabIndex={-1}>
         <section className="payment-modal">

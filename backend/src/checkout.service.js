@@ -11,7 +11,7 @@ async function checkoutItems(userId) {
 
 export async function getSummary(userId) {
   const { cart } = await checkoutItems(userId);
-  return { items: cart.items, subtotal: cart.totals.subtotal, shipping: 0, discount: 0, grandTotal: cart.totals.subtotal };
+  return { items: cart.items, originalSubtotal: cart.totals.originalSubtotal, subtotal: cart.totals.subtotal, shipping: 0, discount: cart.totals.discount, grandTotal: cart.totals.grandTotal };
 }
 
 export async function validateCheckout(userId, addressId = null) {
@@ -26,7 +26,7 @@ export async function validateCheckout(userId, addressId = null) {
     if (current.Quantity < item.Quantity) throw Object.assign(new Error(`Insufficient stock available for ${item.ProductName}.`), { status: 409, code: "INSUFFICIENT_STOCK" });
     console.info(JSON.stringify({ level: "info", message: "Inventory validation result", userId, productId: item.ProductId, requestedQuantity: item.Quantity, productQuantity: current.Quantity, available: true }));
   }
-  return { valid: true, addressId: address.AddressId, items, subtotal: cart.totals.subtotal, shipping: 0, discount: 0, grandTotal: cart.totals.subtotal };
+  return { valid: true, addressId: address.AddressId, items, originalSubtotal: cart.totals.originalSubtotal, subtotal: cart.totals.subtotal, shipping: 0, discount: cart.totals.discount, grandTotal: cart.totals.grandTotal };
 }
 
 export async function placeOrder(userId, addressId, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotUrl = null) {
@@ -37,9 +37,15 @@ export async function placeOrder(userId, addressId, idempotencyKey, requestId, p
   console.info(JSON.stringify({ level: "info", message: "Order validation completed", requestId, userId, addressId, itemCount: checked.items.length, subtotal: checked.subtotal }));
   const orderItems = [];
   for (const item of checked.items) {
-    const product = await db.prepare("SELECT ProductId, ProductName, COALESCE(DiscountedPrice, Price) AS Price, Quantity, IsActive FROM Products WHERE ProductId = ?").get(item.ProductId);
+    const product = await db.prepare("SELECT ProductId, ProductName, Price AS OriginalPrice, DiscountedPrice, COALESCE(DiscountedPrice, Price) AS Price, Quantity, IsActive FROM Products WHERE ProductId = ?").get(item.ProductId);
     if (!product || !product.IsActive || product.Quantity < item.Quantity) throw Object.assign(new Error("Insufficient inventory available."), { status: 409 });
-    orderItems.push({ ...item, ProductName: product.ProductName, Price: Number(product.Price) });
+    const originalPrice = Number(product.OriginalPrice);
+    const discountedPrice = Number(product.Price);
+    const savingsAmount = Math.max(0, originalPrice - discountedPrice);
+    const discountPercentage = originalPrice > 0 ? Math.round((savingsAmount / originalPrice) * 100) : 0;
+    orderItems.push({ ...item, ProductName: product.ProductName, Price: discountedPrice, OriginalPrice: originalPrice, DiscountedPrice: discountedPrice, SavingsAmount: savingsAmount, DiscountPercentage: discountPercentage });
   }
-  return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0), shipping: 0, discount: 0, grandTotal: orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0), paymentMethod, paymentReference, paymentScreenshotUrl });
+  const subtotal = orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0);
+  const savings = orderItems.reduce((sum, item) => sum + item.SavingsAmount * item.Quantity, 0);
+  return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal, shipping: 0, discount: savings, grandTotal: subtotal, paymentMethod, paymentReference, paymentScreenshotUrl });
 }

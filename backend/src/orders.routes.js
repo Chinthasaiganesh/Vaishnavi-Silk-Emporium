@@ -22,6 +22,12 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
 		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url);
 		await sendOrderNotification(order, "Order Placed", `Your order ${order.OrderNumber} has been placed successfully.`);
+		if (Number(order.DiscountAmount) > 0) {
+			const saved = Number(order.DiscountAmount).toFixed(2);
+			const originalTotal = order.items.reduce((sum, item) => sum + Number(item.OriginalPrice || item.ProductPrice || 0) * Number(item.Quantity || 0), 0);
+			const percent = originalTotal > 0 ? (Number(order.DiscountAmount) / originalTotal) * 100 : 0;
+			await sendOrderNotification(order, "You saved on this order", `You saved ₹${saved} (${Math.round(percent)}%) on order ${order.OrderNumber}. Thank you for shopping with us.`);
+		}
 		console.info(JSON.stringify({ level: "info", message: "Order response ready", requestId: req.requestId, userId: req.user.userId, orderId: order.OrderId, orderNumber: order.OrderNumber }));
 		return res.status(201).json({ success: true, message: "Order placed successfully.", order });
 	} catch (error) {
