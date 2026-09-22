@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 
@@ -15,6 +15,7 @@ export default function AdminOrdersPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const detailRef = useRef(null);
   const pageSize = 8;
 
   async function load() {
@@ -30,6 +31,15 @@ export default function AdminOrdersPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+    const frame = window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      detailRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedOrder]);
 
   const pagedOrders = useMemo(() => orders.slice((page - 1) * pageSize, page * pageSize), [orders, page]);
   const pageCount = Math.max(Math.ceil(orders.length / pageSize), 1);
@@ -108,7 +118,7 @@ export default function AdminOrdersPage() {
       </section>
 
       {selectedOrder && (
-        <section className="admin-table-wrap order-admin-detail">
+        <section ref={detailRef} tabIndex="-1" className="admin-table-wrap order-admin-detail" aria-label={`Details for ${selectedOrder.OrderNumber}`}>
           <div className="checkout-section-heading"><h2>{selectedOrder.OrderNumber}</h2><button className="link-btn" onClick={() => setSelectedOrder(null)}>Close</button></div>
           <div className="order-admin-grid">
             <article>

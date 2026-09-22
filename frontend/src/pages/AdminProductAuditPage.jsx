@@ -11,7 +11,7 @@ export default function AdminProductAuditPage() {
       .catch((requestError) => setError(requestError.response?.data?.message || "Unable to load product audit history."));
   }, []);
 
-  return <main className="container section admin-layout">
+  return <main className="container section admin-layout admin-product-audit">
     <div className="admin-head"><div><p className="eyebrow">Governance</p><h1>Product Audit History</h1></div></div>
     {error && <p className="error-text">{error}</p>}
     {!error && audits.length === 0 ? (

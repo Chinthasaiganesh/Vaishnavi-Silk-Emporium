@@ -3103,6 +3103,77 @@ a {
 }
 
 @media (max-width: 700px) {
+  .admin-layout {
+    width: min(100% - 1rem, 1400px);
+    min-width: 0;
+  }
+
+  .admin-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .admin-head h1 {
+    overflow-wrap: anywhere;
+    font-size: clamp(1.65rem, 7vw, 2.25rem);
+  }
+
+  .admin-table-wrap {
+    min-width: 0;
+    overflow: hidden;
+    padding: 0.7rem;
+  }
+
+  .admin-table td,
+  .admin-table th {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .order-admin-toolbar {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .order-admin-toolbar .btn {
+    width: 100%;
+  }
+
+  .order-admin-detail {
+    scroll-margin-top: 1rem;
+  }
+
+  .order-admin-detail .checkout-section-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .order-admin-detail .checkout-section-heading h2 {
+    overflow-wrap: anywhere;
+    font-size: 1.15rem;
+  }
+
+  .order-admin-grid {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+  }
+
+  .order-admin-grid article {
+    min-width: 0;
+    padding: 0.75rem;
+  }
+
+  .order-admin-grid article p {
+    overflow-wrap: anywhere;
+  }
+
+  .order-admin-detail .admin-table {
+    min-width: 0;
+  }
+
   .profile-page {
     width: min(100% - 1rem, 780px);
     min-width: 0;
