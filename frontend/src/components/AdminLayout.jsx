@@ -18,6 +18,9 @@ export default function AdminLayout() {
   const { continueSession, expiryWarning, user, logout } = useAuth();
   const navigate = useNavigate();
   const [sessionMessage, setSessionMessage] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const navRef = useRef(null);
+  const mainRef = useRef(null);
 
   async function handleLogout() {
     if (!window.confirm("Log out of the admin portal?")) {
@@ -27,9 +30,42 @@ export default function AdminLayout() {
     navigate("/", { replace: true });
   }
 
+  // focus management for mobile drawer
+  useEffect(() => {
+    function onKey(e) {
+      if (!mobileNavOpen) return;
+      if (e.key === "Escape") setMobileNavOpen(false);
+      if (e.key === "Tab") {
+        const focusable = navRef.current?.querySelectorAll('a,button,[tabindex]:not([tabindex="-1"])') || [];
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    }
+    if (mobileNavOpen) {
+      const timer = setTimeout(() => { const firstLink = navRef.current?.querySelector('a,button'); firstLink?.focus(); }, 60);
+      document.addEventListener('keydown', onKey);
+      return () => { clearTimeout(timer); document.removeEventListener('keydown', onKey); };
+    }
+    return undefined;
+  }, [mobileNavOpen]);
+
+  useBodyLock(mobileNavOpen);
+
   return (
     <div className="admin-shell">
       <header className="admin-header">
+        <button
+          className="admin-mobile-toggle"
+          type="button"
+          aria-expanded={mobileNavOpen}
+          aria-controls="admin-navigation"
+          onClick={() => setMobileNavOpen((v) => !v)}
+        >
+          {mobileNavOpen ? "Close" : "Menu"}
+        </button>
         <NavLink className="logo admin-logo" to="/admin/dashboard">
           <img className="brand-logo" src="/brand/vaishnavi-vs-monogram.png" alt="Vaishnavi Silk Emporium" />
           <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Store Management</small></span>
@@ -41,12 +77,18 @@ export default function AdminLayout() {
         </div>
       </header>
       <div className="admin-workspace">
-        <nav className="admin-navigation" aria-label="Admin navigation">
+        <nav
+          id="admin-navigation"
+          ref={navRef}
+          className={`admin-navigation${mobileNavOpen ? " mobile-open" : ""}`}
+          aria-label="Admin navigation"
+          aria-hidden={!mobileNavOpen}
+        >
           {adminLinks.map((link) => (
             <NavLink key={link.to} to={link.to}>{link.label}</NavLink>
           ))}
         </nav>
-        <section className="admin-content">
+        <section ref={mainRef} className="admin-content" aria-hidden={mobileNavOpen}>
           {expiryWarning && <section className="session-warning" role="alert"><p>Your secure session will expire soon.</p><button className="btn btn-primary" onClick={async () => { const result = await continueSession(); setSessionMessage(result.success ? "Session extended successfully." : result.message); }}>Continue Session</button></section>}
           {sessionMessage && <p className={sessionMessage.startsWith("Session") ? "success-text" : "error-text"}>{sessionMessage}</p>}
           <Outlet />
@@ -54,4 +96,12 @@ export default function AdminLayout() {
       </div>
     </div>
   );
+}
+
+function useBodyLock(isLocked) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    if (isLocked) document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [isLocked]);
 }

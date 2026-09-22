@@ -295,13 +295,13 @@ export default function AdminDashboardPage() {
             <tbody>
               {products.map((p) => (
                 <tr key={p.productId}>
-                  <td>{p.productName}</td>
-                  <td>{p.category}</td>
-                  <td>{formatCurrency(p.price)}</td>
-                  <td>{p.quantity}</td>
-                  <td>{p.isActive ? "Active" : "Inactive"}</td>
-                  <td>{p.isFeatured ? "Yes" : "No"}</td>
-                  <td>
+                  <td data-label="Name">{p.productName}</td>
+                  <td data-label="Category">{p.category}</td>
+                  <td data-label="Price">{formatCurrency(p.price)}</td>
+                  <td data-label="Qty">{p.quantity}</td>
+                  <td data-label="Status">{p.isActive ? "Active" : "Inactive"}</td>
+                  <td data-label="Featured">{p.isFeatured ? "Yes" : "No"}</td>
+                  <td data-label="Actions">
                     <button className="link-btn" onClick={() => setEditing(p)}>
                       Edit
                     </button>

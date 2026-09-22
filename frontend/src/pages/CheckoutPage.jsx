@@ -108,7 +108,19 @@ export default function CheckoutPage() {
           </article>
         </section>
       </div>
-      {upiPayment && <div className="payment-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="upi-payment-title"><section className="payment-modal"><button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button><h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2><p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p><img src={upiPayment.qrDataUrl} alt="UPI payment QR code" /><p><strong>{upiPayment.upiId}</strong></p><input value={upiReference} onChange={(event) => setUpiReference(event.target.value)} placeholder="UPI transaction reference / UTR" autoComplete="off" /><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPaymentScreenshot(event.target.files?.[0] || null)} /><button className="btn btn-primary" disabled={placing} onClick={confirmUpiPayment}>{placing ? "Submitting..." : "Submit Payment Proof"}</button><small>Payment remains pending until an administrator verifies the reference and screenshot.</small></section></div>}
+      {upiPayment && <div className="payment-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="upi-payment-title" tabIndex={-1}>
+        <section className="payment-modal">
+          <button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button>
+          <h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2>
+          <p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p>
+          <img src={upiPayment.qrDataUrl} alt="UPI payment QR code" />
+          <p><strong>{upiPayment.upiId}</strong></p>
+          <input value={upiReference} onChange={(event) => setUpiReference(event.target.value)} placeholder="UPI transaction reference / UTR" autoComplete="off" />
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPaymentScreenshot(event.target.files?.[0] || null)} />
+          <button className="btn btn-primary" disabled={placing} onClick={confirmUpiPayment}>{placing ? "Submitting..." : "Submit Payment Proof"}</button>
+          <small>Payment remains pending until an administrator verifies the reference and screenshot.</small>
+        </section>
+      </div>}
     </main>
   );
 }
