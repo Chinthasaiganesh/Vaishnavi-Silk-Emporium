@@ -77,6 +77,14 @@ export default function AdminLayout() {
         </div>
       </header>
       <div className="admin-workspace">
+        {mobileNavOpen && (
+          <button
+            type="button"
+            className="admin-drawer-backdrop"
+            aria-label="Close admin navigation overlay"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
         <nav
           id="admin-navigation"
           ref={navRef}
