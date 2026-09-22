@@ -1,29 +1,18 @@
-import { Link } from "react-router-dom";
-import { useLanguage } from "../LanguageContext";
-import RatingBadge from "./RatingBadge";
-import ProductCardActions from "./ProductCardActions";
 import ProductPrice from "./ProductPrice";
+import AddToCartButton from "./AddToCartButton";
+import { useCart } from "../CartContext";
+import { Link } from "react-router-dom";
 
 export default function ProductCard({ product }) {
-  const { t } = useLanguage();
+  const { cart } = useCart();
+  const inCart = cart.items.some((item) => item.productId === product.productId);
   return (
     <article className="product-card">
       <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
       <div className="product-card-body">
-        <p className="pill">{product.category}</p>
         <h3>{product.productName}</h3>
-        <p className="product-desc">{product.description}</p>
-        <RatingBadge rating={product.rating} productId={product.productId} />
-        <div className="product-meta">
-          <span className={product.quantity > 0 ? "status in" : "status out"}>
-            {product.quantity > 0 ? t("inStock") : t("outOfStock")}
-          </span>
-          <ProductPrice product={product} />
-        </div>
-        <Link className="btn btn-outline" to={`/products/${product.productId}`}>
-          {t("viewDetails")}
-        </Link>
-        <ProductCardActions product={product} />
+        <ProductPrice product={product} />
+        <div className="product-card-cta"><AddToCartButton product={product} inCart={inCart} /><Link className="product-card-details" to={`/products/${product.productId}`} aria-label={`View ${product.productName}`}>View</Link></div>
       </div>
     </article>
   );

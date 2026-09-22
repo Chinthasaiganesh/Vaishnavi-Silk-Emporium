@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { useLanguage } from "../LanguageContext";
-import RatingBadge from "../components/RatingBadge";
-import ProductCardActions from "../components/ProductCardActions";
+import AddToCartButton from "../components/AddToCartButton";
 import ProductPrice from "../components/ProductPrice";
 
 const valueMessages = [
@@ -164,18 +163,9 @@ export default function HomePage() {
                 <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
               </div>
               <div className="featured-product-body">
-                <p className="featured-category">{product.category}</p>
                 <h3>{product.productName}</h3>
-                <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
-                <RatingBadge rating={product.rating} productId={product.productId} />
-                <div className="featured-price-row">
-                  <ProductPrice product={product} />
-                  <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
-                    {product.quantity > 0 ? t("inStock") : t("outOfStock")}
-                  </span>
-                </div>
-                <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
-                <ProductCardActions product={product} compact />
+                <ProductPrice product={product} />
+                <AddToCartButton product={product} />
               </div>
             </motion.article>
           ))}
