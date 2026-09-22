@@ -7,7 +7,7 @@ export default function ProductPrice({ product, className = "" }) {
 
   return (
     <span className={`product-price${hasDiscount ? " product-price-discounted" : ""}${className ? ` ${className}` : ""}`} aria-label={hasDiscount ? `Sale price ${formatCurrency(sellingPrice)}, original price ${formatCurrency(originalPrice)}` : `Price ${formatCurrency(sellingPrice)}`}>
-      {hasDiscount && <del>{formatCurrency(originalPrice)}</del>}
+      {hasDiscount && <><del>{formatCurrency(originalPrice)}</del><span className="discount-percentage">-{product.discountPercentage ?? Math.round(((originalPrice - sellingPrice) / originalPrice) * 100)}%</span></>}
       <strong>{formatCurrency(sellingPrice)}</strong>
     </span>
   );

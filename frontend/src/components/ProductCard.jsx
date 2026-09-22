@@ -13,7 +13,7 @@ export default function ProductCard({ product }) {
         <p className="pill">{product.category}</p>
         <h3>{product.productName}</h3>
         <p className="product-desc">{product.description}</p>
-        <RatingBadge rating={product.rating} />
+        <RatingBadge rating={product.rating} productId={product.productId} />
         <div className="product-meta">
           <span className={product.quantity > 0 ? "status in" : "status out"}>
             {product.quantity > 0 ? t("inStock") : t("outOfStock")}

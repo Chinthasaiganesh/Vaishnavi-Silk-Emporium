@@ -19,6 +19,7 @@ function mapProduct(row, canViewPrice = true) {
   const originalPrice = Number(row.Price);
   const discountedPrice = row.DiscountedPrice === null || row.DiscountedPrice === undefined ? null : Number(row.DiscountedPrice);
   const effectivePrice = discountedPrice !== null && discountedPrice < originalPrice ? discountedPrice : originalPrice;
+  const discountPercentage = effectivePrice < originalPrice ? Math.round(((originalPrice - effectivePrice) / originalPrice) * 100) : 0;
   return {
     productId: row.ProductId,
     productName: row.ProductName,
@@ -27,6 +28,7 @@ function mapProduct(row, canViewPrice = true) {
     price: effectivePrice,
     originalPrice,
     discountedPrice: discountedPrice !== null && discountedPrice < originalPrice ? discountedPrice : null,
+    discountPercentage,
     canViewPrice,
     imageUrl: imageUrls[0] || "",
     imageUrls,

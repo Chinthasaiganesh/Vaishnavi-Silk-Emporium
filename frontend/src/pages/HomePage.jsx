@@ -167,7 +167,7 @@ export default function HomePage() {
                 <p className="featured-category">{product.category}</p>
                 <h3>{product.productName}</h3>
                 <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
-                <RatingBadge rating={product.rating} />
+                <RatingBadge rating={product.rating} productId={product.productId} />
                 <div className="featured-price-row">
                   <ProductPrice product={product} />
                   <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
