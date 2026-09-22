@@ -161,6 +161,7 @@ export default function HomePage() {
             >
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
+                {product.quantity <= 0 && <span className="stock-ribbon" aria-label="Out of stock">Out of Stock</span>}
                 <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
               </div>
               <div className="featured-product-body">

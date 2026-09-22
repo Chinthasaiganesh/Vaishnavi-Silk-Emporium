@@ -58,7 +58,7 @@ export default function ProductCardActions({ product, compact = false }) {
 
   return <div className={`product-card-actions${compact ? " product-card-actions-compact" : ""}`}>
     <button className={saved ? "wishlist-action wishlist-action-saved" : "wishlist-action"} onClick={toggleWishlist} aria-pressed={saved}>{saved ? "♥ Saved to Wishlist" : "♡ Save to Wishlist"}</button>
-    <AddToCartButton product={product} inCart={inCart} />
+    {product.quantity > 0 && <AddToCartButton product={product} inCart={inCart} />}
     {product.quantity <= 0 && <button className="notify-action" onClick={notifyWhenAvailable} disabled={subscribing}>{subscribing ? "Saving..." : "Notify Me When Available"}</button>}
     {notice && <span className="product-action-notice" role="status">{notice}</span>}
   </div>;
