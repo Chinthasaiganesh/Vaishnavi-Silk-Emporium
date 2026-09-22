@@ -1626,6 +1626,39 @@ a {
   font-weight: 800;
 }
 
+.product-card-image-wrap {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #f4f7fb;
+}
+
+.product-card-image-wrap img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.stock-ribbon {
+  position: absolute;
+  z-index: 2;
+  top: 0.8rem;
+  right: -2.2rem;
+  width: 8.2rem;
+  transform: rotate(45deg);
+  padding: 0.3rem 0;
+  color: #fff;
+  background: #b83b55;
+  box-shadow: 0 3px 8px rgba(80, 20, 30, 0.2);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
 .featured-product-body {
   min-width: 0;
   display: grid;

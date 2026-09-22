@@ -8,7 +8,11 @@ export default function ProductCard({ product }) {
   const { t } = useLanguage();
   return (
     <article className="product-card">
-      <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
+      <div className="product-card-image-wrap">
+        {product.isFeatured && <span className="discount-badge">Featured</span>}
+        <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
+        {product.quantity <= 0 && <span className="stock-ribbon" aria-label="Out of stock">Out of Stock</span>}
+      </div>
       <div className="product-card-body">
         <p className="pill">{product.category}</p>
         <h3>{product.productName}</h3>
