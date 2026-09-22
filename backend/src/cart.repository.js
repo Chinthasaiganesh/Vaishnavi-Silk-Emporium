@@ -2,7 +2,7 @@ import { db } from "./db.js";
 import { nowIso } from "./utils.js";
 
 const cartItemsQuery = `
-  SELECT ci.CartItemId, ci.CartId, ci.ProductId, ci.Quantity, COALESCE(p.DiscountedPrice, p.Price) AS UnitPrice, ci.CreatedDate, ci.UpdatedDate,
+  SELECT ci.CartItemId, ci.CartId, ci.ProductId, ci.Quantity, p.Price AS OriginalPrice, p.DiscountedPrice, COALESCE(p.DiscountedPrice, p.Price) AS UnitPrice, ci.CreatedDate, ci.UpdatedDate,
     p.ProductName, p.Category, p.ImageUrl, COALESCE(i.AvailableStock, p.Quantity) AS AvailableStock
   FROM CartItems ci
   JOIN Products p ON p.ProductId = ci.ProductId

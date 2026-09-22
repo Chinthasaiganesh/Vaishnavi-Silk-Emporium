@@ -100,7 +100,7 @@ export default function CheckoutPage() {
           </article>
           <article className="checkout-section">
             <h2>Order Summary</h2>
-            {summary.items.map((item) => <div className="checkout-item" key={item.cartItemId}><span>{item.productName} × {item.quantity}</span><strong>{formatCurrency(item.subtotal)}</strong></div>)}
+            {summary.items.map((item) => <div className="checkout-item checkout-item-detailed" key={item.cartItemId}><div><strong>{item.productName}</strong><span>{item.quantity} × {formatCurrency(item.unitPrice)}</span><small>{item.discountPercentage > 0 ? `${formatCurrency(item.originalPrice)} original · -${item.discountPercentage}% discount` : "Regular price"}</small></div><strong>{formatCurrency(item.subtotal)}</strong></div>)}
             <div className="cart-total"><span>Grand Total</span><strong>{formatCurrency(summary.grandTotal)}</strong></div>
             <div className="checkout-actions">
               <button className="btn btn-primary" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : "Pay with UPI QR"}</button>
