@@ -1,5 +1,6 @@
 import ProductPrice from "./ProductPrice";
 import AddToCartButton from "./AddToCartButton";
+import { NotifyWhenAvailableButton } from "./ProductCardActions";
 import { useCart } from "../CartContext";
 import { Link } from "react-router-dom";
 
@@ -10,9 +11,11 @@ export default function ProductCard({ product }) {
     <article className="product-card">
       <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
       <div className="product-card-body">
+        <p className="product-card-category">{product.category}</p>
         <h3>{product.productName}</h3>
         <ProductPrice product={product} />
-        <div className="product-card-cta"><AddToCartButton product={product} inCart={inCart} /><Link className="product-card-details" to={`/products/${product.productId}`} aria-label={`View ${product.productName}`}>View</Link></div>
+        <Link className="product-card-details" to={`/products/${product.productId}`}>View Details</Link>
+        {product.quantity > 0 ? <AddToCartButton product={product} inCart={inCart} /> : <NotifyWhenAvailableButton product={product} />}
       </div>
     </article>
   );
