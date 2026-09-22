@@ -1,4 +1,4 @@
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import Avatar from "./Avatar";
@@ -40,6 +40,7 @@ async function playNotificationSound() {
 
 export default function Header() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { checking, logout, user } = useAuth();
   const [term, setTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
@@ -52,6 +53,8 @@ export default function Header() {
   const { cartCount } = useCart();
   const [previousCartCount, setPreviousCartCount] = useState(cartCount);
   const [cartBump, setCartBump] = useState(false);
+  const navRef = useRef(null);
+  const closeButtonRef = useRef(null);
 
   useEffect(() => {
     if (cartCount !== previousCartCount) {
@@ -62,6 +65,54 @@ export default function Header() {
     }
     return undefined;
   }, [cartCount, previousCartCount]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+    setProfileOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function onKey(event) {
+      if (!mobileNavOpen) return;
+      if (event.key === "Escape") {
+        setMobileNavOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = navRef.current?.querySelectorAll('a,button,[tabindex]:not([tabindex="-1"])') || [];
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    if (mobileNavOpen) {
+      const timer = window.setTimeout(() => closeButtonRef.current?.focus(), 40);
+      document.addEventListener("keydown", onKey);
+      return () => {
+        clearTimeout(timer);
+        document.removeEventListener("keydown", onKey);
+      };
+    }
+
+    return undefined;
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileNavOpen]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -139,10 +190,13 @@ export default function Header() {
           {mobileNavOpen ? "Close" : "Menu"}
         </button>
 
-        <nav className={`nav-links${mobileNavOpen ? " mobile-nav-open" : ""}`} id="primary-navigation">
-          <NavLink to="/" end>{t("home")}</NavLink>
-          <NavLink to="/collections" end>Collections</NavLink>
-          <NavLink to="/categories" end>Categories</NavLink>
+        {mobileNavOpen && <button type="button" className="nav-drawer-backdrop" aria-label="Close navigation overlay" onClick={() => setMobileNavOpen(false)} />}
+
+        <nav ref={navRef} className={`nav-links${mobileNavOpen ? " mobile-nav-open" : ""}`} id="primary-navigation">
+          {mobileNavOpen && <button ref={closeButtonRef} type="button" className="nav-drawer-close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation menu"><span aria-hidden="true">×</span><span>Close</span></button>}
+          <NavLink to="/" end onClick={() => setMobileNavOpen(false)}>{t("home")}</NavLink>
+          <NavLink to="/collections" end onClick={() => setMobileNavOpen(false)}>Collections</NavLink>
+          <NavLink to="/categories" end onClick={() => setMobileNavOpen(false)}>Categories</NavLink>
         </nav>
 
         <div className="header-actions">

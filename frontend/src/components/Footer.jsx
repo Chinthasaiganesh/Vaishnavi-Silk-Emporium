@@ -30,7 +30,7 @@ export default function Footer() {
           <div className="impact-heading">
             <p className="eyebrow">Woven With Care</p>
             <h2 id="impact-heading">Our Impact</h2>
-            <p>Every order carries a little more tradition forward.</p>
+            <p>Tradition carried forward with every order.</p>
           </div>
           <div className="impact-stats">
             {impactStats.map((stat) => <ImpactStat key={stat.label} stat={stat} animate={isVisible} />)}
