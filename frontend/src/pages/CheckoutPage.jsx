@@ -102,7 +102,7 @@ export default function CheckoutPage() {
         <aside className="checkout-summary-panel">
           <article className="checkout-section checkout-summary-card">
             <div className="checkout-section-heading"><h2>Order Summary</h2><Link className="link-btn" to="/cart">Edit cart</Link></div>
-            <div className="checkout-summary-items">{summary.items.map((item) => <div className="checkout-item checkout-item-detailed" key={item.cartItemId}><div><strong>{item.productName}</strong><span>{item.quantity} × {formatCurrency(item.unitPrice)}</span><small>{item.discountPercentage > 0 ? `${formatCurrency(item.originalPrice)} original · Save ${formatCurrency((item.originalPrice - item.unitPrice) * item.quantity)} · -${item.discountPercentage}% discount` : "Regular price"}</small></div><strong>{formatCurrency(item.subtotal)}</strong></div>)}</div>
+            <div className="checkout-summary-items">{summary.items.map((item) => <div className="checkout-item checkout-item-detailed" key={item.cartItemId}><img className="checkout-item-image" src={resolveImage(item.imageUrl)} alt="" /><div><strong>{item.productName}</strong><span>{item.quantity} × {formatCurrency(item.unitPrice)}</span><small>{item.discountPercentage > 0 ? `${formatCurrency(item.originalPrice)} original · Save ${formatCurrency((item.originalPrice - item.unitPrice) * item.quantity)} · -${item.discountPercentage}% discount` : "Regular price"}</small></div><strong>{formatCurrency(item.subtotal)}</strong></div>)}</div>
             <div className="checkout-price-breakdown"><div><span>Original price</span><strong>{formatCurrency(summary.originalSubtotal ?? summary.items.reduce((total, item) => total + item.originalPrice * item.quantity, 0))}</strong></div><div><span>Discount</span><strong className="checkout-savings">-{formatCurrency(summary.discount)}</strong></div><div><span>Delivery</span><strong>Free</strong></div><div className="checkout-grand-total"><span>Final payable</span><strong>{formatCurrency(summary.grandTotal)}</strong></div></div>
             {Number(summary.discount) > 0 && <div className="order-savings-callout"><strong>You save {formatCurrency(summary.discount)} on this order</strong><span>Discounts are locked in at checkout.</span></div>}
             <div className="checkout-trust"><span aria-hidden="true">✓</span><div><strong>Secure checkout</strong><small>Safe UPI payment and order protection.</small></div></div>
@@ -125,4 +125,10 @@ export default function CheckoutPage() {
       </div>}
     </main>
   );
+}
+
+function resolveImage(url) {
+  if (!url) return "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=300&q=80";
+  if (url.startsWith("http")) return url;
+  return `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}`;
 }

@@ -149,7 +149,7 @@ export default function AdminOrdersPage() {
               <tbody>
                 {(selectedOrder.items || []).map((it) => (
                   <tr key={it.OrderItemId || it.orderItemId || it.ProductId || it.productId || it.id}>
-                    <td data-label="Product">{it.ProductName ?? it.productName ?? it.name ?? "Unknown product"}</td>
+                    <td data-label="Product"><span className="order-product-cell"><img className="order-item-image" src={resolveImage(it.ImageUrl)} alt="" />{it.ProductName ?? it.productName ?? it.name ?? "Unknown product"}</span></td>
                     <td data-label="Qty">{it.Quantity ?? it.quantity ?? it.qty ?? 0}</td>
                     <td data-label="Price"><span className="order-item-pricing"><strong>{formatCurrency(it.DiscountedPrice || it.ProductPrice || it.price || it.unitPrice || 0)}</strong><small>{formatCurrency(it.OriginalPrice || it.ProductPrice || 0)} original · Save {formatCurrency(it.SavingsAmount || 0)} ({Number(it.DiscountPercentage || 0).toFixed(0)}%)</small></span></td>
                     <td data-label="Subtotal">{formatCurrency(it.LineTotal ?? ((it.Quantity ?? it.quantity ?? it.qty ?? 0) * (it.ProductPrice ?? it.price ?? it.unitPrice ?? 0)))}</td>
@@ -163,3 +163,5 @@ export default function AdminOrdersPage() {
     </main>
   );
 }
+
+function resolveImage(url) { return url?.startsWith("http") ? url : url ? `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}` : "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=300&q=80"; }

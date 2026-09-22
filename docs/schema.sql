@@ -20,6 +20,7 @@ CREATE TABLE Products (
   UpdatedDate TEXT NOT NULL
 );
 
+
 CREATE INDEX idx_products_active ON Products(IsActive);
 CREATE INDEX idx_products_category ON Products(Category);
 CREATE INDEX idx_products_name ON Products(ProductName);

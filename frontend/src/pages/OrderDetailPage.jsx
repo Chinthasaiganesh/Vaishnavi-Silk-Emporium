@@ -145,7 +145,7 @@ export default function OrderDetailPage() {
           <h2>Items</h2>
           {order.items.map((item) => (
             <div className="checkout-item" key={item.OrderItemId}>
-              <span className="order-item-pricing"><strong>{item.ProductName} × {item.Quantity}</strong><small>{formatCurrency(item.OriginalPrice || item.ProductPrice)} original · {formatCurrency(item.DiscountedPrice || item.ProductPrice)} selling price · Save {formatCurrency(item.SavingsAmount || 0)} ({Number(item.DiscountPercentage || 0).toFixed(0)}%)</small></span>
+              <img className="order-item-image" src={resolveImage(item.ImageUrl)} alt="" /><span className="order-item-pricing"><strong>{item.ProductName} × {item.Quantity}</strong><small>{formatCurrency(item.OriginalPrice || item.ProductPrice)} original · {formatCurrency(item.DiscountedPrice || item.ProductPrice)} selling price · Save {formatCurrency(item.SavingsAmount || 0)} ({Number(item.DiscountPercentage || 0).toFixed(0)}%)</small></span>
               <strong>{formatCurrency(item.LineTotal)}</strong>
             </div>
           ))}
