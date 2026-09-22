@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../AuthContext";
 import { getRecentlyViewed } from "../customerData";
 import { api } from "../api";
-import RatingBadge from "../components/RatingBadge";
 import ProductPrice from "../components/ProductPrice";
+import AddToCartButton from "../components/AddToCartButton";
 
 function formatRelativeTime(value) {
   const timestamp = new Date(value).getTime();
@@ -208,7 +208,7 @@ export default function CustomerFeaturePage({ type }) {
   }
 
   const title = type === "wishlist" ? "My Wishlist" : "Recently Viewed";
-  return <main className="container section"><h1>{title}</h1>{items.length === 0 ? <div className="customer-empty"><p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p><Link className="btn btn-primary" to="/products">Explore Products</Link></div> : <div className="customer-product-grid">{items.map((product) => <article className="customer-product" key={product.productId}><img src={resolveImage(product.imageUrl)} alt={product.productName} /><h3>{product.productName}</h3><RatingBadge rating={product.rating} productId={product.productId} /><ProductPrice product={product} />{product.viewedAt && <small>Viewed {new Date(product.viewedAt).toLocaleDateString()}</small>}<Link to={`/products/${product.productId}`}>View Details</Link>{type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems(items.filter((item) => item.productId !== product.productId)); }}>Remove</button>}</article>)}</div>}</main>;
+  return <main className="container section"><h1>{title}</h1>{items.length === 0 ? <div className="customer-empty"><p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p><Link className="btn btn-primary" to="/products">Explore Products</Link></div> : <div className="customer-product-grid">{items.map((product) => <article className="customer-product" key={product.productId}><img src={resolveImage(product.imageUrl)} alt={product.productName} /><div className="customer-product-body"><h3>{product.productName}</h3><ProductPrice product={product} /><AddToCartButton product={product} /></div>{type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems(items.filter((item) => item.productId !== product.productId)); }}>Remove</button>}</article>)}</div>}</main>;
 }
 
 function resolveImage(url) {
