@@ -610,7 +610,9 @@ a {
   }
 
   .order-detail .cancel-order-trigger {
-    width: 100%;
+    align-self: flex-start;
+    width: fit-content;
+    min-width: 0;
   }
 
   .modal-backdrop {
@@ -1260,6 +1262,7 @@ a {
 .order-timeline.terminal .timeline-step.current .timeline-marker { border-color: #b44321; }
 @keyframes timeline-current-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 .cancel-order-trigger { color: #fff; background: linear-gradient(135deg, #9f2d2d, #d46b4f); box-shadow: 0 10px 24px rgba(159, 45, 45, 0.18); }
+.order-detail .cancel-order-trigger { width: fit-content; min-height: 2.75rem; padding: 0.65rem 1rem; white-space: nowrap; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 1rem; background: rgba(44, 44, 44, 0.42); backdrop-filter: blur(4px); }
 .confirm-modal { width: min(30rem, 100%); display: grid; gap: 0.85rem; border: 1px solid var(--border); border-radius: 0.8rem; padding: 1.3rem; background: var(--card); color: var(--text); box-shadow: var(--shadow); }
 .confirm-modal h2, .confirm-modal p { margin: 0; }
