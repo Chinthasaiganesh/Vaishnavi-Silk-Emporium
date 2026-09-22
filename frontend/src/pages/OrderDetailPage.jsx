@@ -145,9 +145,7 @@ export default function OrderDetailPage() {
           <h2>Items</h2>
           {order.items.map((item) => (
             <div className="checkout-item" key={item.OrderItemId}>
-              <span>
-                {item.ProductName} × {item.Quantity}
-              </span>
+              <span className="order-item-pricing"><strong>{item.ProductName} × {item.Quantity}</strong><small>{formatCurrency(item.OriginalPrice || item.ProductPrice)} original · {formatCurrency(item.DiscountedPrice || item.ProductPrice)} selling price · Save {formatCurrency(item.SavingsAmount || 0)} ({Number(item.DiscountPercentage || 0).toFixed(0)}%)</small></span>
               <strong>{formatCurrency(item.LineTotal)}</strong>
             </div>
           ))}
@@ -191,6 +189,7 @@ export default function OrderDetailPage() {
             <span>Grand Total</span>
             <strong>{formatCurrency(order.GrandTotal)}</strong>
           </div>
+          {Number(order.DiscountAmount) > 0 && <div className="order-savings-callout"><strong>You saved {formatCurrency(order.DiscountAmount)}</strong><span>Discount captured at checkout</span></div>}
           <Link className="btn btn-outline" to="/orders">
             View Orders
           </Link>
