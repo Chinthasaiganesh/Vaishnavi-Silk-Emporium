@@ -4,6 +4,7 @@ import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 import { useCart } from "../CartContext";
 import QRCode from "qrcode";
+import { resolveImageUrl } from "../utils/image";
 
 const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India", isDefault: false };
 
@@ -127,8 +128,4 @@ export default function CheckoutPage() {
   );
 }
 
-function resolveImage(url) {
-  if (!url) return "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=300&q=80";
-  if (url.startsWith("http")) return url;
-  return `${(import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "")}${url}`;
-}
+function resolveImage(url) { return resolveImageUrl(url); }

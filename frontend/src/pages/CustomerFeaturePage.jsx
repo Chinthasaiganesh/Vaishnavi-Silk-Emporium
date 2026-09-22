@@ -6,6 +6,7 @@ import { getRecentlyViewed } from "../customerData";
 import { api } from "../api";
 import RatingBadge from "../components/RatingBadge";
 import ProductPrice from "../components/ProductPrice";
+import { resolveImageUrl } from "../utils/image";
 
 function formatRelativeTime(value) {
   const timestamp = new Date(value).getTime();
@@ -212,8 +213,5 @@ export default function CustomerFeaturePage({ type }) {
 }
 
 function resolveImage(url) {
-  if (!url) return "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80";
-  if (url.startsWith("http")) return url;
-  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
-  return `${apiRoot}${url}`;
+  return resolveImageUrl(url);
 }
