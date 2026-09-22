@@ -147,11 +147,11 @@ export default function AdminOrdersPage() {
               </thead>
               <tbody>
                 {(selectedOrder.items || []).map((it) => (
-                  <tr key={it.productId || it.id}>
-                    <td data-label="Product">{it.productName || it.name}</td>
-                    <td data-label="Qty">{it.quantity || it.qty}</td>
-                    <td data-label="Price">{formatCurrency(it.price || it.unitPrice || 0)}</td>
-                    <td data-label="Subtotal">{formatCurrency((it.quantity || it.qty || 0) * (it.price || it.unitPrice || 0))}</td>
+                  <tr key={it.OrderItemId || it.orderItemId || it.ProductId || it.productId || it.id}>
+                    <td data-label="Product">{it.ProductName ?? it.productName ?? it.name ?? "Unknown product"}</td>
+                    <td data-label="Qty">{it.Quantity ?? it.quantity ?? it.qty ?? 0}</td>
+                    <td data-label="Price">{formatCurrency(it.ProductPrice ?? it.price ?? it.unitPrice ?? 0)}</td>
+                    <td data-label="Subtotal">{formatCurrency(it.LineTotal ?? ((it.Quantity ?? it.quantity ?? it.qty ?? 0) * (it.ProductPrice ?? it.price ?? it.unitPrice ?? 0)))}</td>
                   </tr>
                 ))}
               </tbody>

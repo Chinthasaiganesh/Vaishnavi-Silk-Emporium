@@ -81,13 +81,13 @@ export default function AdminLayout() {
         >
           {mobileNavOpen ? "Close" : "Menu"}
         </button>
+        <button className="admin-sidebar-toggle" type="button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-controls="admin-navigation" aria-label={sidebarCollapsed ? "Expand admin navigation" : "Collapse admin navigation"}>
+          <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+        </button>
         <NavLink className="logo admin-logo" to="/admin/dashboard">
           <img className="brand-logo" src="/brand/vaishnavi-vs-monogram.png" alt="Vaishnavi Silk Emporium" />
           <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Where Tradition Meets Elegance</small></span>
         </NavLink>
-        <button className="admin-sidebar-toggle" type="button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-controls="admin-navigation" aria-label={sidebarCollapsed ? "Expand admin navigation" : "Collapse admin navigation"}>
-          <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
-        </button>
         <div className="admin-profile" aria-label="Admin profile">
           <span>Welcome, {user?.displayName || user?.username}</span>
           <Avatar user={user} size="small" />
