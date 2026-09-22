@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 import CategoryCombobox from "../components/CategoryCombobox";
+import ProductPrice from "../components/ProductPrice";
 
 const initialForm = {
   productName: "",
@@ -15,6 +16,7 @@ const initialForm = {
   careInstructions: "Dry clean only.",
   rating: "4.5",
   price: "",
+  discountedPrice: "",
   quantity: "",
   isActive: true,
   isFeatured: false,
@@ -86,7 +88,8 @@ export default function AdminDashboardPage() {
       sareeLength: product.sareeLength || "5.5 metres",
       careInstructions: product.careInstructions || "Dry clean only.",
       rating: String(product.rating || 4.5),
-      price: String(product.price),
+      price: String(product.originalPrice ?? product.price),
+      discountedPrice: product.discountedPrice == null ? "" : String(product.discountedPrice),
       quantity: String(product.quantity),
       isActive: product.isActive,
       isFeatured: product.isFeatured,
@@ -126,6 +129,7 @@ export default function AdminDashboardPage() {
       payload.append("careInstructions", form.careInstructions);
       payload.append("rating", form.rating);
       payload.append("price", form.price);
+      payload.append("discountedPrice", form.discountedPrice);
       payload.append("quantity", form.quantity);
       payload.append("isActive", String(form.isActive));
       payload.append("isFeatured", String(form.isFeatured));
@@ -216,6 +220,14 @@ export default function AdminDashboardPage() {
           />
           <input
             type="number"
+            step="0.01"
+            min="0"
+            placeholder="Discounted Price (optional)"
+            value={form.discountedPrice}
+            onChange={(e) => onFieldChange("discountedPrice", e.target.value)}
+          />
+          <input
+            type="number"
             min="0"
             placeholder="Quantity"
             value={form.quantity}
@@ -297,7 +309,7 @@ export default function AdminDashboardPage() {
                 <tr key={p.productId}>
                   <td data-label="Name">{p.productName}</td>
                   <td data-label="Category">{p.category}</td>
-                  <td data-label="Price">{formatCurrency(p.price)}</td>
+                  <td data-label="Price"><ProductPrice product={p} /></td>
                   <td data-label="Qty">{p.quantity}</td>
                   <td data-label="Status">{p.isActive ? "Active" : "Inactive"}</td>
                   <td data-label="Featured">{p.isFeatured ? "Yes" : "No"}</td>

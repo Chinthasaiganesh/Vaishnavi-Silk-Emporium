@@ -6,7 +6,7 @@ import { useAuth } from "../AuthContext";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
 import ProductCardActions from "../components/ProductCardActions";
-import { formatCurrency } from "../utils/currency";
+import ProductPrice from "../components/ProductPrice";
 
 const valueMessages = [
   "Heritage weaves, curated for modern celebrations.",
@@ -169,7 +169,7 @@ export default function HomePage() {
                 <p className="featured-description">{product.fabric} | {product.weavingStyle}</p>
                 <RatingBadge rating={product.rating} />
                 <div className="featured-price-row">
-                  {product.canViewPrice ? <strong>{formatCurrency(product.price)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
+                  <ProductPrice product={product} />
                   <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
                     {product.quantity > 0 ? t("inStock") : t("outOfStock")}
                   </span>

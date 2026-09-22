@@ -11,6 +11,7 @@ CREATE TABLE Products (
   Description TEXT NOT NULL,
   Category TEXT NOT NULL,
   Price REAL NOT NULL CHECK (Price >= 0),
+  DiscountedPrice REAL CHECK (DiscountedPrice IS NULL OR (DiscountedPrice >= 0 AND DiscountedPrice <= Price)),
   ImageUrl TEXT,
   Quantity INTEGER NOT NULL DEFAULT 0 CHECK (Quantity >= 0),
   IsActive INTEGER NOT NULL DEFAULT 0 CHECK (IsActive IN (0, 1)),

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "./RatingBadge";
 import ProductCardActions from "./ProductCardActions";
-import { formatCurrency } from "../utils/currency";
+import ProductPrice from "./ProductPrice";
 
 export default function ProductCard({ product }) {
   const { t } = useLanguage();
@@ -18,7 +18,7 @@ export default function ProductCard({ product }) {
           <span className={product.quantity > 0 ? "status in" : "status out"}>
             {product.quantity > 0 ? t("inStock") : t("outOfStock")}
           </span>
-          {product.canViewPrice ? <strong>{formatCurrency(product.price)}</strong> : <Link className="price-lock" to="/login">Lock Sign In to View Price</Link>}
+          <ProductPrice product={product} />
         </div>
         <Link className="btn btn-outline" to={`/products/${product.productId}`}>
           {t("viewDetails")}
