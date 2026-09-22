@@ -6,7 +6,7 @@ import { createOrder, getOrderByIdempotencyKey } from "./order.repository.js";
 async function checkoutItems(userId) {
   const cart = await getCart(userId);
   console.info(JSON.stringify({ level: "info", message: "Cart contents loaded", userId, itemCount: cart.items.length, items: cart.items.map((item) => ({ productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, availableStock: item.availableStock })) }));
-  return { cart, items: cart.items.map((item) => ({ ProductId: item.productId, ProductName: item.productName, Price: Number(item.unitPrice), Quantity: item.quantity, AvailableStock: item.availableStock })) };
+  return { cart, items: cart.items.map((item) => ({ ProductId: item.productId, ProductName: item.productName, ImageUrl: item.imageUrl, Price: Number(item.unitPrice), Quantity: item.quantity, AvailableStock: item.availableStock })) };
 }
 
 export async function getSummary(userId) {

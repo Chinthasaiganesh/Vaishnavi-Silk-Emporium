@@ -1164,6 +1164,17 @@ a {
 .checkout-item-detailed > div > span { color: var(--primary); font-size: 0.88rem; font-weight: 800; }
 .checkout-item-detailed > div > small { color: var(--muted); font-size: 0.75rem; }
 .checkout-item-detailed > strong { flex: 0 0 auto; color: var(--primary); font-size: 1rem; }
+.checkout-item-image,
+.order-item-image {
+  width: 3.8rem;
+  height: 4.6rem;
+  flex: 0 0 3.8rem;
+  border-radius: 0.4rem;
+  object-fit: cover;
+  background: #f7eef0;
+}
+.order-product-cell { display: inline-flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.order-row-image { width: 3.5rem; height: 4rem; flex: 0 0 3.5rem; border-radius: 0.4rem; object-fit: cover; background: #f7eef0; }
 .order-item-pricing { display: grid; min-width: 0; gap: 0.2rem; }
 .order-item-pricing small, .order-amount small { color: var(--muted); font-size: 0.75rem; line-height: 1.35; }
 .order-amount { display: grid; gap: 0.15rem; }
@@ -1955,8 +1966,8 @@ a {
 .wishlist-action { border: 1px solid var(--border); border-radius: 0.65rem; padding: 0.65rem 0.8rem; color: var(--primary); background: var(--card); font: inherit; font-size: 0.86rem; font-weight: 800; cursor: pointer; transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
 .wishlist-action:hover { border-color: var(--primary); background: #fff3f5; transform: translateY(-1px); }
 .wishlist-action-saved { border-color: #d65a5a; color: #b62d2d; background: #fff3f3; }
-.add-to-cart-notify-success { border-color: #2d7652; color: #fff; background: #2d7652; cursor: default; }
 .add-to-cart-button:disabled { cursor: wait; opacity: 0.78; }
+.in-cart-button:disabled { cursor: default; opacity: 1; }
 .product-action-notice { color: var(--muted); font-size: 0.76rem; font-weight: 700; }
 .product-card-actions .add-to-cart-button { order: 2; }
 .product-card-actions .wishlist-action { order: 1; }
@@ -3092,6 +3103,8 @@ a {
   .checkout-item-detailed > div { min-width: 0; }
   .checkout-item-detailed > div > strong { overflow-wrap: anywhere; }
   .checkout-item-detailed > strong { font-size: 0.9rem; }
+  .checkout-item-image, .order-item-image { width: 3.2rem; height: 3.8rem; flex-basis: 3.2rem; }
+  .order-row-image { width: 3rem; height: 3.5rem; flex-basis: 3rem; }
   .order-timeline-track { grid-template-columns: 1fr; gap: 1rem; }
   .timeline-rail, .timeline-progress { top: 1rem; bottom: 1rem; left: 1rem; right: auto; width: 0.22rem !important; height: auto; }
   .timeline-progress { transform: scaleY(var(--timeline-progress-scale, 0)); transform-origin: top center; }
