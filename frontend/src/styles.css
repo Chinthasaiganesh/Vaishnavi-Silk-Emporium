@@ -101,7 +101,7 @@ body {
 :root[data-theme="dark"] .notification-center,
 :root[data-theme="dark"] .notification-toolbar,
 :root[data-theme="dark"] .notification-bell {
-  background: #333333;
+  background: var(--card);
 }
 
 :root[data-theme="dark"] .home-welcome {
@@ -825,8 +825,9 @@ a {
   place-items: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: 50%;
-  background: #f9edf0;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--card);
   color: var(--primary);
   font-size: 0;
 }
@@ -841,6 +842,10 @@ a {
 
 .site-header .header-actions > .account-menu {
   order: 3;
+}
+
+.site-header .header-actions > .btn {
+  order: 2;
 }
 
 .notification-bell span {
