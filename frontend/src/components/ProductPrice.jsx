@@ -1,6 +1,6 @@
 import { formatCurrency } from "../utils/currency";
 
-export default function ProductPrice({ product, className = "" }) {
+export default function ProductPrice({ product, className = "", showSavings = true }) {
   const hasDiscount = product.discountedPrice !== null && product.discountedPrice !== undefined && Number(product.discountedPrice) < Number(product.originalPrice ?? product.price);
   const originalPrice = Number(product.originalPrice ?? product.price ?? 0);
   const sellingPrice = Number(product.price ?? product.discountedPrice ?? originalPrice);
@@ -8,7 +8,7 @@ export default function ProductPrice({ product, className = "" }) {
 
   return (
     <span className={`product-price${hasDiscount ? " product-price-discounted" : ""}${className ? ` ${className}` : ""}`} aria-label={hasDiscount ? `Sale price ${formatCurrency(sellingPrice)}, original price ${formatCurrency(originalPrice)}` : `Price ${formatCurrency(sellingPrice)}`}>
-      {hasDiscount && <><del>{formatCurrency(originalPrice)}</del><span className="discount-percentage">-{product.discountPercentage ?? Math.round(((originalPrice - sellingPrice) / originalPrice) * 100)}%</span><span className="savings-amount">Save {formatCurrency(savingsAmount)}</span></>}
+      {hasDiscount && <><del>{formatCurrency(originalPrice)}</del><span className="discount-percentage">-{product.discountPercentage ?? Math.round(((originalPrice - sellingPrice) / originalPrice) * 100)}%</span>{showSavings && <span className="savings-amount">Save {formatCurrency(savingsAmount)}</span>}</>}
       <strong>{formatCurrency(sellingPrice)}</strong>
     </span>
   );
