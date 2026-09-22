@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
 import Avatar from "./Avatar";
@@ -17,6 +17,7 @@ const adminLinks = [
 export default function AdminLayout() {
   const { continueSession, expiryWarning, user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sessionMessage, setSessionMessage] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navRef = useRef(null);
@@ -51,6 +52,10 @@ export default function AdminLayout() {
     }
     return undefined;
   }, [mobileNavOpen]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   useBodyLock(mobileNavOpen);
 
@@ -102,7 +107,7 @@ export default function AdminLayout() {
             <span>Close</span>
           </button>
           {adminLinks.map((link) => (
-            <NavLink key={link.to} to={link.to}>{link.label}</NavLink>
+            <NavLink key={link.to} to={link.to} onClick={() => setMobileNavOpen(false)}>{link.label}</NavLink>
           ))}
         </nav>
         <section ref={mainRef} className="admin-content" aria-hidden={mobileNavOpen}>
