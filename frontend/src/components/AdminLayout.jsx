@@ -20,6 +20,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [sessionMessage, setSessionMessage] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem("adminSidebarCollapsed") === "true");
   const navRef = useRef(null);
   const mainRef = useRef(null);
 
@@ -59,14 +60,23 @@ export default function AdminLayout() {
 
   useBodyLock(mobileNavOpen);
 
+  function toggleSidebar() {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      window.localStorage.setItem("adminSidebarCollapsed", String(next));
+      return next;
+    });
+  }
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <header className="admin-header">
         <button
           className="admin-mobile-toggle"
           type="button"
           aria-expanded={mobileNavOpen}
           aria-controls="admin-navigation"
+          aria-label={mobileNavOpen ? "Close admin navigation menu" : "Open admin navigation menu"}
           onClick={() => setMobileNavOpen((v) => !v)}
         >
           {mobileNavOpen ? "Close" : "Menu"}
@@ -75,6 +85,9 @@ export default function AdminLayout() {
           <img className="brand-logo" src="/brand/vaishnavi-vs-monogram.png" alt="Vaishnavi Silk Emporium" />
           <span className="brand-copy"><strong>Vaishnavi Silk Emporium</strong><small>Store Management</small></span>
         </NavLink>
+        <button className="admin-sidebar-toggle" type="button" onClick={toggleSidebar} aria-expanded={!sidebarCollapsed} aria-controls="admin-navigation" aria-label={sidebarCollapsed ? "Expand admin navigation" : "Collapse admin navigation"}>
+          <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+        </button>
         <div className="admin-profile" aria-label="Admin profile">
           <span>Welcome, {user?.displayName || user?.username}</span>
           <Avatar user={user} size="small" />
@@ -95,19 +108,18 @@ export default function AdminLayout() {
           ref={navRef}
           className={`admin-navigation${mobileNavOpen ? " mobile-open" : ""}`}
           aria-label="Admin navigation"
-          aria-hidden={!mobileNavOpen}
+          aria-hidden={false}
         >
-          <button
-            type="button"
-            className="admin-navigation-close"
-            onClick={() => setMobileNavOpen(false)}
-            aria-label="Close admin navigation"
-          >
-            <span aria-hidden="true">×</span>
-            <span>Close</span>
-          </button>
+          <div className="admin-navigation-header">
+            <p className="admin-navigation-eyebrow">Admin Console</p>
+            <strong>Manage the storefront</strong>
+            <span>Catalog, inventory, orders, and reporting in one place.</span>
+          </div>
           {adminLinks.map((link) => (
-            <NavLink key={link.to} to={link.to} onClick={() => setMobileNavOpen(false)}>{link.label}</NavLink>
+            <NavLink key={link.to} to={link.to} onClick={() => setMobileNavOpen(false)} title={sidebarCollapsed ? link.label : undefined}>
+              <span className="admin-nav-icon" aria-hidden="true">{link.label.slice(0, 1)}</span>
+              <span className="admin-nav-label">{link.label}</span>
+            </NavLink>
           ))}
         </nav>
         <section ref={mainRef} className="admin-content" aria-hidden={mobileNavOpen}>

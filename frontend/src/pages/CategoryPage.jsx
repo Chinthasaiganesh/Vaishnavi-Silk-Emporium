@@ -23,7 +23,7 @@ export default function CategoryPage() {
   }
 
   return (
-    <main className="container section">
+    <main className="container section catalog-page">
       <div className="section-head"><div><p className="eyebrow">Curated Collections</p><h1>Shop By Category</h1></div></div>
       <div className="category-grid">
         {available.map((category) => <CategoryCard key={category.categoryId} category={category} />)}

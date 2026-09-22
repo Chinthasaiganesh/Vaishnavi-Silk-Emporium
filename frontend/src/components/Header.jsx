@@ -54,7 +54,6 @@ export default function Header() {
   const [previousCartCount, setPreviousCartCount] = useState(cartCount);
   const [cartBump, setCartBump] = useState(false);
   const navRef = useRef(null);
-  const closeButtonRef = useRef(null);
 
   useEffect(() => {
     if (cartCount !== previousCartCount) {
@@ -93,7 +92,7 @@ export default function Header() {
     }
 
     if (mobileNavOpen) {
-      const timer = window.setTimeout(() => closeButtonRef.current?.focus(), 40);
+      const timer = window.setTimeout(() => navRef.current?.querySelector('a,button')?.focus(), 40);
       document.addEventListener("keydown", onKey);
       return () => {
         clearTimeout(timer);
@@ -192,24 +191,33 @@ export default function Header() {
 
         {mobileNavOpen && <button type="button" className="nav-drawer-backdrop" aria-label="Close navigation overlay" onClick={() => setMobileNavOpen(false)} />}
 
+        <form className="header-search" onSubmit={handleSubmit}>
+          <input
+            type="search"
+            placeholder="Search for Silk Sarees, Banarasi, Kanchipuram, Bridal Collections..."
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            aria-label="Search sarees by fabric, colour, occasion, or collection"
+          />
+          {suggestions.length > 0 && <div className="search-suggestions">{suggestions.map((product) => <Link key={product.productId} to={`/products/${product.productId}`} onClick={() => { setTerm(""); setSuggestions([]); }}><img src={resolveImage(product.imageUrl)} alt="" /><span><strong>{product.productName}</strong><small>{product.category} | {product.fabric}</small></span></Link>)}</div>}
+        </form>
+
         <nav ref={navRef} className={`nav-links${mobileNavOpen ? " mobile-nav-open" : ""}`} id="primary-navigation">
-          {mobileNavOpen && <button ref={closeButtonRef} type="button" className="nav-drawer-close" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation menu"><span aria-hidden="true">×</span><span>Close</span></button>}
+          {mobileNavOpen && (
+            <>
+              <div className="nav-drawer-header">
+                <p className="nav-drawer-eyebrow">Browse</p>
+                <strong>Find what you need fast</strong>
+                <span>Quick access to home, collections, and categories.</span>
+              </div>
+            </>
+          )}
           <NavLink to="/" end onClick={() => setMobileNavOpen(false)}>{t("home")}</NavLink>
           <NavLink to="/collections" end onClick={() => setMobileNavOpen(false)}>Collections</NavLink>
           <NavLink to="/categories" end onClick={() => setMobileNavOpen(false)}>Categories</NavLink>
         </nav>
 
         <div className="header-actions">
-          <form className="header-search" onSubmit={handleSubmit}>
-            <input
-              type="search"
-              placeholder="Search for Silk Sarees, Banarasi, Kanchipuram, Bridal Collections..."
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              aria-label="Search sarees by fabric, colour, occasion, or collection"
-            />
-            {suggestions.length > 0 && <div className="search-suggestions">{suggestions.map((product) => <Link key={product.productId} to={`/products/${product.productId}`} onClick={() => { setTerm(""); setSuggestions([]); }}><img src={resolveImage(product.imageUrl)} alt="" /><span><strong>{product.productName}</strong><small>{product.category} | {product.fabric}</small></span></Link>)}</div>}
-          </form>
           <label className="language-select" aria-label={t("language")}>
             <select value={language} onChange={(event) => setLanguage(event.target.value)}>
               <option value="en">{t("english")}</option>

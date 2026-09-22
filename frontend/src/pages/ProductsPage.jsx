@@ -80,7 +80,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <main className="container section">
+    <main className="container section catalog-page">
       <div className="section-head">
         <h1>{t("products")}</h1>
       </div>
