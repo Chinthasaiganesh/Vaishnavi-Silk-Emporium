@@ -137,7 +137,7 @@ body {
 }
 
 :root[data-theme="dark"] .admin-navigation {
-  background: linear-gradient(180deg, #163b39 0%, #0e282b 100%);
+  background: linear-gradient(180deg, #2d2036 0%, #1b1524 100%);
 }
 
 h1,
@@ -365,7 +365,7 @@ a {
   align-content: start;
   gap: 0.15rem;
   padding: 1rem;
-  background: linear-gradient(180deg, #1d4642 0%, #102f32 100%);
+  background: linear-gradient(180deg, #4a2d4e 0%, #2b1e38 100%);
   overflow-x: hidden;
   transition: padding 220ms ease;
 }
@@ -391,7 +391,7 @@ a {
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 0.45rem;
-  color: #f5d19a;
+  color: #e7c0d2;
   font-size: 0.72rem;
   font-weight: 900;
   text-transform: uppercase;
@@ -446,8 +446,8 @@ a {
 .admin-navigation a:hover,
 .admin-navigation a.active {
   color: #fff;
-  background: linear-gradient(90deg, #2e665f, #3b7a70);
-  box-shadow: inset 3px 0 0 #e0b66f;
+  background: linear-gradient(90deg, var(--primary), #b75c78);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .admin-content {
@@ -690,7 +690,7 @@ a {
   .admin-navigation a.active {
     transform: translateX(2px);
     border-color: rgba(212, 163, 115, 0.45);
-    background: linear-gradient(90deg, #2e665f, #3b7a70);
+    background: linear-gradient(90deg, var(--primary), #b75c78);
   }
   .admin-content[aria-hidden="true"] { filter: blur(0.2px); }
   .admin-navigation a:focus, .admin-navigation button:focus { outline: 3px solid rgba(142,58,89,0.18); outline-offset: 2px; }
@@ -3100,6 +3100,68 @@ a {
 }
 
 @media (max-width: 700px) {
+  .profile-page {
+    width: min(100% - 1rem, 780px);
+    min-width: 0;
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+
+  .profile-page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .profile-page-heading .avatar-large {
+    width: 5rem;
+    height: 5rem;
+  }
+
+  .profile-page-heading > div {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .profile-page-heading h1 {
+    overflow-wrap: anywhere;
+    font-size: clamp(1.7rem, 8vw, 2.35rem);
+    line-height: 1.05;
+  }
+
+  .profile-page-heading p:last-child {
+    overflow-wrap: anywhere;
+    font-size: 0.86rem;
+  }
+
+  .profile-readonly {
+    min-width: 0;
+    overflow: hidden;
+    padding: 0.85rem;
+  }
+
+  .profile-readonly h2 {
+    font-size: 1.2rem;
+  }
+
+  .profile-readonly dl {
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
+  }
+
+  .profile-readonly dt {
+    margin-top: 0.4rem;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+  }
+
+  .profile-readonly dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 0.9rem;
+  }
+
   .settings-page {
     width: min(100% - 1rem, 780px);
     min-width: 0;
