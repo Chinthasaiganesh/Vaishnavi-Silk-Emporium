@@ -3,11 +3,10 @@ import { useParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../AuthContext";
 import { addRecentlyViewed } from "../customerData";
-import { Link } from "react-router-dom";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
 import ProductCardActions from "../components/ProductCardActions";
-import { formatCurrency } from "../utils/currency";
+import ProductPrice from "../components/ProductPrice";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -90,7 +89,7 @@ export default function ProductDetailPage() {
           <dt>Care</dt><dd>{product.careInstructions || "Dry clean only"}</dd>
         </dl>
         <RatingBadge rating={product.rating} />
-        {product.canViewPrice ? <h2>{formatCurrency(product.price)}</h2> : <Link className="price-lock detail-price-lock" to="/login">Lock Sign In to View Pricing</Link>}
+        <ProductPrice product={product} className="detail-product-price" />
         <p className={product.quantity > 0 ? "status in" : "status out"}>
           {product.quantity > 0 ? t("inStock") : t("outOfStock")}
         </p>

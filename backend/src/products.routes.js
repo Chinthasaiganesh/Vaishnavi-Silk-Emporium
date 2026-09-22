@@ -16,12 +16,17 @@ function mapProduct(row, canViewPrice = true) {
     return null;
   }
   const imageUrls = parseImageUrls(row.ImageUrl);
+  const originalPrice = Number(row.Price);
+  const discountedPrice = row.DiscountedPrice === null || row.DiscountedPrice === undefined ? null : Number(row.DiscountedPrice);
+  const effectivePrice = discountedPrice !== null && discountedPrice < originalPrice ? discountedPrice : originalPrice;
   return {
     productId: row.ProductId,
     productName: row.ProductName,
     description: row.Description,
     category: row.Category,
-    ...(canViewPrice ? { price: Number(row.Price) } : {}),
+    price: effectivePrice,
+    originalPrice,
+    discountedPrice: discountedPrice !== null && discountedPrice < originalPrice ? discountedPrice : null,
     canViewPrice,
     imageUrl: imageUrls[0] || "",
     imageUrls,
@@ -57,7 +62,7 @@ function imageFiles(req) {
 }
 
 function auditValues(product) {
-  return { productName: product.ProductName, category: product.Category, price: product.Price, quantity: product.Quantity, isActive: product.IsActive, isFeatured: product.IsFeatured };
+  return { productName: product.ProductName, category: product.Category, price: product.Price, discountedPrice: product.DiscountedPrice, quantity: product.Quantity, isActive: product.IsActive, isFeatured: product.IsFeatured };
 }
 
 async function productCounts() {
@@ -155,6 +160,7 @@ router.post(
   body("description").trim().isLength({ min: 10 }).withMessage("Description must be at least 10 chars."),
   body("category").trim().isLength({ min: 2 }).withMessage("Category is required."),
   body("price").isFloat({ min: 0 }).withMessage("Price must be non-negative."),
+  body("discountedPrice").optional({ checkFalsy: true }).isFloat({ min: 0 }).withMessage("Discounted price must be non-negative."),
   body("quantity").isInt({ min: 0 }).withMessage("Quantity must be non-negative integer."),
   body("isActive").optional().isBoolean().withMessage("isActive must be true/false."),
   body("isFeatured").optional().isBoolean().withMessage("isFeatured must be true/false."),
@@ -166,6 +172,8 @@ router.post(
   validateRequest,
   async (req, res) => {
     const { productName, description, category, price, quantity } = req.body;
+    const discountedPrice = req.body.discountedPrice === undefined || req.body.discountedPrice === "" ? null : Number(req.body.discountedPrice);
+    if (discountedPrice !== null && discountedPrice > Number(price)) return res.status(400).json({ message: "Discounted price cannot exceed the original price." });
     const isActive = req.body.isActive === undefined ? true : req.body.isActive === "true";
     const isFeatured = req.body.isFeatured === "true" || req.body.isFeatured === true;
     const uploadedFiles = imageFiles(req);
@@ -177,14 +185,15 @@ router.post(
     const result = await db
       .prepare(
         `INSERT INTO Products
-         (ProductName, Description, Category, Price, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (ProductName, Description, Category, Price, DiscountedPrice, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         productName,
         description,
         category,
         Number(price),
+        discountedPrice,
         imageUrl,
         Number(quantity),
         toBoolInt(isActive),
@@ -219,6 +228,7 @@ router.put(
   body("description").trim().isLength({ min: 10 }).withMessage("Description must be at least 10 chars."),
   body("category").trim().isLength({ min: 2 }).withMessage("Category is required."),
   body("price").isFloat({ min: 0 }).withMessage("Price must be non-negative."),
+  body("discountedPrice").optional({ checkFalsy: true }).isFloat({ min: 0 }).withMessage("Discounted price must be non-negative."),
   body("quantity").isInt({ min: 0 }).withMessage("Quantity must be non-negative integer."),
   body("isActive").isBoolean().withMessage("isActive must be true/false."),
   body("isFeatured").isBoolean().withMessage("isFeatured must be true/false."),
@@ -234,6 +244,8 @@ router.put(
     if (!existing) {
       return res.status(404).json({ message: "Product not found." });
     }
+    const discountedPrice = req.body.discountedPrice === undefined || req.body.discountedPrice === "" ? null : Number(req.body.discountedPrice);
+    if (discountedPrice !== null && discountedPrice > Number(req.body.price)) return res.status(400).json({ message: "Discounted price cannot exceed the original price." });
 
     const uploadedFiles = imageFiles(req);
     const uploadedUrls = await Promise.all(uploadedFiles.map((file) => uploadImage(file.buffer, { originalName: file.originalname, mimetype: file.mimetype, folder: "products" }).then((result) => result.url)));
@@ -254,19 +266,21 @@ router.put(
       productName: req.body.productName,
       category: req.body.category,
       price: Number(req.body.price),
+      discountedPrice,
       quantity: Number(req.body.quantity),
       isActive: toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
       isFeatured: toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true)
     };
     await db.prepare(
       `UPDATE Products
-      SET ProductName = ?, Description = ?, Category = ?, Price = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
+      SET ProductName = ?, Description = ?, Category = ?, Price = ?, DiscountedPrice = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
        WHERE ProductId = ?`
     ).run(
       req.body.productName,
       req.body.description,
       req.body.category,
       Number(req.body.price),
+      discountedPrice,
       imageUrl,
       Number(req.body.quantity),
       toBoolInt(req.body.isActive === "true" || req.body.isActive === true),

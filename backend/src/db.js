@@ -38,7 +38,7 @@ const primaryKeys = new Map([
 const identifiers = [...primaryKeys.keys(), ...primaryKeys.values(),
   "Username", "PasswordHash", "Role", "FullName", "DisplayName", "Email", "AvatarUrl", "MobileNumber", "Preferences", "CreatedDate", "LastLogin", "OAuthProvider", "OAuthSubject", "IsEnabled",
   "ExpiresAt", "ProductId", "NotificationType", "IsActive", "IsSent", "SentDate", "OrderId", "Type", "Title", "Message", "IsRead", "ReadDate",
-  "ProductName", "Description", "Category", "Price", "ImageUrl", "Quantity", "IsFeatured", "Fabric", "WeavingStyle", "Colour", "Occasion", "SareeLength", "BlousePieceIncluded", "CareInstructions", "Rating", "UpdatedDate",
+  "ProductName", "Description", "Category", "Price", "DiscountedPrice", "ImageUrl", "Quantity", "IsFeatured", "Fabric", "WeavingStyle", "Colour", "Occasion", "SareeLength", "BlousePieceIncluded", "CareInstructions", "Rating", "UpdatedDate",
   "CacheKey", "SourceLanguage", "TargetLanguage", "SourceText", "TranslatedText", "Provider", "CategoryId", "CategoryName", "SettingsId", "StoreName", "Tagline", "Phone", "Address", "BusinessDescription", "UpdatedBy",
   "InventoryId", "CurrentStock", "AvailableStock", "ReservedStock", "Status", "AdminUserId", "Action", "OldStock", "NewStock", "AuditId", "UserId", "OldValues", "NewValues",
   "CartId", "CartItemId", "UnitPrice", "OldQuantity", "NewQuantity", "AddressId", "AddressLine1", "AddressLine2", "City", "State", "PostalCode", "Country", "IsDefault",
@@ -189,6 +189,7 @@ export async function initializeDatabase() {
       "Description" TEXT NOT NULL,
       "Category" TEXT NOT NULL,
       "Price" NUMERIC(12,2) NOT NULL CHECK("Price" >= 0),
+      "DiscountedPrice" NUMERIC(12,2) CHECK("DiscountedPrice" IS NULL OR ("DiscountedPrice" >= 0 AND "DiscountedPrice" <= "Price")),
       "ImageUrl" TEXT,
       "Quantity" INTEGER NOT NULL DEFAULT 0 CHECK("Quantity" >= 0),
       "IsActive" INTEGER NOT NULL DEFAULT 0 CHECK("IsActive" IN (0, 1)),
@@ -257,6 +258,7 @@ export async function initializeDatabase() {
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentScreenshotUrl" TEXT');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentStatus" TEXT NOT NULL DEFAULT \'PENDING\'');
+  await pool.query('ALTER TABLE "Products" ADD COLUMN IF NOT EXISTS "DiscountedPrice" NUMERIC(12,2)');
 
   const requiredTables = ["Users", "Addresses", "Products", "Inventory", "Orders", "OrderItems"];
   const tableCheck = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)", [requiredTables]);

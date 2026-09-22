@@ -22,7 +22,7 @@ create table if not exists categories (
 create table if not exists products (
   product_id bigint generated always as identity primary key,
   product_name text not null, description text not null, category text not null,
-  price numeric(12,2) not null check (price >= 0), image_url text,
+  price numeric(12,2) not null check (price >= 0), discounted_price numeric(12,2) check (discounted_price is null or (discounted_price >= 0 and discounted_price <= price)), image_url text,
   quantity integer not null default 0 check (quantity >= 0),
   is_active boolean not null default false, is_featured boolean not null default false,
   fabric text not null default '', weaving_style text not null default '', colour text not null default '', occasion text not null default '',

@@ -1202,6 +1202,38 @@ a {
   font-weight: 800;
 }
 
+.product-price {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  color: var(--primary);
+}
+
+.product-price strong {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.product-price del {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.product-price-discounted strong {
+  color: #b12d55;
+}
+
+.detail-product-price {
+  margin: 0.75rem 0;
+  font-size: 1.5rem;
+}
+
+.detail-product-price strong {
+  font-size: 1.5rem;
+}
+
 .detail-price-lock {
   display: inline-flex;
   margin: 0.75rem 0;
