@@ -299,6 +299,13 @@ a {
   width: auto;
 }
 
+.admin-logo .brand-logo {
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: contain;
+  flex: 0 0 2.75rem;
+}
+
 .admin-logo .brand-copy {
   display: grid;
   gap: 0.08rem;
