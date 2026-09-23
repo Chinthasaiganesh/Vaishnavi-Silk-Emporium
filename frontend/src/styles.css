@@ -1718,7 +1718,7 @@ a {
 .featured-image-wrap img {
   display: block;
   width: 100%;
-  aspect-ratio: 1 / 0.8;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
   object-position: center;
   transition: transform 280ms ease;
@@ -2068,7 +2068,7 @@ a {
 
 .product-details-button { width: 100%; margin-top: 0.15rem; }
 .product-card-actions { display: grid; min-height: 9.3rem; gap: 0.65rem; margin-top: 0.15rem; padding-top: 0.75rem; border-top: 1px solid var(--border); align-content: start; }
-.product-card-actions-compact { gap: 0.5rem; margin-top: 0.1rem; padding-top: 0.65rem; }
+.product-card-actions-compact { min-height: 0; gap: 0.5rem; margin-top: 0.1rem; padding-top: 0.65rem; }
 .product-card-actions .add-to-cart-button,
 .product-card-actions .wishlist-action,
 .product-card-actions .add-to-cart-button { width: 100%; min-height: 2.65rem; }
