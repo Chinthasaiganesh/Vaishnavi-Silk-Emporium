@@ -1982,6 +1982,28 @@ a {
 
 .admin-form .form-grid > small { grid-column: 1 / -1; color: var(--muted); font-size: 0.8rem; }
 
+.admin-image-gallery {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.7rem;
+}
+
+.admin-image-preview {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.admin-image-preview img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+.admin-image-preview figcaption { min-height: 42px; display: flex; align-items: center; justify-content: space-around; gap: 0.2rem; padding: 0.25rem; }
+.admin-image-preview button { width: 32px; height: 32px; padding: 0; border: 0; background: transparent; cursor: pointer; color: var(--text); }
+.admin-image-preview button:disabled { opacity: 0.3; cursor: default; }
+.admin-image-preview button.danger { color: var(--danger); }
+.admin-image-preview.pending { border-style: dashed; }
+
 .skeleton-card {
   min-height: 21rem;
   border-radius: 0.9rem;
