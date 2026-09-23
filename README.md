@@ -1,4 +1,4 @@
-# Vaishnavi Silk Emporium
+# Vaishnavi Silk Emporium - Where Tradition meets Elegance
 
 Premium saree shopping platform with a role-based customer storefront and store-management portal.
 
