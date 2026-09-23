@@ -8,6 +8,7 @@ import { nowIso, toBoolInt } from "./utils.js";
 import { sendAvailabilityNotification } from "./notification.service.js";
 import { initializeInventory, synchronizeProductInventory } from "./inventory.service.js";
 import { getProductAudit, recordProductAudit } from "./product-audit.js";
+import { mergeProductImages, parseImageUrls } from "./product-images.js";
 
 const router = Router();
 
@@ -47,16 +48,6 @@ function mapProduct(row, canViewPrice = true) {
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
-}
-
-function parseImageUrls(value) {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [value];
-  } catch {
-    return [value];
-  }
 }
 
 function imageFiles(req) {
@@ -251,18 +242,12 @@ router.put(
 
     const uploadedFiles = imageFiles(req);
     const uploadedUrls = await Promise.all(uploadedFiles.map((file) => uploadImage(file.buffer, { originalName: file.originalname, mimetype: file.mimetype, folder: "products" }).then((result) => result.url)));
-    const imageUrls = uploadedUrls.length
-      ? uploadedUrls
-      : req.body.imageUrls !== undefined || req.body.imageUrl !== undefined
-      ? parseImageUrls(req.body.imageUrls || req.body.imageUrl)
-      : parseImageUrls(existing.ImageUrl);
-    const imageUrl = JSON.stringify(imageUrls);
-
-    if (uploadedUrls.length) {
-      for (const oldImageUrl of parseImageUrls(existing.ImageUrl)) {
-        await deleteImage(oldImageUrl);
-      }
+    const { imageUrls, removedUrls } = mergeProductImages({ storedValue: existing.ImageUrl, existingImages: req.body.existingImages, newImageUrl: req.body.newImageUrl, uploadedUrls });
+    if (imageUrls.length > 8) {
+      await Promise.all(uploadedUrls.map((url) => deleteImage(url)));
+      return res.status(400).json({ message: "A product can have up to 8 images." });
     }
+    const imageUrl = JSON.stringify(imageUrls);
 
     const updatedValues = {
       productName: req.body.productName,
@@ -273,31 +258,38 @@ router.put(
       isActive: toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
       isFeatured: toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true)
     };
-    await db.prepare(
-      `UPDATE Products
-      SET ProductName = ?, Description = ?, Category = ?, Price = ?, DiscountedPrice = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
-       WHERE ProductId = ?`
-    ).run(
-      req.body.productName,
-      req.body.description,
-      req.body.category,
-      Number(req.body.price),
-      discountedPrice,
-      imageUrl,
-      Number(req.body.quantity),
-      toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
-      toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true),
-      req.body.fabric || existing.Fabric,
-      req.body.weavingStyle || existing.WeavingStyle,
-      req.body.colour || existing.Colour,
-      req.body.occasion || existing.Occasion,
-      req.body.sareeLength || existing.SareeLength,
-      toBoolInt(req.body.blousePieceIncluded === undefined ? existing.BlousePieceIncluded : req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
-      req.body.careInstructions || existing.CareInstructions,
-      Number(req.body.rating || existing.Rating),
-      nowIso(),
-      id
-    );
+    try {
+      await db.prepare(
+        `UPDATE Products
+        SET ProductName = ?, Description = ?, Category = ?, Price = ?, DiscountedPrice = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
+         WHERE ProductId = ?`
+      ).run(
+        req.body.productName,
+        req.body.description,
+        req.body.category,
+        Number(req.body.price),
+        discountedPrice,
+        imageUrl,
+        Number(req.body.quantity),
+        toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
+        toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true),
+        req.body.fabric || existing.Fabric,
+        req.body.weavingStyle || existing.WeavingStyle,
+        req.body.colour || existing.Colour,
+        req.body.occasion || existing.Occasion,
+        req.body.sareeLength || existing.SareeLength,
+        toBoolInt(req.body.blousePieceIncluded === undefined ? existing.BlousePieceIncluded : req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
+        req.body.careInstructions || existing.CareInstructions,
+        Number(req.body.rating || existing.Rating),
+        nowIso(),
+        id
+      );
+    } catch (error) {
+      await Promise.all(uploadedUrls.map((url) => deleteImage(url)));
+      throw error;
+    }
+
+    await Promise.all(removedUrls.map((url) => deleteImage(url)));
 
     await recordProductAudit({ productId: id, userId: req.user.userId, action: "UPDATED", oldValues: auditValues(existing), newValues: updatedValues });
     const updatedProduct = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);

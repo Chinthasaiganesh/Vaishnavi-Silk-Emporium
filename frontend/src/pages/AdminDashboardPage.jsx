@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
+import { resolveImageUrl } from "../utils/image";
 import CategoryCombobox from "../components/CategoryCombobox";
 import ProductPrice from "../components/ProductPrice";
 
@@ -20,6 +21,7 @@ const initialForm = {
   quantity: "",
   isActive: true,
   isFeatured: false,
+  existingImages: [],
   imageUrl: "",
   imageFile: null,
   imageFiles: []
@@ -37,6 +39,15 @@ export default function AdminDashboardPage() {
   const [categoriesError, setCategoriesError] = useState("");
 
   const submitLabel = useMemo(() => (editingId ? "Update Product" : "Add Product"), [editingId]);
+  const selectedImagePreviews = useMemo(
+    () => form.imageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [form.imageFiles]
+  );
+  const imageCount = form.existingImages.length + form.imageFiles.length + (form.imageUrl.trim() ? 1 : 0);
+
+  useEffect(() => () => {
+    selectedImagePreviews.forEach(({ url }) => URL.revokeObjectURL(url));
+  }, [selectedImagePreviews]);
 
   async function loadData() {
     try {
@@ -93,7 +104,8 @@ export default function AdminDashboardPage() {
       quantity: String(product.quantity),
       isActive: product.isActive,
       isFeatured: product.isFeatured,
-      imageUrl: product.imageUrl || "",
+      existingImages: product.imageUrls?.length ? [...product.imageUrls] : product.imageUrl ? [product.imageUrl] : [],
+      imageUrl: "",
       imageFile: null,
       imageFiles: []
     });
@@ -104,6 +116,30 @@ export default function AdminDashboardPage() {
   function resetForm() {
     setEditingId(null);
     setForm(initialForm);
+  }
+
+  function removeExistingImage(index) {
+    setForm((previous) => ({
+      ...previous,
+      existingImages: previous.existingImages.filter((_, imageIndex) => imageIndex !== index)
+    }));
+  }
+
+  function moveExistingImage(index, direction) {
+    setForm((previous) => {
+      const destination = index + direction;
+      if (destination < 0 || destination >= previous.existingImages.length) return previous;
+      const existingImages = [...previous.existingImages];
+      [existingImages[index], existingImages[destination]] = [existingImages[destination], existingImages[index]];
+      return { ...previous, existingImages };
+    });
+  }
+
+  function removeSelectedImage(index) {
+    setForm((previous) => ({
+      ...previous,
+      imageFiles: previous.imageFiles.filter((_, imageIndex) => imageIndex !== index)
+    }));
   }
 
   async function handleSubmit(e) {
@@ -134,7 +170,10 @@ export default function AdminDashboardPage() {
       payload.append("isActive", String(form.isActive));
       payload.append("isFeatured", String(form.isFeatured));
       if (form.imageUrl) {
-        payload.append("imageUrl", form.imageUrl);
+        payload.append(editingId ? "newImageUrl" : "imageUrl", form.imageUrl);
+      }
+      if (editingId) {
+        payload.append("existingImages", JSON.stringify(form.existingImages));
       }
       if (form.imageFiles.length) {
         form.imageFiles.forEach((file) => payload.append("images", file));
@@ -235,7 +274,7 @@ export default function AdminDashboardPage() {
             required
           />
           <input
-            placeholder="Image URL (optional)"
+            placeholder={editingId ? "Add image URL (optional)" : "Image URL (optional)"}
             value={form.imageUrl}
             onChange={(e) => onFieldChange("imageUrl", e.target.value)}
           />
@@ -243,9 +282,33 @@ export default function AdminDashboardPage() {
             type="file"
             accept="image/png,image/jpeg,image/webp"
             multiple
-            onChange={(e) => onFieldChange("imageFiles", Array.from(e.target.files || []).slice(0, 8))}
+            onChange={(e) => {
+              const availableSlots = Math.max(0, 8 - form.existingImages.length - (form.imageUrl.trim() ? 1 : 0));
+              onFieldChange("imageFiles", Array.from(e.target.files || []).slice(0, availableSlots));
+            }}
           />
-          <small>Select up to 8 images. They rotate automatically on the product page.</small>
+          <small>{imageCount} of 8 images selected. New images are added after the existing gallery.</small>
+          {(form.existingImages.length > 0 || selectedImagePreviews.length > 0) && (
+            <div className="admin-image-gallery" aria-label="Product image preview">
+              {form.existingImages.map((url, index) => (
+                <figure className="admin-image-preview" key={url}>
+                  <img src={resolveImageUrl(url)} alt={`Existing product image ${index + 1}`} />
+                  <figcaption>
+                    <button type="button" title="Move image left" aria-label={`Move image ${index + 1} left`} disabled={index === 0} onClick={() => moveExistingImage(index, -1)}>←</button>
+                    <span>{index + 1}</span>
+                    <button type="button" title="Move image right" aria-label={`Move image ${index + 1} right`} disabled={index === form.existingImages.length - 1} onClick={() => moveExistingImage(index, 1)}>→</button>
+                    <button className="danger" type="button" title="Remove image" aria-label={`Remove image ${index + 1}`} onClick={() => removeExistingImage(index)}>×</button>
+                  </figcaption>
+                </figure>
+              ))}
+              {selectedImagePreviews.map(({ file, url }, index) => (
+                <figure className="admin-image-preview pending" key={`${file.name}-${file.lastModified}`}>
+                  <img src={url} alt={`New product image ${index + 1}`} />
+                  <figcaption><span>New</span><button className="danger" type="button" title="Remove image" aria-label={`Remove new image ${index + 1}`} onClick={() => removeSelectedImage(index)}>×</button></figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
         </div>
         <textarea
           placeholder="Description"
