@@ -15,6 +15,7 @@ export default function AdminOrdersPage() {
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [rejectionReason, setRejectionReason] = useState("");
   const [page, setPage] = useState(1);
   const detailRef = useRef(null);
   const pageSize = 8;
@@ -49,6 +50,7 @@ export default function AdminOrdersPage() {
     try {
       const response = await api.get(`/admin/orders/${orderId}`);
       setSelectedOrder(response.data.order);
+      setRejectionReason("");
       setStatuses(response.data.statuses || statuses);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Unable to load order details.");
@@ -69,9 +71,15 @@ export default function AdminOrdersPage() {
 
   async function updatePayment(paymentStatus) {
     if (!selectedOrder) return;
+    if (paymentStatus === "REJECTED" && rejectionReason.trim().length < 3) {
+      setError("Enter a rejection reason before rejecting the payment.");
+      return;
+    }
     try {
-      const response = await api.patch(`/admin/orders/${selectedOrder.OrderId}/payment`, { paymentStatus });
+      setError("");
+      const response = await api.patch(`/admin/orders/${selectedOrder.OrderId}/payment`, { paymentStatus, rejectionReason: paymentStatus === "REJECTED" ? rejectionReason.trim() : undefined });
       setSelectedOrder(response.data.order);
+      setRejectionReason("");
       setMessage(response.data.message);
       await load();
     } catch (requestError) { setError(requestError.response?.data?.message || `Unable to update payment status${requestError.response?.data?.requestId ? ` (request ${requestError.response.data.requestId})` : ""}.`); }
@@ -133,7 +141,8 @@ export default function AdminOrdersPage() {
               <h3>Payment</h3>
               <p>Status: <strong>{prettyStatus(selectedOrder.PaymentStatus || "PENDING")}</strong><br />UTR: {selectedOrder.PaymentReference || "Not provided"}</p>
               {selectedOrder.PaymentScreenshotUrl && <p><a href={selectedOrder.PaymentScreenshotUrl} target="_blank" rel="noreferrer">Open payment screenshot</a></p>}
-              {selectedOrder.PaymentStatus === "PENDING" && <div><button className="btn btn-primary" onClick={() => updatePayment("VERIFIED")}>Verify Payment</button><button className="btn btn-outline" onClick={() => updatePayment("REJECTED")}>Reject Payment</button></div>}
+              {selectedOrder.PaymentStatus === "PENDING" && <div className="payment-review-actions"><label htmlFor="payment-rejection-reason">Rejection reason</label><textarea id="payment-rejection-reason" maxLength="500" rows="3" placeholder="Required when rejecting payment" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} /><div><button className="btn btn-primary" onClick={() => updatePayment("VERIFIED")}>Verify Payment</button><button className="btn btn-outline" disabled={rejectionReason.trim().length < 3} onClick={() => updatePayment("REJECTED")}>Reject Payment</button></div></div>}
+              {selectedOrder.PaymentStatus === "REJECTED" && <p className="error-text"><strong>Rejection reason:</strong> {selectedOrder.PaymentRejectionReason}</p>}
               <h3>Status</h3>
               <select value={selectedOrder.OrderStatus} onChange={(event) => updateStatus(event.target.value)}>{statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select>
               <h3>Timeline</h3>

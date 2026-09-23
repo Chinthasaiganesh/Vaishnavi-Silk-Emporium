@@ -57,7 +57,7 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
     }
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', \'PENDING\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, paymentReference ? timestamp : null, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
     console.info(JSON.stringify({ level: "info", message: "Orders insert result", requestId, orderId: orderResult.lastInsertRowid, changes: orderResult.changes }));
     console.info(JSON.stringify({ level: "info", message: "Order database row created", requestId, orderId: orderResult.lastInsertRowid, orderNumber, subtotal, grandTotal }));
     for (const item of items) {
@@ -93,12 +93,30 @@ export async function updateOrderStatus(orderId, newStatus, adminUserId) {
   return { ...(await getAdminOrder(orderId)), statusChanged };
 }
 
-export async function updatePaymentStatus(orderId, paymentStatus, adminUserId) {
+export async function updatePaymentStatus(orderId, paymentStatus, rejectionReason, adminUserId) {
   if (!["VERIFIED", "REJECTED"].includes(paymentStatus)) throw Object.assign(new Error("Invalid payment status."), { status: 400 });
-  const result = await db.prepare("UPDATE Orders SET PaymentStatus = ?, UpdatedDate = ? WHERE OrderId = ? AND PaymentStatus = 'PENDING'").run(paymentStatus, nowIso(), orderId);
+  if (paymentStatus === "REJECTED" && !rejectionReason?.trim()) throw Object.assign(new Error("A rejection reason is required."), { status: 400 });
+  const timestamp = nowIso();
+  const updated = await transaction(async (tx) => {
+    const existing = await tx.get("SELECT PaymentStatus, OrderStatus FROM Orders WHERE OrderId = ?", [orderId]);
+    if (!existing || existing.PaymentStatus !== "PENDING") return false;
+    const nextOrderStatus = paymentStatus === "VERIFIED" && existing.OrderStatus === "PENDING" ? "PROCESSING" : existing.OrderStatus;
+    await tx.run("UPDATE Orders SET PaymentStatus = ?, PaymentReviewedAt = ?, PaymentRejectionReason = ?, OrderStatus = ?, UpdatedDate = ? WHERE OrderId = ?", [paymentStatus, timestamp, paymentStatus === "REJECTED" ? rejectionReason.trim() : null, nextOrderStatus, timestamp, orderId]);
+    if (nextOrderStatus !== existing.OrderStatus) {
+      await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, ?, ?, ?, ?)", [orderId, existing.OrderStatus, nextOrderStatus, adminUserId, timestamp]);
+    }
+    await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)", [orderId, adminUserId, timestamp]);
+    return true;
+  });
+  return updated ? getAdminOrder(orderId) : null;
+}
+
+export async function resubmitPaymentProof(userId, orderId, paymentReference, paymentScreenshotUrl) {
+  const timestamp = nowIso();
+  const result = await db.prepare("UPDATE Orders SET PaymentReference = ?, PaymentScreenshotUrl = ?, PaymentStatus = 'PENDING', PaymentSubmittedAt = ?, PaymentReviewedAt = NULL, PaymentRejectionReason = NULL, UpdatedDate = ? WHERE OrderId = ? AND UserId = ? AND PaymentMethod = 'UPI_MANUAL' AND PaymentStatus = 'REJECTED'").run(paymentReference, paymentScreenshotUrl, timestamp, timestamp, orderId, userId);
   if (!result.changes) return null;
-  await db.prepare("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)").run(orderId, adminUserId, nowIso());
-  return getAdminOrder(orderId);
+  await db.prepare("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)").run(orderId, userId, timestamp);
+  return getOrder(userId, orderId);
 }
 
 export async function updateRefundStatus(orderId, refundStatus, refundReference, adminUserId) {

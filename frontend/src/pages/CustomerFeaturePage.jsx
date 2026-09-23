@@ -20,6 +20,7 @@ function formatRelativeTime(value) {
 }
 
 function getNotificationIcon(type) {
+  if (type === "PAYMENT_STATUS") return "Payment";
   if (type === "ORDER_STATUS") return "Order";
   if (type === "BACK_IN_STOCK" || type === "INVENTORY") return "Stock";
   return "Note";
