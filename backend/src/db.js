@@ -42,7 +42,7 @@ const identifiers = [...primaryKeys.keys(), ...primaryKeys.values(),
   "CacheKey", "SourceLanguage", "TargetLanguage", "SourceText", "TranslatedText", "Provider", "CategoryId", "CategoryName", "SettingsId", "StoreName", "Tagline", "Phone", "Address", "BusinessDescription", "UpdatedBy",
   "InventoryId", "CurrentStock", "AvailableStock", "ReservedStock", "Status", "AdminUserId", "Action", "OldStock", "NewStock", "AuditId", "UserId", "OldValues", "NewValues",
   "CartId", "CartItemId", "UnitPrice", "OldQuantity", "NewQuantity", "AddressId", "AddressLine1", "AddressLine2", "City", "State", "PostalCode", "Country", "IsDefault",
-  "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CancelledAt", "CancellationReason", "RefundStatus", "RefundReference",
+  "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CancelledAt", "CancellationReason", "RefundStatus", "RefundReference",
   "OrderItemId", "ProductPrice", "OriginalPrice", "DiscountedPrice", "DiscountPercentage", "SavingsAmount", "ImageUrl", "LineTotal", "StatusHistoryId", "OldStatus", "NewStatus", "ChangedBy", "ChangedAt",
   "nextId", "ItemCount", "ProductCount", "WishlistCreatedDate", "CustomerName", "CustomerMobile"
 ].sort((first, second) => second.length - first.length);
@@ -276,7 +276,7 @@ export async function initializeDatabase() {
   const missingTables = requiredTables.filter((table) => !foundTables.includes(table));
   console.info(JSON.stringify({ level: missingTables.length ? "error" : "info", message: "Order schema check", requiredTables, foundTables, missingTables }));
   if (missingTables.length) throw Object.assign(new Error(`Required database tables are missing: ${missingTables.join(", ")}`), { code: "42P01" });
-  const requiredColumns = ["PaymentReference", "PaymentScreenshotUrl", "PaymentStatus"];
+  const requiredColumns = ["PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason"];
   const columnCheck = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Orders' AND column_name = ANY($1)", [requiredColumns]);
   const foundColumns = columnCheck.rows.map((row) => row.column_name);
   const missingColumns = requiredColumns.filter((column) => !foundColumns.includes(column));
