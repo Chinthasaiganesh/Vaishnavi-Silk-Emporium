@@ -65,9 +65,14 @@ router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1
     const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.body.rejectionReason, req.user.userId);
     if (order) {
       if (req.body.paymentStatus === "VERIFIED") {
-        await sendOrderNotification(order, "Payment Verified", `Your payment has been successfully verified. Order ${order.OrderNumber} is now confirmed and being processed.`, "PAYMENT_STATUS");
-        await sendOrderNotification(order, "Order Confirmed", `Order ${order.OrderNumber} is confirmed and being processed.`);
-        await sendOrderNotification(order, "Order Processing", "Your order is being prepared for packing.");
+        if (order.OrderStatus === "CANCELLED") {
+          await sendOrderNotification(order, "Payment Verified", `Payment for cancelled order ${order.OrderNumber} has been verified. Your refund can now be processed.`, "PAYMENT_STATUS");
+          if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Ready for Processing", `Refund verification is complete for order ${order.OrderNumber}.`, "REFUND_STATUS");
+        } else {
+          await sendOrderNotification(order, "Payment Verified", `Your payment has been successfully verified. Order ${order.OrderNumber} is now confirmed and being processed.`, "PAYMENT_STATUS");
+          await sendOrderNotification(order, "Order Confirmed", `Order ${order.OrderNumber} is confirmed and being processed.`);
+          await sendOrderNotification(order, "Order Processing", "Your order is being prepared for packing.");
+        }
       } else {
         await sendOrderNotification(order, "Payment Verification Failed", `Order #${order.OrderNumber} requires your attention. Reason: ${order.PaymentRejectionReason}. Please re-submit payment details or contact support.`, "PAYMENT_STATUS");
       }
@@ -81,7 +86,7 @@ router.post("/:id/cancel", authRequired, adminOnly, param("id").isInt({ min: 1 }
     const order = await cancelOrder(req.user.userId, Number(req.params.id), req.body.reason.trim(), "ADMIN");
     if (!order) return res.status(404).json({ success: false, message: "Order not found." });
     await sendOrderNotification(order, "Order Cancelled", `Order ${order.OrderNumber} was cancelled by the store. Reason: ${order.CancellationReason}.`);
-    if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Initiated", "Your refund request has been accepted.", "REFUND_STATUS");
+    if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Initiated", order.PaymentStatus === "VERIFIED" ? "Your refund request has been accepted." : "Refund tracking has started. Processing will begin after payment verification.", "REFUND_STATUS");
     return res.json({ success: true, message: "Order cancelled.", order, allowedTransitions: [] });
   } catch (error) { return next(error); }
 });

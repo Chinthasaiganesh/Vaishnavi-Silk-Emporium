@@ -1,4 +1,9 @@
-const fallbackImage = "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=500&q=80";
+export const fallbackImage = "https://images.unsplash.com/photo-1610189020380-dc0d7a3e743d?auto=format&fit=crop&w=500&q=80";
+
+export function useFallbackImage(event) {
+  event.currentTarget.onerror = null;
+  event.currentTarget.src = fallbackImage;
+}
 
 export function resolveImageUrl(value, width = 500) {
   const url = normalizeImageValue(value);

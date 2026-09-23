@@ -27,7 +27,7 @@ function getTimelineSteps(order) {
   const paymentVerified = order.PaymentStatus === "VERIFIED";
   const definitions = [
     ["ORDER_PLACED", "Order Placed", true, order.CreatedDate, "Your order was created successfully."],
-    ["PAYMENT_SUBMITTED", "Payment Submitted", Boolean(order.PaymentSubmittedAt || order.PaymentReference), order.PaymentSubmittedAt || order.CreatedDate, "Payment details received for verification."],
+    ["PAYMENT_SUBMITTED", "Payment Submitted", Boolean(order.PaymentSubmittedAt || order.PaymentReference), order.PaymentSubmittedAt || (order.PaymentReference ? order.CreatedDate : null), "Payment details received for verification."],
     ["PAYMENT_VERIFIED", "Payment Verified", paymentVerified, order.PaymentReviewedAt, "Your payment was verified successfully."],
     ["ORDER_CONFIRMED", "Order Confirmed", paymentVerified && rank >= fulfillmentRanks.PROCESSING, historyDate(order, "PROCESSING") || order.PaymentReviewedAt, "Your order is confirmed."],
     ["PROCESSING", "Processing", rank >= fulfillmentRanks.PROCESSING, historyDate(order, "PROCESSING"), "Your order is being prepared."],
@@ -40,12 +40,14 @@ function getTimelineSteps(order) {
     const event = lifecycleEvent(order, key);
     return { key, label, complete: Boolean(event || complete || fallbackDate), date: event?.EventDate || fallbackDate, description: event?.Description || description, failed: key === "PAYMENT_VERIFIED" && order.PaymentStatus === "REJECTED" };
   });
-  if (order.CancelledAt) {
-    const event = lifecycleEvent(order, "CANCELLED");
-    const actor = order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Unknown actor";
-    steps.push({ key: "CANCELLED", label: `Cancelled by ${actor}`, complete: true, cancelled: true, failed: true, date: event?.EventDate || order.CancelledAt, description: order.CancellationReason || event?.Description || "No cancellation reason provided." });
-  }
-  return steps;
+  if (!order.CancelledAt) return steps;
+
+  const event = lifecycleEvent(order, "CANCELLED");
+  const actor = order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Unknown actor";
+  const cancellationStep = { key: "CANCELLED", label: `Cancelled by ${actor}`, complete: true, cancelled: true, failed: true, date: event?.EventDate || order.CancelledAt, description: order.CancellationReason || event?.Description || "No cancellation reason provided." };
+  const cancelledAt = new Date(order.CancelledAt).getTime();
+  const completedBeforeCancellation = steps.filter((step) => step.complete && (!step.date || new Date(step.date).getTime() <= cancelledAt));
+  return [...completedBeforeCancellation, cancellationStep];
 }
 
 function getRefundSteps(order) {
@@ -61,6 +63,7 @@ function getRefundSteps(order) {
 }
 function refundLabel(order) {
   if (order.PaymentMethod === "COD") return "Not applicable";
+  if (order.RefundStatus === "PENDING" && order.PaymentStatus !== "VERIFIED") return "Awaiting payment verification";
   if (order.RefundStatus === "PENDING") return "Refund pending";
   if (order.RefundStatus === "PROCESSING") return "Refund processing";
   if (order.RefundStatus === "COMPLETED") return "Refund completed";
@@ -343,7 +346,7 @@ export default function OrderDetailPage() {
         </div>
       </motion.section>
       {order.CancelledAt && <section className="lifecycle-detail cancellation-detail" aria-labelledby="cancellation-title"><div><p className="eyebrow">Order closed</p><h2 id="cancellation-title">Order Cancelled</h2></div><dl><dt>Cancelled By</dt><dd>{order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Not recorded"}</dd><dt>Cancellation Reason</dt><dd>{order.CancellationReason || "No reason provided"}</dd><dt>Cancellation Date</dt><dd>{new Date(order.CancelledAt).toLocaleString()}</dd></dl></section>}
-      {order.RefundStatus !== "NOT_APPLICABLE" && <section className="refund-timeline" aria-labelledby="refund-timeline-title"><div className="order-timeline-head"><div><p className="eyebrow">Money movement</p><h2 id="refund-timeline-title">Refund Timeline</h2><p>Current status: {refundLabel(order)}</p></div>{order.RefundReference && <span className="refund-reference">Reference: {order.RefundReference}</span>}</div><div className="refund-steps">{refundSteps.map((step) => <article className={`refund-step${step.complete ? " complete" : ""}`} key={step.key}><span aria-hidden="true">{step.complete ? "✓" : ""}</span><div><strong>{step.label}</strong><small>{step.date ? new Date(step.date).toLocaleString() : step.complete ? "Completed · Date unavailable" : "Upcoming"}</small><p>{step.description}</p></div></article>)}</div>{order.RefundStatus === "FAILED" && <p className="error-text">Refund processing needs additional review. Please contact support if no update is provided.</p>}</section>}
+      {order.RefundStatus !== "NOT_APPLICABLE" && <section className="refund-timeline" aria-labelledby="refund-timeline-title"><div className="order-timeline-head"><div><p className="eyebrow">Money movement</p><h2 id="refund-timeline-title">Refund Timeline</h2><p>Current status: {refundLabel(order)}</p></div>{order.RefundReference && <span className="refund-reference">Reference: {order.RefundReference}</span>}</div>{order.RefundStatus === "PENDING" && order.PaymentStatus !== "VERIFIED" && <p className="refund-verification-note">Your refund case is recorded. Processing will start as soon as the submitted payment is verified.</p>}<div className="refund-steps">{refundSteps.map((step) => <article className={`refund-step${step.complete ? " complete" : ""}`} key={step.key}><span aria-hidden="true">{step.complete ? "✓" : ""}</span><div><strong>{step.label}</strong><small>{step.date ? new Date(step.date).toLocaleString() : step.complete ? "Completed · Date unavailable" : "Upcoming"}</small><p>{step.description}</p></div></article>)}</div>{order.RefundStatus === "FAILED" && <p className="error-text">Refund processing needs additional review. Please contact support if no update is provided.</p>}</section>}
       {order.PaymentStatus === "REJECTED" && (
         <section className="checkout-section payment-resubmission" aria-labelledby="payment-resubmission-title">
           <p className="eyebrow">Action required</p>

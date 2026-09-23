@@ -45,7 +45,7 @@ const identifiers = [...primaryKeys.keys(), ...primaryKeys.values(),
   "CartId", "CartItemId", "UnitPrice", "OldQuantity", "NewQuantity", "AddressId", "AddressLine1", "AddressLine2", "City", "State", "PostalCode", "Country", "IsDefault",
   "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CancelledAt", "CancellationReason", "CancelledByRole", "RefundStatus", "RefundReference", "RefundInitiatedAt", "RefundProcessingAt", "RefundCompletedAt",
   "OrderItemId", "ProductPrice", "OriginalPrice", "DiscountedPrice", "DiscountPercentage", "SavingsAmount", "ImageUrl", "LineTotal", "StatusHistoryId", "OldStatus", "NewStatus", "ChangedBy", "ChangedAt", "LifecycleEventId", "EventType", "Description", "ActorRole", "EventDate",
-  "nextId", "ItemCount", "ProductCount", "WishlistCreatedDate", "CustomerName", "CustomerMobile"
+  "nextId", "ItemCount", "ProductCount", "WishlistCreatedDate", "CustomerName", "CustomerMobile", "OrderImageUrl"
 ].sort((first, second) => second.length - first.length);
 
 const identifierPattern = new RegExp(`(?<!")\\b(${identifiers.join("|")})\\b(?!")`, "g");
