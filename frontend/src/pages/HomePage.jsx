@@ -7,6 +7,7 @@ import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
 import ProductCardActions from "../components/ProductCardActions";
 import ProductPrice from "../components/ProductPrice";
+import ProductMediaCarousel from "../components/ProductMediaCarousel";
 
 const valueMessages = [
   "Heritage weaves, curated for modern celebrations.",
@@ -162,7 +163,7 @@ export default function HomePage() {
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
                 {product.quantity <= 0 && <span className="stock-ribbon" aria-label="Out of stock">Out of Stock</span>}
-                <img data-cart-product={product.productId} src={resolveImage(product.imageUrl)} alt={product.productName} loading="lazy" />
+                <ProductMediaCarousel product={product} />
               </div>
               <div className="featured-product-body">
                 <p className="featured-category">{product.category}</p>
@@ -187,15 +188,4 @@ export default function HomePage() {
       </section>
     </main>
   );
-}
-
-function resolveImage(url) {
-  if (!url) {
-    return "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?auto=format&fit=crop&w=1200&q=80";
-  }
-  if (url.startsWith("http")) {
-    return url;
-  }
-  const apiRoot = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "https://vaishnavi-silk-emporium.onrender.com/api")).replace("/api", "");
-  return `${apiRoot}${url}`;
 }
