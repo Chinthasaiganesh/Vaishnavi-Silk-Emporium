@@ -1256,11 +1256,10 @@ a {
 .order-timeline-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.35rem; }
 .order-timeline h2 { margin: 0; font-size: 1.35rem; }
 .order-timeline-head p, .terminal-status-note { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.88rem; }
-.order-timeline-track { position: relative; display: grid; grid-template-columns: repeat(9, minmax(5.5rem, 1fr)); gap: 0.5rem; min-width: 0; }
-.timeline-rail, .timeline-progress { position: absolute; top: 1rem; left: calc(100% / 12); right: calc(100% / 12); height: 0.22rem; border-radius: 999px; }
-.timeline-rail { background: #f0dde2; }
-.timeline-progress { background: linear-gradient(90deg, var(--primary), var(--accent)); box-shadow: 0 0 0.7rem rgba(212, 163, 115, 0.45); transform: scaleX(var(--timeline-progress-scale, 0)); transform-origin: left center; }
+.order-timeline-track { position: relative; display: grid; grid-template-columns: repeat(var(--timeline-columns, 1), minmax(0, 1fr)); gap: 0.5rem; min-width: 0; }
 .timeline-step { position: relative; z-index: 1; display: grid; justify-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.75rem; font-weight: 800; text-align: center; transition: color 180ms ease, transform 180ms ease; }
+.timeline-step:not(:last-child)::after { content: ""; position: absolute; z-index: 0; top: 0.95rem; left: 50%; width: calc(100% + 0.5rem); height: 0.22rem; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+.timeline-step > * { position: relative; z-index: 1; }
 .timeline-step:hover { transform: translateY(-2px); color: var(--primary); }
 .timeline-marker { display: grid; width: 2.05rem; height: 2.05rem; place-items: center; border: 2px solid var(--border); border-radius: 50%; background: var(--card); color: #fff; box-shadow: 0 4px 12px rgba(70, 33, 46, 0.08); }
 .timeline-step.complete .timeline-marker { border-color: #2d7652; background: #2d7652; }
@@ -1273,7 +1272,6 @@ a {
 .timeline-step.complete, .timeline-step.current { color: var(--primary); }
 .timeline-step small { color: var(--muted); font-size: 0.67rem; font-weight: 700; }
 .timeline-description { max-width: 9rem; color: var(--muted); font-size: 0.68rem; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; }
-.order-timeline.terminal .timeline-progress { background: #b44321; }
 .order-timeline.terminal .timeline-step.current .timeline-marker { border-color: #b44321; }
 @keyframes timeline-current-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 .cancel-order-trigger { color: #fff; background: linear-gradient(135deg, #9f2d2d, #d46b4f); box-shadow: 0 10px 24px rgba(159, 45, 45, 0.18); }
@@ -1307,7 +1305,12 @@ a {
 .cancellation-detail dl { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: 0.55rem 1rem; margin: 0; }
 .cancellation-detail dt { color: var(--muted); font-size: 0.8rem; font-weight: 800; }
 .cancellation-detail dd { margin: 0; overflow-wrap: anywhere; }
+.refund-detail { display: grid; grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 1.3fr); gap: 1.25rem; border-color: rgba(45, 118, 82, 0.28); }
+.refund-detail dl { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: 0.55rem 1rem; margin: 0; }
+.refund-detail dt { color: var(--muted); font-size: 0.8rem; font-weight: 800; }
+.refund-detail dd { margin: 0; overflow-wrap: anywhere; }
 .refund-timeline { border-color: rgba(45, 118, 82, 0.28); }
+.refund-verification-note { margin: 0 0 1rem; border-left: 3px solid var(--accent); padding: 0.65rem 0.75rem; color: var(--text); background: #fff8ee; font-size: 0.85rem; line-height: 1.45; }
 .refund-reference { max-width: 20rem; color: var(--muted); font-size: 0.78rem; overflow-wrap: anywhere; text-align: right; }
 .refund-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
 .refund-step { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.65rem; min-width: 0; padding: 0.8rem; border: 1px solid var(--border); border-radius: 0.6rem; color: var(--muted); background: #fffaf8; }
@@ -3217,14 +3220,16 @@ a {
   .checkout-item-image, .order-item-image { width: 3.2rem; height: 3.8rem; flex-basis: 3.2rem; }
   .order-row-image { width: 3rem; height: 3.5rem; flex-basis: 3rem; }
   .order-timeline-track { grid-template-columns: 1fr; gap: 1rem; }
-  .timeline-rail, .timeline-progress { top: 1rem; bottom: 1rem; left: 1rem; right: auto; width: 0.22rem !important; height: auto; }
-  .timeline-progress { transform: scaleY(var(--timeline-progress-scale, 0)); transform-origin: top center; }
   .timeline-step { grid-template-columns: 2.05rem 1fr; justify-items: start; text-align: left; }
+  .timeline-step:not(:last-child)::after { top: 1rem; bottom: auto; left: 0.95rem; width: 0.22rem; height: calc(100% + 1rem); }
   .timeline-step small { grid-column: 2; }
   .timeline-description { grid-column: 2; max-width: none; }
   .cancellation-detail { grid-template-columns: 1fr; }
   .cancellation-detail dl { grid-template-columns: 1fr; gap: 0.2rem; }
   .cancellation-detail dd { margin-bottom: 0.55rem; }
+  .refund-detail { grid-template-columns: 1fr; }
+  .refund-detail dl { grid-template-columns: 1fr; gap: 0.2rem; }
+  .refund-detail dd { margin-bottom: 0.55rem; }
   .refund-steps { grid-template-columns: 1fr; }
   .refund-reference { max-width: 100%; text-align: left; }
   .order-row { align-items: flex-start; }
@@ -3819,9 +3824,8 @@ a {
   }
 
   .order-timeline-track { grid-template-columns: 1fr; gap: 1rem; }
-  .timeline-rail, .timeline-progress { top: 1rem; bottom: 1rem; left: 1rem; right: auto; width: 0.22rem !important; height: auto; }
-  .timeline-progress { transform: scaleY(var(--timeline-progress-scale, 0)); transform-origin: top center; }
   .timeline-step { grid-template-columns: 2.05rem minmax(0, 1fr); justify-items: start; text-align: left; }
+  .timeline-step:not(:last-child)::after { top: 1rem; bottom: auto; left: 0.95rem; width: 0.22rem; height: calc(100% + 1rem); }
   .timeline-step small, .timeline-description { grid-column: 2; max-width: none; }
 }
 

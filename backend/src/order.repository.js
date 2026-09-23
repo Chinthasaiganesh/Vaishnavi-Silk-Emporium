@@ -137,14 +137,19 @@ export async function updatePaymentStatus(orderId, paymentStatus, rejectionReaso
   if (paymentStatus === "REJECTED" && !rejectionReason?.trim()) throw Object.assign(new Error("A rejection reason is required."), { status: 400 });
   const timestamp = nowIso();
   const updated = await transaction(async (tx) => {
-    const existing = await tx.get("SELECT PaymentStatus, OrderStatus FROM Orders WHERE OrderId = ?", [orderId]);
+    const existing = await tx.get("SELECT PaymentStatus, OrderStatus, RefundStatus FROM Orders WHERE OrderId = ?", [orderId]);
     if (!existing || existing.PaymentStatus !== "PENDING") return false;
     const nextOrderStatus = paymentStatus === "VERIFIED" && existing.OrderStatus === "PENDING" ? "PROCESSING" : existing.OrderStatus;
-    await tx.run("UPDATE Orders SET PaymentStatus = ?, PaymentReviewedAt = ?, PaymentRejectionReason = ?, OrderStatus = ?, UpdatedDate = ? WHERE OrderId = ?", [paymentStatus, timestamp, paymentStatus === "REJECTED" ? rejectionReason.trim() : null, nextOrderStatus, timestamp, orderId]);
+    const refundStartsAfterCancellation = paymentStatus === "VERIFIED" && existing.OrderStatus === "CANCELLED" && existing.RefundStatus === "NOT_APPLICABLE";
+    const nextRefundStatus = refundStartsAfterCancellation ? "PENDING" : existing.RefundStatus;
+    await tx.run("UPDATE Orders SET PaymentStatus = ?, PaymentReviewedAt = ?, PaymentRejectionReason = ?, OrderStatus = ?, RefundStatus = ?, RefundInitiatedAt = CASE WHEN ? = 1 THEN ? ELSE RefundInitiatedAt END, UpdatedDate = ? WHERE OrderId = ?", [paymentStatus, timestamp, paymentStatus === "REJECTED" ? rejectionReason.trim() : null, nextOrderStatus, nextRefundStatus, refundStartsAfterCancellation ? 1 : 0, timestamp, timestamp, orderId]);
     if (paymentStatus === "VERIFIED") {
       await addLifecycleEvent(tx, orderId, "PAYMENT_VERIFIED", "Payment Verified", "Your payment was verified successfully.", "ADMIN", adminUserId, timestamp);
-      await addLifecycleEvent(tx, orderId, "ORDER_CONFIRMED", "Order Confirmed", "Your order is confirmed and ready for processing.", "SYSTEM", adminUserId, timestamp);
-      if (nextOrderStatus === "PROCESSING") await addLifecycleEvent(tx, orderId, "PROCESSING", "Processing", "Your order is being prepared for packing.", "SYSTEM", adminUserId, timestamp);
+      if (existing.OrderStatus !== "CANCELLED") {
+        await addLifecycleEvent(tx, orderId, "ORDER_CONFIRMED", "Order Confirmed", "Your order is confirmed and ready for processing.", "SYSTEM", adminUserId, timestamp);
+        if (nextOrderStatus === "PROCESSING") await addLifecycleEvent(tx, orderId, "PROCESSING", "Processing", "Your order is being prepared for packing.", "SYSTEM", adminUserId, timestamp);
+      }
+      if (refundStartsAfterCancellation) await addLifecycleEvent(tx, orderId, "REFUND_INITIATED", "Refund Initiated", "Payment was verified after cancellation. Your refund is ready for processing.", "SYSTEM", adminUserId, timestamp);
     } else {
       await addLifecycleEvent(tx, orderId, "PAYMENT_REJECTED", "Payment Verification Failed", `Reason: ${rejectionReason.trim()}`, "ADMIN", adminUserId, timestamp);
     }
@@ -195,7 +200,8 @@ export async function cancelOrder(userId, orderId, reason = "Customer requested 
     if (!existing) return null;
     if (existing.OrderStatus === "CANCELLED") throw Object.assign(new Error("Order is already cancelled."), { status: 409 });
     if (!cancellableStatuses.includes(existing.OrderStatus)) throw Object.assign(new Error("This order can no longer be cancelled because it has already been shipped."), { status: 409 });
-    const refundStatus = existing.PaymentStatus === "VERIFIED" && existing.PaymentMethod !== "COD" ? "PENDING" : "NOT_APPLICABLE";
+    const paymentWasSubmitted = existing.PaymentMethod !== "COD" && Boolean(existing.PaymentReference || existing.PaymentScreenshotUrl || existing.PaymentSubmittedAt);
+    const refundStatus = paymentWasSubmitted ? "PENDING" : "NOT_APPLICABLE";
     await tx.run("UPDATE Orders SET OrderStatus = 'CANCELLED', CancelledAt = ?, CancellationReason = ?, CancelledByRole = ?, RefundStatus = ?, RefundInitiatedAt = ?, UpdatedDate = ? WHERE OrderId = ?", [timestamp, reason, actorRole, refundStatus, refundStatus === "PENDING" ? timestamp : null, timestamp, orderId]);
     const orderItems = await tx.all("SELECT ProductId, Quantity FROM OrderItems WHERE OrderId = ?", [orderId]);
     for (const item of orderItems) {
@@ -205,8 +211,12 @@ export async function cancelOrder(userId, orderId, reason = "Customer requested 
     await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, ?, 'CANCELLED', ?, ?)", [orderId, existing.OrderStatus, userId, timestamp]);
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CANCELLED', ?)", [orderId, userId, timestamp]);
     await addLifecycleEvent(tx, orderId, "CANCELLED", "Order Cancelled", reason, actorRole, userId, timestamp);
-    if (refundStatus === "PENDING") await addLifecycleEvent(tx, orderId, "REFUND_INITIATED", "Refund Initiated", "Your refund request has been accepted.", "SYSTEM", userId, timestamp);
+    if (refundStatus === "PENDING") {
+      const description = existing.PaymentStatus === "VERIFIED" ? "Your refund request has been accepted." : "Refund tracking has started. Processing will begin after payment verification.";
+      await addLifecycleEvent(tx, orderId, "REFUND_INITIATED", "Refund Initiated", description, "SYSTEM", userId, timestamp);
+    }
     return true;
   });
-  return cancelled ? await getOrder(userId, orderId) : null;
+  if (!cancelled) return null;
+  return actorRole === "ADMIN" ? await getAdminOrder(orderId) : await getOrder(userId, orderId);
 }

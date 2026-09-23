@@ -49,9 +49,9 @@ router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").trim().
 	try {
 		const order = await cancelOrder(req.user.userId, Number(req.params.id), req.body.reason.trim());
 		if (!order) return res.status(404).json({ success: false, message: "Order not found." });
-		const refundMessage = order.RefundStatus === "NOT_APPLICABLE" ? "Since no payment was collected, no refund is required." : "Refunds, if applicable, will be credited to your original payment method within 2-3 business days.";
+		const refundMessage = order.RefundStatus === "NOT_APPLICABLE" ? "No submitted payment was found, so no refund is required." : order.PaymentStatus === "VERIFIED" ? "Your refund will be credited to the original payment method after processing." : "Refund tracking has started and processing will begin after payment verification.";
 		await sendOrderNotification(order, "Order Cancelled Successfully", `Your order #${order.OrderNumber} has been cancelled. ${refundMessage}`);
-		if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Initiated", "Your refund request has been accepted.", "REFUND_STATUS");
+		if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Initiated", order.PaymentStatus === "VERIFIED" ? "Your refund request has been accepted." : "Refund tracking has started. Processing will begin after payment verification.", "REFUND_STATUS");
 		return res.json({ success: true, message: "Order cancelled successfully", refundMessage, order });
 	} catch (error) { return next(error); }
 });
