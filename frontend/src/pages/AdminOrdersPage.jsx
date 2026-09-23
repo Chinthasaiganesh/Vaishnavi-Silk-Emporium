@@ -16,6 +16,9 @@ export default function AdminOrdersPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+  const [allowedTransitions, setAllowedTransitions] = useState([]);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [refundReference, setRefundReference] = useState("");
   const [page, setPage] = useState(1);
   const detailRef = useRef(null);
   const pageSize = 8;
@@ -51,6 +54,9 @@ export default function AdminOrdersPage() {
       const response = await api.get(`/admin/orders/${orderId}`);
       setSelectedOrder(response.data.order);
       setRejectionReason("");
+      setCancellationReason("");
+      setRefundReference(response.data.order.RefundReference || "");
+      setAllowedTransitions(response.data.allowedTransitions || []);
       setStatuses(response.data.statuses || statuses);
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Unable to load order details.");
@@ -62,10 +68,43 @@ export default function AdminOrdersPage() {
     try {
       const response = await api.patch(`/admin/orders/${selectedOrder.OrderId}/status`, { status: nextStatus });
       setSelectedOrder(response.data.order);
+      setAllowedTransitions(response.data.allowedTransitions || []);
       setMessage(response.data.message);
       await load();
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Unable to update order status.");
+    }
+  }
+
+  async function cancelSelectedOrder() {
+    if (!selectedOrder || cancellationReason.trim().length < 3) {
+      setError("Enter a cancellation reason before cancelling the order.");
+      return;
+    }
+    try {
+      setError("");
+      const response = await api.post(`/admin/orders/${selectedOrder.OrderId}/cancel`, { reason: cancellationReason.trim() });
+      setSelectedOrder(response.data.order);
+      setAllowedTransitions([]);
+      setCancellationReason("");
+      setMessage(response.data.message);
+      await load();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to cancel order.");
+    }
+  }
+
+  async function updateRefund(refundStatus) {
+    if (!selectedOrder) return;
+    try {
+      setError("");
+      const response = await api.patch(`/admin/orders/${selectedOrder.OrderId}/refund`, { refundStatus, refundReference: refundReference.trim() || undefined });
+      setSelectedOrder(response.data.order);
+      setAllowedTransitions(response.data.allowedTransitions || []);
+      setMessage(response.data.message);
+      await load();
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to update refund status.");
     }
   }
 
@@ -144,9 +183,12 @@ export default function AdminOrdersPage() {
               {selectedOrder.PaymentStatus === "PENDING" && <div className="payment-review-actions"><label htmlFor="payment-rejection-reason">Rejection reason</label><textarea id="payment-rejection-reason" maxLength="500" rows="3" placeholder="Required when rejecting payment" value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} /><div><button className="btn btn-primary" onClick={() => updatePayment("VERIFIED")}>Verify Payment</button><button className="btn btn-outline" disabled={rejectionReason.trim().length < 3} onClick={() => updatePayment("REJECTED")}>Reject Payment</button></div></div>}
               {selectedOrder.PaymentStatus === "REJECTED" && <p className="error-text"><strong>Rejection reason:</strong> {selectedOrder.PaymentRejectionReason}</p>}
               <h3>Status</h3>
-              <select value={selectedOrder.OrderStatus} onChange={(event) => updateStatus(event.target.value)}>{statuses.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select>
+              <p><strong>{prettyStatus(selectedOrder.OrderStatus)}</strong></p>
+              {allowedTransitions.length > 0 && <div className="admin-lifecycle-actions"><label htmlFor="next-order-status">Next fulfillment status</label><select id="next-order-status" value="" onChange={(event) => event.target.value && updateStatus(event.target.value)}><option value="">Select next status</option>{allowedTransitions.map((item) => <option value={item} key={item}>{prettyStatus(item)}</option>)}</select></div>}
+              {["PENDING", "PROCESSING", "PACKED"].includes(selectedOrder.OrderStatus) && <div className="admin-lifecycle-actions"><label htmlFor="admin-cancellation-reason">Cancellation reason</label><textarea id="admin-cancellation-reason" maxLength="300" rows="3" placeholder="Required for admin cancellation" value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /><button className="btn btn-outline" disabled={cancellationReason.trim().length < 3} onClick={cancelSelectedOrder}>Cancel Order</button></div>}
+              {selectedOrder.RefundStatus !== "NOT_APPLICABLE" && <div className="admin-lifecycle-actions"><h3>Refund</h3><p>Status: <strong>{prettyStatus(selectedOrder.RefundStatus)}</strong></p><label htmlFor="refund-reference">Refund reference</label><input id="refund-reference" maxLength="120" placeholder="Bank or gateway reference" value={refundReference} onChange={(event) => setRefundReference(event.target.value)} /><div>{selectedOrder.RefundStatus === "PENDING" && <><button className="btn btn-primary" onClick={() => updateRefund("PROCESSING")}>Start Processing</button><button className="btn btn-outline" onClick={() => updateRefund("FAILED")}>Mark Issue</button></>}{selectedOrder.RefundStatus === "PROCESSING" && <><button className="btn btn-primary" onClick={() => updateRefund("COMPLETED")}>Complete Refund</button><button className="btn btn-outline" onClick={() => updateRefund("FAILED")}>Mark Issue</button></>}{selectedOrder.RefundStatus === "FAILED" && <button className="btn btn-primary" onClick={() => updateRefund("PROCESSING")}>Retry Refund</button>}</div></div>}
               <h3>Timeline</h3>
-              <div className="admin-status-history">{(selectedOrder.history || []).map((entry) => <p key={entry.StatusHistoryId}><strong>{prettyStatus(entry.NewStatus)}</strong><span>{new Date(entry.ChangedAt).toLocaleString()} {entry.Username ? `by ${entry.Username}` : ""}</span></p>)}</div>
+              <div className="admin-status-history">{(selectedOrder.lifecycle || []).map((entry) => <p key={entry.LifecycleEventId}><strong>{entry.Title}</strong><span>{new Date(entry.EventDate).toLocaleString()} · {entry.ActorRole ? prettyStatus(entry.ActorRole) : "System"}</span><small>{entry.Description}</small></p>)}</div>
             </article>
           </div>
 

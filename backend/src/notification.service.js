@@ -2,7 +2,7 @@ import { db } from "./db.js";
 import { nowIso } from "./utils.js";
 
 export async function getUserNotifications(userId) {
-  return await db.prepare("SELECT Notifications.*, Products.ProductName, Orders.OrderNumber FROM Notifications LEFT JOIN Products ON Products.ProductId = Notifications.ProductId LEFT JOIN Orders ON Orders.OrderId = Notifications.OrderId WHERE Notifications.UserId = ? ORDER BY datetime(Notifications.CreatedDate) DESC LIMIT 50").all(userId);
+  return await db.prepare("SELECT Notifications.*, Products.ProductName, Orders.OrderNumber, Orders.OrderStatus, Orders.PaymentStatus, Orders.RefundStatus FROM Notifications LEFT JOIN Products ON Products.ProductId = Notifications.ProductId LEFT JOIN Orders ON Orders.OrderId = Notifications.OrderId WHERE Notifications.UserId = ? ORDER BY datetime(Notifications.CreatedDate) DESC LIMIT 50").all(userId);
 }
 
 export async function getUnreadCount(userId) {

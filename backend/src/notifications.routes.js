@@ -29,7 +29,7 @@ router.get("/subscriptions/:productId", authRequired, param("productId").isInt({
 router.get("/", authRequired, async (req, res) => {
   const notifications = await getUserNotifications(req.user.userId);
   const unreadCount = await getUnreadCount(req.user.userId);
-  return res.json({ notifications: notifications.map((item) => ({ notificationId: item.NotificationId, type: item.Type, productId: item.ProductId, productName: item.ProductName, orderId: item.OrderId, orderNumber: item.OrderNumber, title: item.Title, message: item.Message, isRead: Boolean(item.IsRead), readDate: item.ReadDate, createdDate: item.CreatedDate })), unreadCount });
+  return res.json({ notifications: notifications.map((item) => ({ notificationId: item.NotificationId, type: item.Type, productId: item.ProductId, productName: item.ProductName, orderId: item.OrderId, orderNumber: item.OrderNumber, orderStatus: item.OrderStatus, paymentStatus: item.PaymentStatus, refundStatus: item.RefundStatus, title: item.Title, message: item.Message, isRead: Boolean(item.IsRead), readDate: item.ReadDate, createdDate: item.CreatedDate })), unreadCount });
 });
 
 router.patch("/read-all", authRequired, async (req, res) => {
