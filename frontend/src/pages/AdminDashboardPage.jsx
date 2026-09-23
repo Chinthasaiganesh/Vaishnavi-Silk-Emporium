@@ -22,7 +22,8 @@ const initialForm = {
   isFeatured: false,
   imageUrl: "",
   imageFile: null,
-  imageFiles: []
+  imageFiles: [],
+  existingImages: []
 };
 
 export default function AdminDashboardPage() {
@@ -35,6 +36,10 @@ export default function AdminDashboardPage() {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [categoriesError, setCategoriesError] = useState("");
+  const newImagePreviews = useMemo(() => form.imageFiles.map((file) => ({
+    file,
+    url: URL.createObjectURL(file)
+  })), [form.imageFiles]);
 
   const submitLabel = useMemo(() => (editingId ? "Update Product" : "Add Product"), [editingId]);
 
@@ -57,6 +62,8 @@ export default function AdminDashboardPage() {
     loadData();
     loadCategories();
   }, []);
+
+  useEffect(() => () => newImagePreviews.forEach(({ url }) => URL.revokeObjectURL(url)), [newImagePreviews]);
 
   async function loadCategories() {
     setCategoriesLoading(true);
@@ -93,9 +100,10 @@ export default function AdminDashboardPage() {
       quantity: String(product.quantity),
       isActive: product.isActive,
       isFeatured: product.isFeatured,
-      imageUrl: product.imageUrl || "",
+      imageUrl: "",
       imageFile: null,
-      imageFiles: []
+      imageFiles: [],
+      existingImages: product.imageUrls?.length ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []
     });
     setMessage("");
     setError("");
@@ -133,7 +141,9 @@ export default function AdminDashboardPage() {
       payload.append("quantity", form.quantity);
       payload.append("isActive", String(form.isActive));
       payload.append("isFeatured", String(form.isFeatured));
-      if (form.imageUrl) {
+      if (editingId) {
+        payload.append("imageUrls", JSON.stringify(form.existingImages));
+      } else if (form.imageUrl) {
         payload.append("imageUrl", form.imageUrl);
       }
       if (form.imageFiles.length) {
@@ -246,6 +256,28 @@ export default function AdminDashboardPage() {
             onChange={(e) => onFieldChange("imageFiles", Array.from(e.target.files || []).slice(0, 8))}
           />
           <small>Select up to 8 images. They rotate automatically on the product page.</small>
+          {editingId && (
+            <div className="admin-image-manager">
+              <strong>Existing images ({form.existingImages.length + form.imageFiles.length})</strong>
+              <div className="admin-image-grid">
+                {form.existingImages.map((url, index) => (
+                  <div className="admin-image-item" key={url}>
+                    <img src={url} alt={`Product image ${index + 1}`} />
+                    <div className="admin-image-actions">
+                      <button type="button" className="link-btn" disabled={index === 0} onClick={() => onFieldChange("existingImages", form.existingImages.map((item, itemIndex) => itemIndex === index - 1 ? url : itemIndex === index ? form.existingImages[index - 1] : item))}>Move left</button>
+                      <button type="button" className="link-btn" disabled={index === form.existingImages.length - 1} onClick={() => onFieldChange("existingImages", form.existingImages.map((item, itemIndex) => itemIndex === index ? form.existingImages[index + 1] : itemIndex === index + 1 ? url : item))}>Move right</button>
+                      <button type="button" className="link-btn danger" onClick={() => onFieldChange("existingImages", form.existingImages.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
+                    </div>
+                  </div>
+                ))}
+                {newImagePreviews.map(({ file, url }) => (
+                  <div className="admin-image-item" key={`${file.name}-${file.lastModified}`}>
+                    <img src={url} alt={`New product image ${file.name}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <textarea
           placeholder="Description"

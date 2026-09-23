@@ -59,6 +59,10 @@ function parseImageUrls(value) {
   }
 }
 
+function uniqueImageUrls(urls) {
+  return [...new Set(urls.filter(Boolean))];
+}
+
 function imageFiles(req) {
   return [...(req.files?.image || []), ...(req.files?.images || [])];
 }
@@ -251,16 +255,18 @@ router.put(
 
     const uploadedFiles = imageFiles(req);
     const uploadedUrls = await Promise.all(uploadedFiles.map((file) => uploadImage(file.buffer, { originalName: file.originalname, mimetype: file.mimetype, folder: "products" }).then((result) => result.url)));
-    const imageUrls = uploadedUrls.length
-      ? uploadedUrls
-      : req.body.imageUrls !== undefined || req.body.imageUrl !== undefined
-      ? parseImageUrls(req.body.imageUrls || req.body.imageUrl)
+    const imageFieldProvided = req.body.imageUrls !== undefined || req.body.imageUrl !== undefined;
+    const retainedImageUrls = req.body.imageUrls !== undefined
+      ? parseImageUrls(req.body.imageUrls)
+      : req.body.imageUrl !== undefined
+      ? parseImageUrls(req.body.imageUrl)
       : parseImageUrls(existing.ImageUrl);
+    const imageUrls = uniqueImageUrls(uploadedUrls.length ? [...retainedImageUrls, ...uploadedUrls] : retainedImageUrls);
     const imageUrl = JSON.stringify(imageUrls);
 
-    if (uploadedUrls.length) {
+    if (imageFieldProvided || uploadedUrls.length) {
       for (const oldImageUrl of parseImageUrls(existing.ImageUrl)) {
-        await deleteImage(oldImageUrl);
+        if (!imageUrls.includes(oldImageUrl)) await deleteImage(oldImageUrl);
       }
     }
 
