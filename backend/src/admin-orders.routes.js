@@ -49,11 +49,19 @@ router.patch(
   }
 );
 
-router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1 }), body("paymentStatus").isIn(["VERIFIED", "REJECTED"]), validateRequest, async (req, res, next) => {
+router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1 }), body("paymentStatus").isIn(["VERIFIED", "REJECTED"]), body("rejectionReason").custom((value, { req }) => {
+  if (req.body.paymentStatus !== "REJECTED") return true;
+  if (typeof value !== "string" || value.trim().length < 3 || value.trim().length > 500) throw new Error("Rejection reason must be between 3 and 500 characters.");
+  return true;
+}), validateRequest, async (req, res, next) => {
   try {
-    const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.user.userId);
-    if (order && req.body.paymentStatus === "VERIFIED") {
-      await sendOrderNotification(order, "Payment Confirmed", `Payment for your order ${order.OrderNumber} has been confirmed. Your order is being processed.`);
+    const order = await updatePaymentStatus(Number(req.params.id), req.body.paymentStatus, req.body.rejectionReason, req.user.userId);
+    if (order) {
+      if (req.body.paymentStatus === "VERIFIED") {
+        await sendOrderNotification(order, "Payment Verified", `Your payment has been successfully verified. Order ${order.OrderNumber} is now confirmed and being processed.`, "PAYMENT_STATUS");
+      } else {
+        await sendOrderNotification(order, "Payment Verification Failed", `Reason: ${order.PaymentRejectionReason}. Please re-submit payment details or contact support.`, "PAYMENT_STATUS");
+      }
     }
     return order ? res.json({ success: true, message: "Payment status updated.", order }) : res.status(409).json({ success: false, message: "Payment has already been reviewed or the order was not found." });
   } catch (error) { return next(error); }

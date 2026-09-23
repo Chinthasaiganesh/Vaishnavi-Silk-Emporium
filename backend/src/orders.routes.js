@@ -2,7 +2,7 @@ import { Router } from "express";
 import { body, param } from "express-validator";
 import { authRequired, validateRequest } from "./middleware.js";
 import { placeOrder } from "./checkout.service.js";
-import { cancelOrder, getOrder, listOrders } from "./order.repository.js";
+import { cancelOrder, getOrder, listOrders, resubmitPaymentProof } from "./order.repository.js";
 import { upload } from "./upload.js";
 import { uploadImage } from "./s3-storage.service.js";
 import { sendOrderNotification } from "./notification.service.js";
@@ -21,7 +21,7 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		if (paymentMethod !== "UPI_MANUAL" || !paymentReference || !req.file) return res.status(400).json({ success: false, message: "UPI reference and payment screenshot are required." });
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
 		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url);
-		await sendOrderNotification(order, "Order Placed", `Your order ${order.OrderNumber} has been placed successfully.`);
+		await sendOrderNotification(order, "Payment Submitted", "We have received your payment details and will verify them shortly.", "PAYMENT_STATUS");
 		if (Number(order.DiscountAmount) > 0) {
 			const saved = Number(order.DiscountAmount).toFixed(2);
 			const originalTotal = order.items.reduce((sum, item) => sum + Number(item.OriginalPrice || item.ProductPrice || 0) * Number(item.Quantity || 0), 0);
@@ -34,6 +34,16 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		console.error(JSON.stringify({ level: "error", message: "Order controller failed", requestId: req.requestId, userId: req.user.userId, addressId: req.body.addressId, error: error.message, code: error.code, constraint: error.constraint, table: error.table, column: error.column, stack: error.stack }));
 		return next(error);
 	}
+});
+router.post("/:id/payment-proof", upload.single("paymentScreenshot"), param("id").isInt({ min: 1 }), body("paymentReference").trim().matches(/^[A-Za-z0-9][A-Za-z0-9._/-]{5,63}$/).withMessage("Enter a valid UPI transaction reference or UTR."), validateRequest, async (req, res, next) => {
+	try {
+		if (!req.file) return res.status(400).json({ success: false, message: "Payment screenshot is required." });
+		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
+		const order = await resubmitPaymentProof(req.user.userId, Number(req.params.id), req.body.paymentReference.trim(), screenshot.url);
+		if (!order) return res.status(409).json({ success: false, message: "Payment proof can only be re-submitted after a rejected verification." });
+		await sendOrderNotification(order, "Payment Submitted", "We have received your updated payment details and will verify them shortly.", "PAYMENT_STATUS");
+		return res.json({ success: true, message: "Payment proof submitted for review.", order });
+	} catch (error) { return next(error); }
 });
 router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").optional().trim().isLength({ max: 300 }), validateRequest, async (req, res, next) => {
 	try {

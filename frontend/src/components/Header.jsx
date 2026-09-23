@@ -47,6 +47,8 @@ export default function Header() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationItems, setNotificationItems] = useState([]);
   const previousUnreadNotifications = useRef(null);
   const displayName = user?.displayName || user?.fullName || user?.username;
   const { language, setLanguage, t } = useLanguage();
@@ -68,6 +70,7 @@ export default function Header() {
   useEffect(() => {
     setMobileNavOpen(false);
     setProfileOpen(false);
+    setNotificationOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -162,9 +165,15 @@ export default function Header() {
           }
         }
         previousUnreadNotifications.current = unreadCount;
-        if (active) setUnreadNotifications(unreadCount);
+        if (active) {
+          setUnreadNotifications(unreadCount);
+          setNotificationItems((response.data.notifications || []).slice(0, 5));
+        }
       } catch {
-        if (active) setUnreadNotifications(0);
+        if (active) {
+          setUnreadNotifications(0);
+          setNotificationItems([]);
+        }
       }
     }
     loadNotificationCount();
@@ -233,10 +242,19 @@ export default function Header() {
           )}
           {!checking && user?.role === "USER" && (
             <>
-              <Link className="notification-bell" to="/notifications" aria-label={t("notifications")}>
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
-                {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
-              </Link>
+              <div className="notification-menu">
+                <button className="notification-bell" type="button" aria-label={t("notifications")} aria-expanded={notificationOpen} aria-controls="notification-drawer" onClick={() => { setNotificationOpen((open) => !open); setProfileOpen(false); }}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+                  {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
+                </button>
+                {notificationOpen && <div className="notification-drawer" id="notification-drawer" role="dialog" aria-label="Recent notifications">
+                  <div className="notification-drawer-head"><strong>Notifications</strong><button type="button" onClick={() => setNotificationOpen(false)} aria-label="Close notifications">×</button></div>
+                  <div className="notification-drawer-list">
+                    {notificationItems.length === 0 ? <p>No notifications yet.</p> : notificationItems.map((notification) => <Link className={notification.isRead ? "" : "unread"} key={notification.notificationId} to={notification.orderId ? `/orders/${notification.orderId}` : "/notifications"}><strong>{notification.title}</strong><small>{notification.message}</small></Link>)}
+                  </div>
+                  <Link className="notification-drawer-all" to="/notifications">View all notifications</Link>
+                </div>}
+              </div>
               <div className="account-menu">
               <button
                 className="account-trigger"

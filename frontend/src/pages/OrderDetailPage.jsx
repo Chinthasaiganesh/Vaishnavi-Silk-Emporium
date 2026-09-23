@@ -5,16 +5,8 @@ import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 import { resolveImageUrl } from "../utils/image";
 
-const statuses = [
-  "PENDING",
-  "PROCESSING",
-  "PACKED",
-  "SHIPPED",
-  "OUT_FOR_DELIVERY",
-  "DELIVERED",
-];
-const paymentVerifiedStatuses = ["PAYMENT_VERIFIED", ...statuses];
 const terminalStatuses = ["CANCELLED", "REFUNDED"];
+const fulfillmentRanks = { PENDING: 0, PROCESSING: 1, PACKED: 2, SHIPPED: 3, OUT_FOR_DELIVERY: 4, DELIVERED: 5 };
 
 function prettyStatus(status = "") {
   return status
@@ -22,12 +14,22 @@ function prettyStatus(status = "") {
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
-function timelineLabel(status) {
-  return status === "PAYMENT_VERIFIED"
-    ? "Payment Verified"
-    : status === "PENDING"
-      ? "Order Placed"
-      : prettyStatus(status);
+function historyDate(order, status) {
+  return order.history?.find((entry) => entry.NewStatus === status)?.ChangedAt || null;
+}
+
+function getTimelineSteps(order) {
+  const rank = fulfillmentRanks[order.OrderStatus] ?? 0;
+  const paymentVerified = order.PaymentStatus === "VERIFIED";
+  return [
+    { key: "ORDER_CREATED", label: "Order Created", complete: true, date: order.CreatedDate },
+    { key: "PAYMENT_SUBMITTED", label: "Payment Submitted", complete: Boolean(order.PaymentSubmittedAt || order.PaymentReference), date: order.PaymentSubmittedAt || order.CreatedDate },
+    { key: "PAYMENT_VERIFIED", label: "Payment Verified", complete: paymentVerified, failed: order.PaymentStatus === "REJECTED", date: order.PaymentReviewedAt },
+    { key: "ORDER_CONFIRMED", label: "Order Confirmed", complete: paymentVerified && rank >= fulfillmentRanks.PROCESSING, date: historyDate(order, "PROCESSING") || (paymentVerified ? order.PaymentReviewedAt : null) },
+    { key: "PACKED", label: "Packed", complete: rank >= fulfillmentRanks.PACKED, date: historyDate(order, "PACKED") },
+    { key: "SHIPPED", label: "Shipped", complete: rank >= fulfillmentRanks.SHIPPED, date: historyDate(order, "SHIPPED") },
+    { key: "DELIVERED", label: "Delivered", complete: order.OrderStatus === "DELIVERED", date: historyDate(order, "DELIVERED") },
+  ];
 }
 function refundLabel(order) {
   if (order.PaymentMethod === "COD") return "Not applicable";
@@ -52,6 +54,9 @@ export default function OrderDetailPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
   const reducedMotion = useReducedMotion();
   useEffect(() => {
     api
@@ -82,21 +87,13 @@ export default function OrderDetailPage() {
     order.OrderStatus,
   );
   const isTerminal = terminalStatuses.includes(order.OrderStatus);
-  const timelineStatuses =
-    order.PaymentStatus === "VERIFIED" ? paymentVerifiedStatuses : statuses;
-  const currentIndex = isTerminal
-    ? 0
-    : Math.max(
-        timelineStatuses.indexOf(
-          order.PaymentStatus === "VERIFIED" && order.OrderStatus === "PENDING"
-            ? "PAYMENT_VERIFIED"
-            : order.OrderStatus,
-        ),
-        0,
-      );
+  const timelineSteps = getTimelineSteps(order);
+  const firstIncompleteIndex = timelineSteps.findIndex((step) => !step.complete);
+  const currentIndex = isTerminal ? -1 : firstIncompleteIndex === -1 ? timelineSteps.length - 1 : firstIncompleteIndex;
+  const completedCount = timelineSteps.filter((step) => step.complete).length;
   const progressScale =
-    timelineStatuses.length > 1
-      ? currentIndex / (timelineStatuses.length - 1)
+    timelineSteps.length > 1
+      ? Math.max(completedCount - 1, 0) / (timelineSteps.length - 1)
       : 0;
   async function cancelOrder() {
     setCancelling(true);
@@ -115,6 +112,32 @@ export default function OrderDetailPage() {
       );
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function resubmitPayment(event) {
+    event.preventDefault();
+    if (!paymentScreenshot) {
+      setError("Upload your payment screenshot before submitting.");
+      return;
+    }
+    setSubmittingPayment(true);
+    setError("");
+    setMessage("");
+    try {
+      const formData = new FormData();
+      formData.append("paymentReference", paymentReference.trim());
+      formData.append("paymentScreenshot", paymentScreenshot);
+      const response = await api.post(`/orders/${order.OrderId}/payment-proof`, formData);
+      setOrder(withRefundLabel(response.data.order));
+      setPaymentReference("");
+      setPaymentScreenshot(null);
+      setMessage(response.data.message);
+      window.dispatchEvent(new CustomEvent("notifications:changed"));
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to submit payment proof.");
+    } finally {
+      setSubmittingPayment(false);
     }
   }
 
@@ -168,8 +191,9 @@ export default function OrderDetailPage() {
           <h2>Order Total</h2>
           <div>
             <span>Payment</span>
-            <strong>{order.PaymentMethod || "COD"}</strong>
+            <strong>{order.PaymentStatus === "PENDING" ? "Under Review" : prettyStatus(order.PaymentStatus)}</strong>
           </div>
+          {order.PaymentStatus === "REJECTED" && <div className="payment-status-rejected"><span>Reason</span><strong>{order.PaymentRejectionReason}</strong></div>}
           <div>
             <span>Refund</span>
             <strong>{order.RefundStatus || "NOT_APPLICABLE"}</strong>
@@ -212,7 +236,11 @@ export default function OrderDetailPage() {
             <p>
               {isTerminal
                 ? `Order ${prettyStatus(order.OrderStatus)}`
-                : `Current status: ${prettyStatus(order.OrderStatus)}`}
+                : order.PaymentStatus === "REJECTED"
+                  ? "Current status: Payment Verification Failed"
+                  : order.PaymentStatus === "PENDING"
+                    ? "Current status: Payment Under Review"
+                    : `Current status: ${prettyStatus(order.OrderStatus)}`}
             </p>
           </div>
         </div>
@@ -232,14 +260,14 @@ export default function OrderDetailPage() {
             }}
             transition={{ duration: reducedMotion ? 0 : 0.75, ease: "easeOut" }}
           />
-          {timelineStatuses.map((status, index) => {
-            const complete = !isTerminal && index < currentIndex;
+          {timelineSteps.map((step, index) => {
+            const complete = step.complete;
             const current = !isTerminal && index === currentIndex;
-            const deliveredCurrent = current && status === "DELIVERED";
+            const deliveredCurrent = current && step.key === "DELIVERED";
             return (
               <motion.div
-                className={`timeline-step${complete ? " complete" : ""}${current ? " current" : ""}${deliveredCurrent ? " delivered-current" : ""}`}
-                key={status}
+                className={`timeline-step${complete ? " complete" : ""}${current ? " current" : ""}${step.failed ? " failed" : ""}${deliveredCurrent ? " delivered-current" : ""}`}
+                key={step.key}
                 initial={
                   reducedMotion ? false : { opacity: 0, y: 12, scale: 0.96 }
                 }
@@ -275,19 +303,30 @@ export default function OrderDetailPage() {
                     <i />
                   ) : null}
                 </motion.span>
-                <strong>{timelineLabel(status)}</strong>
+                <strong>{step.label}</strong>
                 <small>
-                  {current
-                    ? "Current step"
-                    : complete
-                      ? "Completed"
-                      : "Upcoming"}
+                  {step.failed ? "Verification failed" : step.date ? new Date(step.date).toLocaleString() : current ? "Current step" : "Upcoming"}
                 </small>
               </motion.div>
             );
           })}
         </div>
       </motion.section>
+      {order.PaymentStatus === "REJECTED" && (
+        <section className="checkout-section payment-resubmission" aria-labelledby="payment-resubmission-title">
+          <p className="eyebrow">Action required</p>
+          <h2 id="payment-resubmission-title">Payment Verification Failed</h2>
+          <p><strong>Reason:</strong> {order.PaymentRejectionReason}</p>
+          <p>Please re-submit your payment details or contact support.</p>
+          <form onSubmit={resubmitPayment}>
+            <label htmlFor="payment-reference">UPI transaction reference / UTR</label>
+            <input id="payment-reference" required pattern="[A-Za-z0-9][A-Za-z0-9._/-]{5,63}" value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} />
+            <label htmlFor="payment-screenshot">Payment screenshot</label>
+            <input id="payment-screenshot" required type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPaymentScreenshot(event.target.files?.[0] || null)} />
+            <button className="btn btn-primary" disabled={submittingPayment}>{submittingPayment ? "Submitting..." : "Re-submit Payment Details"}</button>
+          </form>
+        </section>
+      )}
       {showCancel && (
         <div className="modal-backdrop" role="presentation">
           <section
