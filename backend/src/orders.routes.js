@@ -45,12 +45,13 @@ router.post("/:id/payment-proof", upload.single("paymentScreenshot"), param("id"
 		return res.json({ success: true, message: "Payment proof submitted for review.", order });
 	} catch (error) { return next(error); }
 });
-router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").optional().trim().isLength({ max: 300 }), validateRequest, async (req, res, next) => {
+router.post("/:id/cancel", param("id").isInt({ min: 1 }), body("reason").trim().isLength({ min: 3, max: 300 }).withMessage("Cancellation reason must be between 3 and 300 characters."), validateRequest, async (req, res, next) => {
 	try {
-		const order = await cancelOrder(req.user.userId, Number(req.params.id), req.body.reason || "Customer requested cancellation");
+		const order = await cancelOrder(req.user.userId, Number(req.params.id), req.body.reason.trim());
 		if (!order) return res.status(404).json({ success: false, message: "Order not found." });
 		const refundMessage = order.RefundStatus === "NOT_APPLICABLE" ? "Since no payment was collected, no refund is required." : "Refunds, if applicable, will be credited to your original payment method within 2-3 business days.";
-		await sendOrderNotification(order, "Order Cancelled", `Your order ${order.OrderNumber} has been cancelled successfully. ${refundMessage}`);
+		await sendOrderNotification(order, "Order Cancelled Successfully", `Your order #${order.OrderNumber} has been cancelled. ${refundMessage}`);
+		if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Initiated", "Your refund request has been accepted.", "REFUND_STATUS");
 		return res.json({ success: true, message: "Order cancelled successfully", refundMessage, order });
 	} catch (error) { return next(error); }
 });

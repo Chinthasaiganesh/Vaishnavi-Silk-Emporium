@@ -18,32 +18,60 @@ function historyDate(order, status) {
   return order.history?.find((entry) => entry.NewStatus === status)?.ChangedAt || null;
 }
 
+function lifecycleEvent(order, type) {
+  return [...(order.lifecycle || [])].reverse().find((event) => event.EventType === type);
+}
+
 function getTimelineSteps(order) {
   const rank = fulfillmentRanks[order.OrderStatus] ?? 0;
   const paymentVerified = order.PaymentStatus === "VERIFIED";
-  return [
-    { key: "ORDER_CREATED", label: "Order Created", complete: true, date: order.CreatedDate },
-    { key: "PAYMENT_SUBMITTED", label: "Payment Submitted", complete: Boolean(order.PaymentSubmittedAt || order.PaymentReference), date: order.PaymentSubmittedAt || order.CreatedDate },
-    { key: "PAYMENT_VERIFIED", label: "Payment Verified", complete: paymentVerified, failed: order.PaymentStatus === "REJECTED", date: order.PaymentReviewedAt },
-    { key: "ORDER_CONFIRMED", label: "Order Confirmed", complete: paymentVerified && rank >= fulfillmentRanks.PROCESSING, date: historyDate(order, "PROCESSING") || (paymentVerified ? order.PaymentReviewedAt : null) },
-    { key: "PACKED", label: "Packed", complete: rank >= fulfillmentRanks.PACKED, date: historyDate(order, "PACKED") },
-    { key: "SHIPPED", label: "Shipped", complete: rank >= fulfillmentRanks.SHIPPED, date: historyDate(order, "SHIPPED") },
-    { key: "DELIVERED", label: "Delivered", complete: order.OrderStatus === "DELIVERED", date: historyDate(order, "DELIVERED") },
+  const definitions = [
+    ["ORDER_PLACED", "Order Placed", true, order.CreatedDate, "Your order was created successfully."],
+    ["PAYMENT_SUBMITTED", "Payment Submitted", Boolean(order.PaymentSubmittedAt || order.PaymentReference), order.PaymentSubmittedAt || order.CreatedDate, "Payment details received for verification."],
+    ["PAYMENT_VERIFIED", "Payment Verified", paymentVerified, order.PaymentReviewedAt, "Your payment was verified successfully."],
+    ["ORDER_CONFIRMED", "Order Confirmed", paymentVerified && rank >= fulfillmentRanks.PROCESSING, historyDate(order, "PROCESSING") || order.PaymentReviewedAt, "Your order is confirmed."],
+    ["PROCESSING", "Processing", rank >= fulfillmentRanks.PROCESSING, historyDate(order, "PROCESSING"), "Your order is being prepared."],
+    ["PACKED", "Packed", rank >= fulfillmentRanks.PACKED, historyDate(order, "PACKED"), "Your order is packed and ready to ship."],
+    ["SHIPPED", "Shipped", rank >= fulfillmentRanks.SHIPPED, historyDate(order, "SHIPPED"), "Your order is on its way."],
+    ["OUT_FOR_DELIVERY", "Out For Delivery", rank >= fulfillmentRanks.OUT_FOR_DELIVERY, historyDate(order, "OUT_FOR_DELIVERY"), "Your order is with the delivery partner."],
+    ["DELIVERED", "Delivered", order.OrderStatus === "DELIVERED", historyDate(order, "DELIVERED"), "Your order was delivered."],
   ];
+  const steps = definitions.map(([key, label, complete, fallbackDate, description]) => {
+    const event = lifecycleEvent(order, key);
+    return { key, label, complete: Boolean(event || complete || fallbackDate), date: event?.EventDate || fallbackDate, description: event?.Description || description, failed: key === "PAYMENT_VERIFIED" && order.PaymentStatus === "REJECTED" };
+  });
+  if (order.CancelledAt) {
+    const event = lifecycleEvent(order, "CANCELLED");
+    const actor = order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Unknown actor";
+    steps.push({ key: "CANCELLED", label: `Cancelled by ${actor}`, complete: true, cancelled: true, failed: true, date: event?.EventDate || order.CancelledAt, description: order.CancellationReason || event?.Description || "No cancellation reason provided." });
+  }
+  return steps;
+}
+
+function getRefundSteps(order) {
+  const definitions = [
+    ["REFUND_INITIATED", "Refund Initiated", ["PENDING", "PROCESSING", "COMPLETED", "FAILED"].includes(order.RefundStatus), order.RefundInitiatedAt, "Your refund request has been accepted."],
+    ["REFUND_IN_PROGRESS", "Refund Processing", ["PROCESSING", "COMPLETED"].includes(order.RefundStatus), order.RefundProcessingAt, "Your refund is being processed."],
+    ["REFUNDED", "Refund Completed", order.RefundStatus === "COMPLETED", order.RefundCompletedAt, "Your refund has been successfully processed."],
+  ];
+  return definitions.map(([key, label, complete, fallbackDate, description]) => {
+    const event = lifecycleEvent(order, key);
+    return { key, label, complete: Boolean(event || complete), date: event?.EventDate || fallbackDate, description: event?.Description || description };
+  });
 }
 function refundLabel(order) {
   if (order.PaymentMethod === "COD") return "Not applicable";
   if (order.RefundStatus === "PENDING") return "Refund pending";
+  if (order.RefundStatus === "PROCESSING") return "Refund processing";
+  if (order.RefundStatus === "COMPLETED") return "Refund completed";
+  if (order.RefundStatus === "FAILED") return "Refund needs review";
   if (
     order.RefundStatus === "NOT_APPLICABLE" &&
-    order.PaymentStatus === "VERIFIED"
+    order.PaymentStatus === "VERIFIED" &&
+    ["PENDING", "PROCESSING", "PACKED"].includes(order.OrderStatus)
   )
     return "Refund available on cancellation";
-  return prettyStatus(order.RefundStatus || "PENDING");
-}
-
-function withRefundLabel(order) {
-  return { ...order, RefundStatus: refundLabel(order) };
+  return "Not applicable";
 }
 
 export default function OrderDetailPage() {
@@ -61,7 +89,7 @@ export default function OrderDetailPage() {
   useEffect(() => {
     api
       .get(`/orders/${id}`)
-      .then((response) => setOrder(withRefundLabel(response.data.order)))
+      .then((response) => setOrder(response.data.order))
       .catch((requestError) =>
         setError(
           requestError.response?.data?.message || "Unable to load order.",
@@ -88,6 +116,7 @@ export default function OrderDetailPage() {
   );
   const isTerminal = terminalStatuses.includes(order.OrderStatus);
   const timelineSteps = getTimelineSteps(order);
+  const refundSteps = getRefundSteps(order);
   const firstIncompleteIndex = timelineSteps.findIndex((step) => !step.complete);
   const currentIndex = isTerminal ? -1 : firstIncompleteIndex === -1 ? timelineSteps.length - 1 : firstIncompleteIndex;
   const completedCount = timelineSteps.filter((step) => step.complete).length;
@@ -103,7 +132,7 @@ export default function OrderDetailPage() {
       const response = await api.post(`/orders/${order.OrderId}/cancel`, {
         reason: cancelReason,
       });
-      setOrder(withRefundLabel(response.data.order));
+      setOrder(response.data.order);
       setMessage(`${response.data.message}. ${response.data.refundMessage}`);
       setShowCancel(false);
     } catch (requestError) {
@@ -129,7 +158,7 @@ export default function OrderDetailPage() {
       formData.append("paymentReference", paymentReference.trim());
       formData.append("paymentScreenshot", paymentScreenshot);
       const response = await api.post(`/orders/${order.OrderId}/payment-proof`, formData);
-      setOrder(withRefundLabel(response.data.order));
+      setOrder(response.data.order);
       setPaymentReference("");
       setPaymentScreenshot(null);
       setMessage(response.data.message);
@@ -196,7 +225,7 @@ export default function OrderDetailPage() {
           {order.PaymentStatus === "REJECTED" && <div className="payment-status-rejected"><span>Reason</span><strong>{order.PaymentRejectionReason}</strong></div>}
           <div>
             <span>Refund</span>
-            <strong>{order.RefundStatus || "NOT_APPLICABLE"}</strong>
+            <strong>{refundLabel(order)}</strong>
           </div>
           <div>
             <span>Subtotal</span>
@@ -256,7 +285,7 @@ export default function OrderDetailPage() {
             aria-hidden="true"
             initial={reducedMotion ? false : { "--timeline-progress-scale": 0 }}
             animate={{
-              "--timeline-progress-scale": isTerminal ? 0 : progressScale,
+              "--timeline-progress-scale": progressScale,
             }}
             transition={{ duration: reducedMotion ? 0 : 0.75, ease: "easeOut" }}
           />
@@ -297,7 +326,7 @@ export default function OrderDetailPage() {
                         delay: index * 0.07 + 0.12,
                       }}
                     >
-                      ✓
+                      {step.cancelled ? "×" : "✓"}
                     </motion.b>
                   ) : current ? (
                     <i />
@@ -305,13 +334,16 @@ export default function OrderDetailPage() {
                 </motion.span>
                 <strong>{step.label}</strong>
                 <small>
-                  {step.failed ? "Verification failed" : step.date ? new Date(step.date).toLocaleString() : current ? "Current step" : "Upcoming"}
+                  {step.failed ? "Verification failed" : step.date ? new Date(step.date).toLocaleString() : step.complete ? "Completed · Date unavailable" : current ? "Current step" : "Upcoming"}
                 </small>
+                <span className="timeline-description">{step.description}</span>
               </motion.div>
             );
           })}
         </div>
       </motion.section>
+      {order.CancelledAt && <section className="lifecycle-detail cancellation-detail" aria-labelledby="cancellation-title"><div><p className="eyebrow">Order closed</p><h2 id="cancellation-title">Order Cancelled</h2></div><dl><dt>Cancelled By</dt><dd>{order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Not recorded"}</dd><dt>Cancellation Reason</dt><dd>{order.CancellationReason || "No reason provided"}</dd><dt>Cancellation Date</dt><dd>{new Date(order.CancelledAt).toLocaleString()}</dd></dl></section>}
+      {order.RefundStatus !== "NOT_APPLICABLE" && <section className="refund-timeline" aria-labelledby="refund-timeline-title"><div className="order-timeline-head"><div><p className="eyebrow">Money movement</p><h2 id="refund-timeline-title">Refund Timeline</h2><p>Current status: {refundLabel(order)}</p></div>{order.RefundReference && <span className="refund-reference">Reference: {order.RefundReference}</span>}</div><div className="refund-steps">{refundSteps.map((step) => <article className={`refund-step${step.complete ? " complete" : ""}`} key={step.key}><span aria-hidden="true">{step.complete ? "✓" : ""}</span><div><strong>{step.label}</strong><small>{step.date ? new Date(step.date).toLocaleString() : step.complete ? "Completed · Date unavailable" : "Upcoming"}</small><p>{step.description}</p></div></article>)}</div>{order.RefundStatus === "FAILED" && <p className="error-text">Refund processing needs additional review. Please contact support if no update is provided.</p>}</section>}
       {order.PaymentStatus === "REJECTED" && (
         <section className="checkout-section payment-resubmission" aria-labelledby="payment-resubmission-title">
           <p className="eyebrow">Action required</p>
@@ -341,9 +373,12 @@ export default function OrderDetailPage() {
               undone.
             </p>
             <textarea
+              required
+              minLength="3"
+              maxLength="300"
               value={cancelReason}
               onChange={(event) => setCancelReason(event.target.value)}
-              placeholder="Cancellation reason (optional)"
+              placeholder="Cancellation reason"
             />
             <div className="form-actions">
               <button
@@ -354,7 +389,7 @@ export default function OrderDetailPage() {
               </button>
               <button
                 className="btn cancel-order-trigger"
-                disabled={cancelling}
+                disabled={cancelling || cancelReason.trim().length < 3}
                 onClick={cancelOrder}
               >
                 {cancelling ? "Cancelling..." : "Yes, Cancel Order"}

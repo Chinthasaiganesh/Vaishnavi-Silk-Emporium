@@ -185,6 +185,7 @@ export default function CustomerFeaturePage({ type }) {
                     onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setActiveNotificationId(null); }}
                     transition={{ duration: 0.24, ease: "easeOut" }}
                   >
+                    {target && <Link className="notification-item-target" to={target.to} aria-label={`${notification.title}: ${target.label}`} onClick={() => { if (!notification.isRead) markAsRead(notification.notificationId); }} />}
                     <div className="notification-icon" aria-hidden="true">{getNotificationIcon(notification.type)}</div>
                     <div className="notification-copy">
                       <div className="notification-title-row">

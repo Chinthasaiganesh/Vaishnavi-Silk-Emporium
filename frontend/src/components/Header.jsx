@@ -247,10 +247,12 @@ export default function Header() {
                   <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
                   {unreadNotifications > 0 && <span>{unreadNotifications}</span>}
                 </button>
+                {notificationOpen && <button className="notification-drawer-backdrop" type="button" aria-label="Close notifications" onClick={() => setNotificationOpen(false)} />}
+                {notificationOpen && <span className="notification-drawer-caret" aria-hidden="true" />}
                 {notificationOpen && <div className="notification-drawer" id="notification-drawer" role="dialog" aria-label="Recent notifications">
                   <div className="notification-drawer-head"><strong>Notifications</strong><button type="button" onClick={() => setNotificationOpen(false)} aria-label="Close notifications">×</button></div>
                   <div className="notification-drawer-list">
-                    {notificationItems.length === 0 ? <p>No notifications yet.</p> : notificationItems.map((notification) => <Link className={notification.isRead ? "" : "unread"} key={notification.notificationId} to={notification.orderId ? `/orders/${notification.orderId}` : "/notifications"}><strong>{notification.title}</strong><small>{notification.message}</small></Link>)}
+                    {notificationItems.length === 0 ? <p>No notifications yet.</p> : notificationItems.map((notification) => <Link className={notification.isRead ? "" : "unread"} key={notification.notificationId} to={notification.orderId ? `/orders/${notification.orderId}` : notification.productId ? `/products/${notification.productId}` : "/notifications"} onClick={() => { setNotificationOpen(false); if (!notification.isRead) { setNotificationItems((items) => items.map((item) => item.notificationId === notification.notificationId ? { ...item, isRead: true } : item)); api.patch(`/notifications/${notification.notificationId}/read`).then((response) => window.dispatchEvent(new CustomEvent("notifications:changed", { detail: { unreadCount: response.data.unreadCount || 0 } }))).catch(() => undefined); } }}><strong>{notification.title}</strong><small>{notification.message}</small>{notification.orderNumber && <em>View {notification.orderNumber}</em>}</Link>)}
                   </div>
                   <Link className="notification-drawer-all" to="/notifications">View all notifications</Link>
                 </div>}
