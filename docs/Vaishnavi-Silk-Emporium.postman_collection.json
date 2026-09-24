@@ -236,7 +236,11 @@
           ] }, "url": "{{baseUrl}}/orders" },
           "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const order = pm.response.json().order;", "  if (order?.OrderId) pm.collectionVariables.set('orderId', order.OrderId);", "  if (order?.OrderNumber) pm.collectionVariables.set('orderNumber', order.OrderNumber);", "}"] } }]
         },
-        { "name": "Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Changed my mind\"\n}" }, "url": "{{baseUrl}}/orders/{{orderId}}/cancel" } }
+        { "name": "Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Changed my mind\"\n}" }, "url": "{{baseUrl}}/orders/{{orderId}}/cancel" } },
+        { "name": "Resubmit Payment Proof", "request": { "method": "POST", "body": { "mode": "formdata", "formdata": [
+            { "key": "paymentReference", "value": "UTR123456790", "type": "text" },
+            { "key": "paymentScreenshot", "type": "file", "src": "" }
+          ] }, "url": "{{baseUrl}}/orders/{{orderId}}/payment-proof", "description": "Customer-only. Re-submits payment reference/screenshot after a REJECTED payment verification. Returns 409 if the payment was not rejected." } }
       ]
     },
     {
@@ -248,6 +252,7 @@
         { "name": "Get Admin Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/{{orderId}}" } },
         { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } },
         { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. VERIFIED sends a payment confirmation notification to the customer." } },
+        { "name": "Admin Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Out of stock\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/cancel", "description": "Admin-only. Cancels the order and opens a refund case (PENDING) when a payment was already submitted; the refund becomes actionable once payment is verified." } },
         { "name": "Update Refund Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refundStatus\": \"PROCESSING\",\n  \"refundReference\": \"REF-123456\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/refund", "description": "Admin-only. Accepted statuses: PROCESSING, COMPLETED, FAILED. Payment must be verified first." } }
       ]
     },

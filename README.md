@@ -5,7 +5,8 @@ Premium saree shopping platform with a role-based customer storefront and store-
 - Guest browsing with protected pricing
 - User authentication, profile, wishlist, availability alerts, dark mode, and Telugu support
 - Saree catalog with fabric, weave, colour, occasion, care, and rating details
-- Admin management for sarees, inventory, categories, reports, and settings
+- Cart, address book, checkout, UPI-manual payment verification, order tracking, cancellation, and refunds
+- Admin management for sarees, inventory, categories, orders/payments/refunds, reports, and settings
 - Express REST API with JWT access tokens, rotating refresh sessions, RBAC, and OAuth support
 
 ## Quick Start
@@ -121,23 +122,40 @@ Implemented in: backend/src/db.js
 
 ## 4. Backend API Design
 
-Base URL: http://localhost:4000/api
+Base URL: `http://localhost:4010/api` (see `docs/Vaishnavi-Silk-Emporium.postman_collection.json` for a runnable, up-to-date copy of every endpoint below, grouped into matching folders).
+
+### System
+- GET /health — PostgreSQL connectivity, schema version, product/inventory counts.
 
 ### Auth
-- POST /auth/login
-- GET /auth/me
+- POST /auth/register — creates a `USER` account (email/mobile uniqueness, strong password).
+- POST /auth/login — `{ identifier, password, rememberMe }`; identifier is email, mobile, or username.
+- POST /auth/refresh — rotates the HttpOnly `refresh_session` cookie and issues a new access token.
+- POST /auth/logout — revokes the server-side refresh session and clears the cookie.
+- GET /auth/me (JWT required)
+- PUT /auth/settings (JWT required) — full name, display name, email, mobile, avatar upload, preferences JSON.
+- PUT /auth/password (JWT required) — current-password verification + new password (10+ chars).
+- GET /auth/oauth/providers — which OAuth providers are configured.
+- GET /auth/oauth/:provider and GET /auth/oauth/:provider/callback — Google/GitHub authorization-code redirect flow.
 
 ### Customer Product APIs
 - GET /products/public
-  - Query params: q, category, sort
+  - Query params: `q`, `category`, `featured=true`, `sort=price_asc|price_desc|alpha_asc`
+  - Guests receive no `price` field; authenticated requests receive `price`, `originalPrice`, `discountedPrice`.
 - GET /products/public/:id
 
 ### Admin Product APIs (JWT + ADMIN role required)
 - GET /products/admin
 - GET /products/admin/summary
+- GET /products/admin/audit — product change audit trail.
 - POST /products/admin
 - PUT /products/admin/:id
 - DELETE /products/admin/:id
+
+### Categories
+- GET /categories/public — active categories for storefront filters.
+- GET /categories (JWT + ADMIN)
+- POST /categories, PUT /categories/:id, DELETE /categories/:id (JWT + ADMIN)
 
 ### Customer Cart APIs (JWT + USER role required)
 - GET /cart
@@ -153,10 +171,58 @@ Cart totals are calculated server-side. Adding an existing product increases its
 - GET /inventory/:id
 - GET /inventory/low-stock
 - PUT /inventory/:id with `{ "stock": 25 }`
-- POST /inventory/update-stock
-- POST /inventory/restock
+- POST /inventory/update-stock with `{ "productId": 1, "stock": 25 }` (legacy shape)
+- POST /inventory/restock with `{ "productId": 1, "quantity": 5 }` (adds to current stock)
 
 Prices remain numeric in PostgreSQL and are formatted in the frontend with Indian Rupee formatting (`Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })`).
+
+### Customer Address APIs (JWT + USER role required)
+- GET /addresses, GET /addresses/default
+- POST /addresses, PUT /addresses/:id, DELETE /addresses/:id
+
+### Customer Checkout APIs (JWT + USER role required)
+- GET /checkout/summary — cart totals, shipping, discounts.
+- POST /checkout/validate with `{ "addressId": 1 }` — pre-flight stock/address validation before placing an order.
+
+### Customer Order APIs (JWT + USER role required)
+- GET /orders, GET /orders/:id
+- POST /orders (multipart: `addressId`, `paymentMethod`, `paymentReference`, `paymentScreenshot`) — requires an `Idempotency-Key` header; clears the cart on success.
+- POST /orders/:id/payment-proof (multipart: `paymentReference`, `paymentScreenshot`) — re-submits payment details after a `REJECTED` verification; 409 if the order was not rejected.
+- POST /orders/:id/cancel with `{ "reason": "..." }` — cancels a customer's own order. If a payment had already been submitted, a `RefundStatus = PENDING` case is opened; refund processing only becomes actionable once the payment is `VERIFIED`.
+
+### Admin Order APIs (JWT + ADMIN role required)
+- GET /admin/orders (query: `q`, `status`), GET /admin/orders/:id
+- PATCH /admin/orders/:id/status with `{ "status": "PROCESSING" }` — allowed values: `PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED`.
+- PATCH /admin/orders/:id/payment with `{ "paymentStatus": "VERIFIED" | "REJECTED", "rejectionReason": "..." }` — `rejectionReason` is required only when rejecting.
+- POST /admin/orders/:id/cancel with `{ "reason": "..." }` — admin-initiated cancellation; opens the same refund case as the customer cancellation path.
+- PATCH /admin/orders/:id/refund with `{ "refundStatus": "PROCESSING" | "COMPLETED" | "FAILED", "refundReference": "..." }` — only valid once the order's payment is `VERIFIED` and a refund case is `PENDING`/`PROCESSING`/`FAILED`.
+
+Refund lifecycle: `NOT_APPLICABLE → PENDING → PROCESSING → COMPLETED` (or `FAILED`, which can be retried back to `PROCESSING`). A refund case opens only when an order with a submitted payment is cancelled; the customer-facing refund status reads **"Applicable after payment verification"** while the payment is still under review, and **"Refund available on cancellation"** once verified but not yet cancelled.
+
+### Wishlist APIs (JWT required)
+- GET /wishlists, GET /wishlists/:productId
+- POST /wishlists/:productId, DELETE /wishlists/:productId
+
+### Notification APIs (JWT required)
+- POST /notifications/subscriptions/:productId, GET /notifications/subscriptions/:productId — back-in-stock alerts.
+- GET /notifications
+- PATCH /notifications/:notificationId/read (also available as PUT for legacy clients)
+- PATCH /notifications/read-all (also available as PUT for legacy clients)
+- DELETE /notifications/:notificationId — 409 if still unread.
+- DELETE /notifications/read — clears all read notifications.
+
+### Translation API
+- POST /translations with `{ "text": "...", "targetLanguage": "en" | "te" }` — cached per source/target/content hash.
+
+### Settings APIs (JWT + ADMIN role required)
+- GET /settings/store
+- PUT /settings/store with `{ storeName, tagline, email, phone, address, businessDescription }`
+
+### Admin User Management APIs (JWT + ADMIN role required)
+- GET /admin/users
+- POST /admin/users — creates another admin/store-manager account.
+- PUT /admin/users/:id — profile fields, enable/disable, optional password reset.
+- DELETE /admin/users/:id
 
 ## 5. Folder Structure
 
@@ -165,15 +231,42 @@ backend/
   package.json
   .env.example
   src/
+    address.repository.js
+    address.routes.js
+    admin-orders.routes.js
+    admin-users.routes.js
     auth.routes.js
+    cart.controller.js
+    cart.repository.js
+    cart.routes.js
+    cart.service.js
+    categories.routes.js
+    checkout.routes.js
+    checkout.service.js
     config.js
     db.js
+    inventory.controller.js
+    inventory.repository.js
+    inventory.routes.js
+    inventory.service.js
     middleware.js
+    notification.service.js
+    notifications.routes.js
+    order.repository.js
+    orders.routes.js
+    product-audit.js
+    product-images.js
     products.routes.js
+    s3-storage.service.js
     seed.js
     server.js
+    settings.routes.js
+    translation.service.js
+    translations.routes.js
     upload.js
     utils.js
+    wishlists.routes.js
+  test/
   data/
   uploads/
 
@@ -185,23 +278,51 @@ frontend/
     App.jsx
     api.js
     auth.js
+    AuthContext.jsx
+    CartContext.jsx
+    LanguageContext.jsx
+    ThemeContext.jsx
     styles.css
     components/
+      AddToCartButton.jsx
+      AdminLayout.jsx
+      Avatar.jsx
+      BrandLoader.jsx
+      CategoryCombobox.jsx
       Footer.jsx
       Header.jsx
       ProductCard.jsx
       ProductCardActions.jsx
-      AddToCartButton.jsx
-      CartContext.jsx
+      ProductMediaCarousel.jsx
+      ProductPrice.jsx
+      PublicLayout.jsx
+      RatingBadge.jsx
     pages/
       AboutPage.jsx
+      AccountSettingsPage.jsx
+      AdminCategoriesPage.jsx
       AdminDashboardPage.jsx
-      CartPage.jsx
+      AdminInventoryPage.jsx
       AdminLoginPage.jsx
+      AdminOrdersPage.jsx
+      AdminOverviewPage.jsx
+      AdminProductAuditPage.jsx
+      AdminReportsPage.jsx
+      AdminSectionPage.jsx
+      AdminSettingsPage.jsx
+      CartPage.jsx
+      CategoryPage.jsx
+      CheckoutPage.jsx
       ContactPage.jsx
+      CustomerFeaturePage.jsx
       HomePage.jsx
+      OAuthCallbackPage.jsx
+      OrderDetailPage.jsx
+      OrdersPage.jsx
       ProductDetailPage.jsx
       ProductsPage.jsx
+      ProfilePage.jsx
+      SecurityPage.jsx
 ```
 
 ## 6. Responsive UI Screens
@@ -403,7 +524,7 @@ Authenticated user data is stored in the `Users` table and returned by login, to
 
 - Header welcome message, profile avatar, and dropdown navigation after login.
 - Initial-based circular avatar fallback when no photo has been uploaded.
-- `PUT /api/auth/profile` for full name, display name, email, and JPG/PNG/WEBP avatar updates.
+- `PUT /api/auth/settings` for full name, display name, email, mobile number, preferences, and JPG/PNG/WEBP avatar updates.
 - `PUT /api/auth/password` for current-password verification and a new password of at least 10 characters with confirmation.
 - Uploaded avatars use the existing 3 MB image constraint and are served from the backend uploads directory.
 - Profile saves immediately update the active header and signal other browser tabs to refresh their user identity.
@@ -417,10 +538,35 @@ The application stores only short-lived access tokens in tab-scoped storage. Lon
 - `/settings/security`: password update with current-password verification, confirmation, and a client-side strength indicator.
 - `/wishlist`: server-persisted saved product list.
 - `/recently-viewed`: locally persisted product view history populated from product detail pages.
-- `/orders`: future-ready empty order history state.
-- `/notifications`: future-ready price, arrival, and featured-product alert state.
+- `/orders`: server-persisted order history with status, payment, and refund tracking.
+- `/orders/:id`: order detail, lifecycle timeline, payment resubmission, and cancellation.
+- `/checkout`: address selection, order summary, and UPI-manual payment submission.
+- `/notifications`: price, arrival, and featured-product alert state.
 
-Customer preferences, profile, wishlist, and cart data are persisted server-side. Recently viewed products remain browser-local; orders and checkout remain future-ready boundaries.
+Customer preferences, profile, wishlist, cart, orders, and checkout data are all persisted server-side. Only recently viewed products remain browser-local.
+
+## Orders, Checkout, and Refunds
+
+Checkout is address-based and payment is `UPI_MANUAL` today: the customer enters a UPI transaction reference/UTR and uploads a payment screenshot, and an admin verifies or rejects it.
+
+1. `POST /api/checkout/validate` re-checks stock and the selected address before payment.
+2. `POST /api/orders` requires an `Idempotency-Key` header, uploads the screenshot to storage, creates the order with `PaymentStatus = PENDING`, and clears the cart.
+3. An admin reviews the screenshot/UTR and calls `PATCH /api/admin/orders/:id/payment` with `VERIFIED` or `REJECTED` (with a reason).
+4. If rejected, the customer calls `POST /api/orders/:id/payment-proof` to resubmit a new reference/screenshot.
+5. Either the customer (`POST /api/orders/:id/cancel`) or an admin (`POST /api/admin/orders/:id/cancel`) can cancel a `PENDING`/`PROCESSING`/`PACKED` order.
+
+### Refund Lifecycle
+
+Cancelling an order only opens a refund case (`RefundStatus: NOT_APPLICABLE -> PENDING`) when a payment had already been submitted; COD-only orders with no submitted payment stay `NOT_APPLICABLE`. From there an admin drives `PATCH /api/admin/orders/:id/refund` through `PENDING -> PROCESSING -> COMPLETED` (or `FAILED`, which can be retried back to `PROCESSING`), but only once the underlying payment is `VERIFIED`.
+
+The customer-facing refund status on `/orders/:id` reflects this precisely instead of defaulting to a generic "Not applicable":
+- Payment method is COD: **Not applicable**.
+- Order not cancelled, payment still under review: **Applicable after payment verification**.
+- Order not cancelled, payment verified: **Refund available on cancellation**.
+- Order cancelled, payment still under review: **Awaiting payment verification**.
+- Order cancelled, payment verified, refund case open: **Refund pending / Refund processing / Refund completed / Refund needs review**.
+
+This keeps the wording consistent across the order list (`/orders`), order detail (`/orders/:id`), and the admin order detail panel (`/admin/orders`).
 
 ## Price Privacy and Registration
 
