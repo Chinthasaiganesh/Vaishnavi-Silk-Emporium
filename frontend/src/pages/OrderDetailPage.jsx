@@ -73,12 +73,11 @@ function refundLabel(order) {
   if (order.RefundStatus === "PROCESSING") return "Refund processing";
   if (order.RefundStatus === "COMPLETED") return "Refund completed";
   if (order.RefundStatus === "FAILED") return "Refund needs review";
-  if (
-    order.RefundStatus === "NOT_APPLICABLE" &&
-    order.PaymentStatus === "VERIFIED" &&
-    ["PENDING", "PROCESSING", "PACKED"].includes(order.OrderStatus)
-  )
-    return "Refund available on cancellation";
+  if (order.RefundStatus === "NOT_APPLICABLE" && ["PENDING", "PROCESSING", "PACKED"].includes(order.OrderStatus)) {
+    if (order.PaymentStatus === "VERIFIED") return "Refund available on cancellation";
+    // Payment submitted but not yet reviewed by admin: refund becomes applicable once verified.
+    if (order.PaymentStatus === "PENDING") return "Applicable after payment verification";
+  }
   return "Not applicable";
 }
 
