@@ -238,7 +238,7 @@ export default function Header() {
             {cartCount > 0 && <strong>{cartCount}</strong>}
           </Link>
           {!checking && !user && (
-            <Link className="btn btn-outline" to="/login">{t("signIn")}</Link>
+            <Link className="btn btn-outline header-sign-in" to="/login"><span>{t("signIn")}</span></Link>
           )}
           {!checking && user?.role === "USER" && (
             <>

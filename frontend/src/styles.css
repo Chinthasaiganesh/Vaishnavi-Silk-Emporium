@@ -2223,6 +2223,20 @@ a {
 
 .auth-submit { width: 100%; padding: 0.82rem 1rem; }
 
+.header-sign-in {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.header-sign-in::before {
+  content: "→";
+  line-height: 1;
+}
+
 .auth-switch {
   margin: 0.25rem 0 0;
   color: var(--muted);
@@ -2293,6 +2307,29 @@ a {
   align-items: center;
   gap: 0.6rem;
   font-weight: 600;
+}
+
+.auth-remember {
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.auth-remember input {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 1rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.auth-remember span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .form-actions {
@@ -3351,6 +3388,31 @@ a {
   }
 }
 
+@media (min-width: 701px) and (max-width: 900px) {
+  .site-header .header-actions > .header-sign-in {
+    width: auto;
+    overflow: visible;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-header .header-actions > .header-sign-in {
+    display: inline-flex;
+    width: auto;
+    min-width: 0;
+    height: 2.6rem;
+    overflow: visible;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.78rem;
+    line-height: 1;
+  }
+
+  .site-header .header-actions > .header-sign-in span { display: inline; }
+  .site-header .header-actions > .header-sign-in::before { margin: 0; font-size: 1.1rem; }
+}
+
 @media (max-width: 375px) {
   .site-footer .impact-section .container { gap: 0.75rem; padding: 0.85rem 0; }
   .site-footer .impact-stats { gap: 0.55rem; }
@@ -3405,6 +3467,35 @@ a {
   .site-header .header-actions {
     gap: 0.2rem;
   }
+}
+
+@media (max-width: 350px) {
+  .site-header .header-actions > .header-sign-in {
+    width: auto;
+    min-width: max-content;
+    height: 2.25rem;
+    min-height: 2.25rem;
+    overflow: visible;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.72rem;
+  }
+
+  .site-header .header-actions > .header-sign-in span { display: inline; }
+}
+
+@media (min-width: 351px) and (max-width: 1024px) {
+  .site-header .header-actions > .header-sign-in {
+    width: max-content;
+    min-width: max-content;
+    height: 2.6rem;
+    min-height: 2.6rem;
+    overflow: visible;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  .site-header .header-actions > .header-sign-in span { display: inline; }
 }
 
 @media (max-width: 700px) {
