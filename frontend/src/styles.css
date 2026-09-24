@@ -2223,6 +2223,14 @@ a {
 
 .auth-submit { width: 100%; padding: 0.82rem 1rem; }
 
+.header-sign-in {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
 .auth-switch {
   margin: 0.25rem 0 0;
   color: var(--muted);
@@ -2293,6 +2301,29 @@ a {
   align-items: center;
   gap: 0.6rem;
   font-weight: 600;
+}
+
+.auth-remember {
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.5rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.auth-remember input {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 1rem;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.auth-remember span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .form-actions {
@@ -3349,6 +3380,31 @@ a {
     grid-row: 2;
     margin-top: 0.15rem;
   }
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .site-header .header-actions > .header-sign-in {
+    width: auto;
+    overflow: visible;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .site-header .header-actions > .header-sign-in {
+    display: inline-flex;
+    width: 2.6rem;
+    min-width: 2.6rem;
+    height: 2.6rem;
+    overflow: hidden;
+    padding: 0;
+    font-size: 0;
+    line-height: 1;
+  }
+
+  .site-header .header-actions > .header-sign-in span { display: none; }
+  .site-header .header-actions > .header-sign-in::before { margin: 0; font-size: 1.1rem; }
 }
 
 @media (max-width: 375px) {

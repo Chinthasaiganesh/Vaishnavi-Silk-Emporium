@@ -100,13 +100,14 @@ export default function AdminLoginPage() {
         />
         {mode === "register" && <label>Confirm Password<input type="password" value={registration.confirmPassword} onChange={(e) => setRegistration({ ...registration, confirmPassword: e.target.value })} minLength={8} required /></label>}
 
-        {mode === "login" && <label className="checkbox-line">
+        {mode === "login" && <label className="checkbox-line auth-remember">
           <input
+            id="remember-me"
             type="checkbox"
             checked={rememberMe}
             onChange={(e) => setRememberMe(e.target.checked)}
           />
-          Remember me on this device
+          <span>Remember me on this device</span>
         </label>}
 
         {(error || searchParams.get("oauthError")) && <p className="error-text">{error || "Social sign-in is unavailable or could not be completed."}</p>}
