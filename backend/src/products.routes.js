@@ -17,6 +17,9 @@ function mapProduct(row, canViewPrice = true) {
     return null;
   }
   const imageUrls = parseImageUrls(row.ImageUrl);
+  const availableQuantity = row.AvailableQuantity ?? row.Quantity;
+  const reservedQuantity = Number(row.ReservedQuantity ?? 0);
+  const temporarilyReserved = availableQuantity <= 0 && reservedQuantity > 0;
   const originalPrice = Number(row.Price);
   const discountedPrice = row.DiscountedPrice === null || row.DiscountedPrice === undefined ? null : Number(row.DiscountedPrice);
   const effectivePrice = discountedPrice !== null && discountedPrice < originalPrice ? discountedPrice : originalPrice;
@@ -33,7 +36,8 @@ function mapProduct(row, canViewPrice = true) {
     canViewPrice,
     imageUrl: imageUrls[0] || "",
     imageUrls,
-    quantity: row.AvailableQuantity ?? row.Quantity,
+    quantity: availableQuantity,
+    temporarilyReserved,
     isActive: Boolean(row.IsActive),
     isFeatured: Boolean(row.IsFeatured),
     fabric: row.Fabric,
@@ -44,7 +48,8 @@ function mapProduct(row, canViewPrice = true) {
     blousePieceIncluded: Boolean(row.BlousePieceIncluded),
     careInstructions: row.CareInstructions,
     rating: row.Rating,
-    availabilityStatus: (row.AvailableQuantity ?? row.Quantity) > 0 ? "In Stock" : "Temporarily unavailable",
+    availabilityStatus: availableQuantity > 0 ? "In Stock" : temporarilyReserved ? "Temporarily Reserved" : "Temporarily unavailable",
+    availabilityMessage: availableQuantity > 0 ? "" : temporarilyReserved ? "Currently unavailable. Another customer is completing checkout." : "This product is currently out of stock.",
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
@@ -89,7 +94,7 @@ router.get(
     const featuredOnly = req.query.featured === "true";
 
     const canViewPrice = Boolean(req.user);
-    const activeProducts = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.IsActive = 1").all();
+    const activeProducts = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.IsActive = 1").all();
 
     let products = activeProducts.filter((p) => {
       const text = `${p.ProductName} ${p.Description} ${p.Category} ${p.Fabric} ${p.Colour} ${p.Occasion} ${p.WeavingStyle}`.toLowerCase();
@@ -117,7 +122,7 @@ router.get(
 
 router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, async (req, res) => {
   const id = Number(req.params.id);
-  const row = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
+  const row = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
   if (!row) {
     await logProductEvent("Product Load Miss", req.requestId, { scope: "public-detail", productId: id });
     return res.status(404).json({ message: "Product not found." });

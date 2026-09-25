@@ -12,7 +12,7 @@ export default function ProductCard({ product }) {
       <div className="product-card-image-wrap">
         {product.isFeatured && <span className="discount-badge">Featured</span>}
         <ProductMediaCarousel product={product} />
-        {product.quantity <= 0 && <span className="stock-ribbon" aria-label={product.availabilityStatus || "Temporarily unavailable"}>{product.availabilityStatus || "Temporarily unavailable"}</span>}
+        {product.quantity <= 0 && <span className={`stock-ribbon${product.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={product.availabilityStatus || "Temporarily unavailable"}>{product.availabilityStatus || "Temporarily unavailable"}</span>}
       </div>
       <div className="product-card-body">
         <p className="pill">{product.category}</p>
@@ -25,6 +25,7 @@ export default function ProductCard({ product }) {
           </span>
           <ProductPrice product={product} showSavings={false} />
         </div>
+        {product.temporarilyReserved && <p className="reserved-note" role="status">Currently unavailable. Another customer is completing checkout.</p>}
         <Link className="btn btn-outline" to={`/products/${product.productId}`}>
           {t("viewDetails")}
         </Link>

@@ -91,8 +91,9 @@ export default function ProductDetailPage() {
         <RatingBadge rating={product.rating} productId={product.productId} />
         <ProductPrice product={product} className="detail-product-price" />
         <p className={product.quantity > 0 ? "status in" : "status out"}>
-          {product.quantity > 0 ? t("inStock") : t("outOfStock")}
+          {product.quantity > 0 ? t("inStock") : product.temporarilyReserved ? "Temporarily Reserved" : t("outOfStock")}
         </p>
+        {product.temporarilyReserved && <p className="reserved-note" role="status">Currently unavailable. Another customer is completing checkout.</p>}
         <ProductCardActions product={product} />
       </section>
     </main>
