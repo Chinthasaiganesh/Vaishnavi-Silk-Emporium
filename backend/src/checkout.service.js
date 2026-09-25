@@ -1,7 +1,7 @@
 import { db } from "./db.js";
 import { getCart } from "./cart.service.js";
 import { getDefaultAddress } from "./address.repository.js";
-import { createOrder, getOrderByIdempotencyKey } from "./order.repository.js";
+import { createOrder, createPaymentConflictOrder, getOrderByIdempotencyKey } from "./order.repository.js";
 
 async function checkoutItems(userId) {
   const cart = await getCart(userId);
@@ -33,7 +33,18 @@ export async function placeOrder(userId, addressId, idempotencyKey, requestId, p
   console.info(JSON.stringify({ level: "info", message: "Order service entry", requestId, userId, addressId, paymentMethod, paymentReferencePresent: Boolean(paymentReference) }));
   const existingOrder = await getOrderByIdempotencyKey(userId, idempotencyKey);
   if (existingOrder) return existingOrder;
-  const checked = await validateCheckout(userId, addressId);
+  let checked;
+  try {
+    checked = await validateCheckout(userId, addressId);
+  } catch (error) {
+    if (error.code !== "INSUFFICIENT_STOCK" || !paymentReference || paymentMethod !== "UPI_MANUAL") throw error;
+    const { cart, items } = await checkoutItems(userId);
+    const address = await db.prepare("SELECT AddressId FROM Addresses WHERE AddressId = ? AND UserId = ?").get(addressId, userId);
+    if (!address || !items.length) throw error;
+    const orderItems = items.map((item) => ({ ...item, Price: Number(item.Price), OriginalPrice: Number(item.Price), DiscountedPrice: Number(item.Price), SavingsAmount: 0, DiscountPercentage: 0 }));
+    const subtotal = orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0);
+    return await createPaymentConflictOrder({ userId, addressId: address.AddressId, idempotencyKey, items: orderItems, subtotal, shipping: 0, discount: 0, grandTotal: subtotal, paymentMethod, paymentReference, paymentScreenshotUrl, reason: "Payment received after inventory was purchased by another customer." });
+  }
   console.info(JSON.stringify({ level: "info", message: "Order validation completed", requestId, userId, addressId, itemCount: checked.items.length, subtotal: checked.subtotal }));
   const orderItems = [];
   for (const item of checked.items) {
@@ -47,5 +58,10 @@ export async function placeOrder(userId, addressId, idempotencyKey, requestId, p
   }
   const subtotal = orderItems.reduce((sum, item) => sum + item.Price * item.Quantity, 0);
   const savings = orderItems.reduce((sum, item) => sum + item.SavingsAmount * item.Quantity, 0);
-  return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal, shipping: 0, discount: savings, grandTotal: subtotal, paymentMethod, paymentReference, paymentScreenshotUrl });
+  try {
+    return await createOrder({ userId, addressId: checked.addressId, idempotencyKey, requestId, items: orderItems, subtotal, shipping: 0, discount: savings, grandTotal: subtotal, paymentMethod, paymentReference, paymentScreenshotUrl });
+  } catch (error) {
+    if (error.code !== "INSUFFICIENT_STOCK" || !paymentReference || paymentMethod !== "UPI_MANUAL") throw error;
+    return await createPaymentConflictOrder({ userId, addressId: checked.addressId, idempotencyKey, items: orderItems, subtotal, shipping: 0, discount: savings, grandTotal: subtotal, paymentMethod, paymentReference, paymentScreenshotUrl, reason: "Payment received after inventory was purchased by another customer." });
+  }
 }

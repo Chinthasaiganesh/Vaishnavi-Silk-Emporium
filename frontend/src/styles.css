@@ -1220,7 +1220,9 @@ a {
 .address-option span { display: grid; gap: 0.25rem; }
 .address-option small { color: var(--muted); }
 .address-form { display: grid; gap: 0.7rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-.address-form input { width: 100%; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.7rem; color: var(--text); background: var(--card); font: inherit; }
+.address-form input:not([type="checkbox"]) { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.7rem; color: var(--text); background: var(--card); font: inherit; }
+.address-form .checkbox-line { min-width: 0; gap: 0.5rem; line-height: 1.35; overflow-wrap: anywhere; }
+.address-form .checkbox-line input[type="checkbox"] { width: 1rem; height: 1rem; flex: 0 0 1rem; margin: 0.15rem 0 0; accent-color: var(--primary); }
 .checkout-item, .order-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
 .checkout-item:last-child { border-bottom: 0; }
 .checkout-item-detailed > div { display: grid; min-width: 0; gap: 0.18rem; }

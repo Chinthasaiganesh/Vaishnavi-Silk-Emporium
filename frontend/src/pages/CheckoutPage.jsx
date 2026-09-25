@@ -79,7 +79,7 @@ export default function CheckoutPage() {
       setUpiPayment(null); setPaymentScreenshot(null);
       navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Unable to create the order after payment.");
+      setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
     } finally { setPlacing(false); }
   }
 
