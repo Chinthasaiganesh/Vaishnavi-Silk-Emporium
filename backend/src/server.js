@@ -21,6 +21,8 @@ import addressRoutes from "./address.routes.js";
 import checkoutRoutes from "./checkout.routes.js";
 import ordersRoutes from "./orders.routes.js";
 import adminOrdersRoutes from "./admin-orders.routes.js";
+import { listExpiringReservations, releaseExpiredReservations } from "./reservation.repository.js";
+import { sendReservationNotification } from "./notification.service.js";
 
 const app = express();
 
@@ -59,7 +61,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "X-Request-Id"],
+  allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "Checkout-Reservation-Id", "X-Request-Id"],
   exposedHeaders: ["x-request-id"],
   optionsSuccessStatus: 204,
   maxAge: 86400
@@ -191,6 +193,19 @@ app.use("/api/admin", adminUsersRoutes);
 app.use(errorHandler);
 
 ensureAdminUser().then(() => {
+  const cleanupReservations = async () => {
+    try {
+      const expiring = await listExpiringReservations();
+      for (const reservation of expiring) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expiring Soon", "Your checkout reservation expires in less than 5 minutes.", "RESERVATION_EXPIRING");
+      const expired = await releaseExpiredReservations();
+      for (const reservation of expired) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expired", "Your checkout reservation expired and the items were released.", "RESERVATION_EXPIRED");
+    } catch (error) {
+      console.error(JSON.stringify({ level: "error", message: "Reservation cleanup failed", error: error.message, stack: error.stack }));
+    }
+  };
+  const reservationCleanupTimer = setInterval(cleanupReservations, 30_000);
+  reservationCleanupTimer.unref?.();
+  cleanupReservations();
   app.listen(config.port, () => {
     console.log(`Backend running on http://localhost:${config.port}`);
   });

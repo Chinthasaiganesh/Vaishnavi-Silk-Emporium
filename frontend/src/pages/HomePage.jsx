@@ -162,7 +162,7 @@ export default function HomePage() {
             >
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
-                {product.quantity <= 0 && <span className="stock-ribbon" aria-label="Out of stock">Out of Stock</span>}
+                {product.quantity <= 0 && <span className="stock-ribbon" aria-label={product.availabilityStatus || "Temporarily unavailable"}>{product.availabilityStatus || "Temporarily unavailable"}</span>}
                 <ProductMediaCarousel product={product} />
               </div>
               <div className="featured-product-body">
@@ -173,7 +173,7 @@ export default function HomePage() {
                 <div className="featured-price-row">
                   <ProductPrice product={product} showSavings={false} />
                   <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
-                    {product.quantity > 0 ? t("inStock") : t("outOfStock")}
+                    {product.quantity > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
                   </span>
                 </div>
                 <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>

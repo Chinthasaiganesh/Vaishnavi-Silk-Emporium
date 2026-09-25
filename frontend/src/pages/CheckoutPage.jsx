@@ -17,6 +17,8 @@ export default function CheckoutPage() {
   const [form, setForm] = useState(emptyAddress);
   const [showForm, setShowForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
+  const [reservation, setReservation] = useState(null);
+  const [, setClock] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
@@ -24,6 +26,19 @@ export default function CheckoutPage() {
   const [upiReference, setUpiReference] = useState("");
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const idempotencyKey = useRef(crypto.randomUUID());
+  const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
+
+  function formatReservationTime(seconds) {
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  async function reserveCheckout(selectedAddressId) {
+    const response = await api.post("/checkout/reserve", { addressId: Number(selectedAddressId), sessionId: reservationSessionId.current });
+    localStorage.setItem("checkout-reservation-session", reservationSessionId.current);
+    setReservation(response.data.reservation);
+    return response.data.reservation;
+  }
 
   async function load() {
     setLoading(true);
@@ -32,11 +47,29 @@ export default function CheckoutPage() {
       setSummary(summaryResponse.data);
       const saved = addressResponse.data.addresses || [];
       setAddresses(saved);
-      setAddressId(String(saved.find((address) => address.IsDefault)?.AddressId || saved[0]?.AddressId || ""));
+      const selectedAddressId = String(saved.find((address) => address.IsDefault)?.AddressId || saved[0]?.AddressId || "");
+      setAddressId(selectedAddressId);
+      if (selectedAddressId) await reserveCheckout(selectedAddressId);
     } catch (requestError) { setError(requestError.response?.data?.message || "Unable to load checkout."); }
     finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (!reservation) return undefined;
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [reservation]);
+
+  const remainingSeconds = reservation ? Math.max(0, Math.ceil((new Date(reservation.ExpiresAt).getTime() - Date.now()) / 1000)) : 0;
+  useEffect(() => {
+    if (!reservation || remainingSeconds > 0) return;
+    api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
+    localStorage.removeItem("checkout-reservation-session");
+    setReservation(null);
+    setUpiPayment(null);
+    navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please place the order again." } });
+  }, [reservation, remainingSeconds, navigate]);
 
   function addressToForm(address) {
     return { fullName: address.FullName, mobileNumber: address.MobileNumber, addressLine1: address.AddressLine1, addressLine2: address.AddressLine2 || "", city: address.City, state: address.State, postalCode: address.PostalCode, country: address.Country || "India", isDefault: Boolean(address.IsDefault) };
@@ -87,11 +120,10 @@ export default function CheckoutPage() {
   async function startUpiPayment() {
     setError("");
     try {
-      const validation = await api.post("/checkout/validate", { addressId: Number(addressId) });
-      if (!validation.data.success) throw new Error("Checkout validation failed.");
+      const activeReservation = await reserveCheckout(addressId);
       const upiId = import.meta.env.VITE_UPI_ID;
       if (!upiId) throw new Error("UPI payment is not configured. Set VITE_UPI_ID in the frontend environment.");
-      const amount = Number(validation.data.grandTotal ?? validation.data.subtotal ?? 0).toFixed(2);
+      const amount = activeReservation.items.reduce((total, item) => total + Number(item.UnitPrice) * Number(item.Quantity), 0).toFixed(2);
       const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("Vaishnavi Silk Emporium")}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${idempotencyKey.current}`)}`;
       const qrDataUrl = await QRCode.toDataURL(upiUri, { width: 280, margin: 2 });
       setUpiReference("");
@@ -115,11 +147,18 @@ export default function CheckoutPage() {
       formData.append("paymentMethod", "UPI_MANUAL");
       formData.append("paymentReference", upiReference.trim());
       formData.append("paymentScreenshot", paymentScreenshot);
-      const response = await api.post("/orders", formData, { headers: { "Idempotency-Key": idempotencyKey.current } });
+      const response = await api.post("/orders", formData, { headers: { "Idempotency-Key": idempotencyKey.current, "Checkout-Reservation-Id": reservation.ReservationId } });
       try { await refreshCart(); } catch { /* order was created */ }
+      localStorage.removeItem("checkout-reservation-session");
+      setReservation(null);
       setUpiPayment(null); setPaymentScreenshot(null);
       navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
     } catch (requestError) {
+      if (requestError.response?.data?.code === "RESERVATION_EXPIRED") {
+        localStorage.removeItem("checkout-reservation-session");
+        navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please place the order again." } });
+        return;
+      }
       setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
     } finally { setPlacing(false); }
   }
@@ -132,6 +171,7 @@ export default function CheckoutPage() {
     <main className="container section checkout-page">
       <div className="section-head"><div><p className="eyebrow">Secure order review</p><h1>Checkout</h1></div></div>
       {error && <p className="error-text" role="alert">{error}</p>}
+      {reservation && <div className={`reservation-timer${remainingSeconds <= 60 ? " urgent" : remainingSeconds <= 300 ? " warning" : ""}`} role="status"><strong>Items reserved for checkout</strong><span>Your items are reserved for {formatReservationTime(remainingSeconds)} minutes.</span>{remainingSeconds <= 60 && <small>Complete payment now. Your reservation will expire shortly.</small>}{remainingSeconds > 60 && remainingSeconds <= 300 && <small>Your reservation expires soon.</small>}</div>}
       <div className="checkout-layout">
         <section className="checkout-main">
           <article className="checkout-section">
@@ -156,6 +196,7 @@ export default function CheckoutPage() {
         <section className="payment-modal">
           <button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button>
           <h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2>
+          {reservation && <div className={`reservation-timer modal-reservation-timer${remainingSeconds <= 60 ? " urgent" : remainingSeconds <= 300 ? " warning" : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>Submit payment proof before the timer expires.</span></div>}
           <p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p>
           <img src={upiPayment.qrDataUrl} alt="UPI payment QR code" />
           <p><strong>{upiPayment.upiId}</strong></p>

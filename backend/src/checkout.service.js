@@ -1,7 +1,7 @@
 import { db } from "./db.js";
 import { getCart } from "./cart.service.js";
 import { getDefaultAddress } from "./address.repository.js";
-import { createOrder, createPaymentConflictOrder, getOrderByIdempotencyKey } from "./order.repository.js";
+import { createOrder, createOrderFromReservation, createPaymentConflictOrder, getOrderByIdempotencyKey } from "./order.repository.js";
 
 async function checkoutItems(userId) {
   const cart = await getCart(userId);
@@ -29,10 +29,11 @@ export async function validateCheckout(userId, addressId = null) {
   return { valid: true, addressId: address.AddressId, items, originalSubtotal: cart.totals.originalSubtotal, subtotal: cart.totals.subtotal, shipping: 0, discount: cart.totals.discount, grandTotal: cart.totals.grandTotal };
 }
 
-export async function placeOrder(userId, addressId, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotUrl = null) {
+export async function placeOrder(userId, addressId, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotUrl = null, reservationId = null) {
   console.info(JSON.stringify({ level: "info", message: "Order service entry", requestId, userId, addressId, paymentMethod, paymentReferencePresent: Boolean(paymentReference) }));
   const existingOrder = await getOrderByIdempotencyKey(userId, idempotencyKey);
   if (existingOrder) return existingOrder;
+  if (reservationId) return await createOrderFromReservation({ userId, reservationId, idempotencyKey, requestId, paymentMethod, paymentReference, paymentScreenshotUrl });
   let checked;
   try {
     checked = await validateCheckout(userId, addressId);

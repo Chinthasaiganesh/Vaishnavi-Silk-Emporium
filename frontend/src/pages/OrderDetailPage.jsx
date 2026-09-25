@@ -222,7 +222,7 @@ export default function OrderDetailPage() {
             <strong>{order.PaymentStatus === "PENDING" ? "Under Review" : prettyStatus(order.PaymentStatus)}</strong>
           </div>
           {order.PaymentStatus === "REJECTED" && <div className="payment-status-rejected"><span>Reason</span><strong>{order.PaymentRejectionReason}</strong></div>}
-          <div>
+          <div className="refund-summary-row">
             <span>Refund</span>
             <strong>{refundLabel(order)}</strong>
           </div>
@@ -318,7 +318,7 @@ export default function OrderDetailPage() {
       </motion.section>
       {order.CancelledAt && <section className="lifecycle-detail cancellation-detail" aria-labelledby="cancellation-title"><div><p className="eyebrow">Order closed</p><h2 id="cancellation-title">Order Cancelled</h2></div><dl><dt>Cancelled By</dt><dd>{order.CancelledByRole === "ADMIN" ? "Admin" : order.CancelledByRole === "CUSTOMER" ? "Customer" : "Not recorded"}</dd><dt>Cancellation Reason</dt><dd>{order.CancellationReason || "No reason provided"}</dd><dt>Cancellation Date</dt><dd>{new Date(order.CancelledAt).toLocaleString()}</dd></dl></section>}
       {order.RefundStatus !== "NOT_APPLICABLE" && <section className="lifecycle-detail refund-detail" aria-labelledby="refund-detail-title"><div><p className="eyebrow">Money movement</p><h2 id="refund-detail-title">Refund Details</h2></div><dl><dt>Current Status</dt><dd>{refundLabel(order)}</dd>{order.RefundReference && <><dt>Refund Reference</dt><dd>{order.RefundReference}</dd></>}{order.RefundStatus === "PENDING" && order.PaymentStatus !== "VERIFIED" && <><dt>Next Action</dt><dd>Processing will start after the submitted payment is verified.</dd></>}</dl></section>}
-      {order.PaymentStatus === "REJECTED" && (
+      {order.PaymentStatus === "REJECTED" && order.OrderStatus !== "CANCELLED" && (
         <section className="checkout-section payment-resubmission" aria-labelledby="payment-resubmission-title">
           <p className="eyebrow">Action required</p>
           <h2 id="payment-resubmission-title">Payment Verification Failed</h2>
