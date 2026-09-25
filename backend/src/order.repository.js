@@ -108,6 +108,29 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
   return await getOrder(userId, orderId);
 }
 
+export async function createPaymentConflictOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, paymentMethod = 'UPI_MANUAL', paymentReference, paymentScreenshotUrl, reason }) {
+  const timestamp = nowIso();
+  const orderId = await transaction(async (tx) => {
+    if (idempotencyKey) {
+      const existing = await tx.get("SELECT OrderId FROM Orders WHERE UserId = ? AND IdempotencyKey = ?", [userId, idempotencyKey]);
+      if (existing) return existing.OrderId;
+    }
+    const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
+    const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "RefundStatus", "RefundInitiatedAt", "CancellationReason", "CancelledByRole", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'CANCELLED\', \'PENDING\', ?, ?, \'ADMIN\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, timestamp, reason, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
+    for (const item of items) {
+      await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [orderResult.lastInsertRowid, item.ProductId, item.ProductName, item.Price, item.OriginalPrice ?? item.Price, item.DiscountedPrice ?? item.Price, item.DiscountPercentage ?? 0, item.SavingsAmount ?? 0, item.ImageUrl || null, item.Quantity, item.Price * item.Quantity, timestamp]);
+    }
+    await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CREATED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
+    await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, NULL, 'CANCELLED', ?, ?)", [orderResult.lastInsertRowid, userId, timestamp]);
+    await addLifecycleEvent(tx, orderResult.lastInsertRowid, "ORDER_PLACED", "Payment received, stock unavailable", "Your payment proof was saved. This order was cancelled because another customer purchased the last available item. Verify the payment so a refund can be processed.", "SYSTEM", userId, timestamp);
+    await addLifecycleEvent(tx, orderResult.lastInsertRowid, "PAYMENT_SUBMITTED", "Payment Submitted", "Your payment details were submitted for verification.", "CUSTOMER", userId, timestamp);
+    await addLifecycleEvent(tx, orderResult.lastInsertRowid, "REFUND_INITIATED", "Refund Initiated", "A refund will be processed after payment verification.", "SYSTEM", userId, timestamp);
+    return orderResult.lastInsertRowid;
+  });
+  return await getOrder(userId, orderId);
+}
+
 export async function updateOrderStatus(orderId, newStatus, adminUserId) {
   if (!ORDER_STATUSES.includes(newStatus)) throw Object.assign(new Error("Invalid order status."), { status: 400 });
   const timestamp = nowIso();

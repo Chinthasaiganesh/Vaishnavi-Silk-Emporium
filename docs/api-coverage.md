@@ -6,7 +6,6 @@
 - `Vaishnavi-Development.postman_environment.json`
 - `Vaishnavi-UAT.postman_environment.json`
 - `Vaishnavi-Production.postman_environment.json`
-
 Import the collection, select an environment, run **Authentication / Login**, and the test script stores `accessToken` for protected requests. The refresh token is deliberately an HttpOnly cookie and is therefore not exposed as a Postman variable.
 
 ## Implemented Folders

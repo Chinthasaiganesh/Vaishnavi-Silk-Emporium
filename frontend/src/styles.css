@@ -1215,12 +1215,21 @@ a {
 .checkout-section h2, .checkout-section-heading h2 { margin: 0; font-size: 1.35rem; }
 .checkout-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
 .address-list { display: grid; gap: 0.7rem; }
-.address-option { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.85rem; border: 1px solid var(--border); border-radius: 0.55rem; cursor: pointer; }
+.address-option { display: flex; gap: 0.7rem; align-items: flex-start; justify-content: space-between; padding: 0.85rem; border: 1px solid var(--border); border-radius: 0.55rem; }
 .address-option.selected { border-color: var(--primary); background: #fff5f6; box-shadow: inset 3px 0 var(--primary); }
+.address-select { display: flex; min-width: 0; flex: 1 1 auto; gap: 0.7rem; align-items: flex-start; cursor: pointer; }
 .address-option span { display: grid; gap: 0.25rem; }
 .address-option small { color: var(--muted); }
+.address-actions { display: flex; flex: 0 0 auto; gap: 0.65rem; align-items: center; }
+.danger-link { color: #a33a46; }
 .address-form { display: grid; gap: 0.7rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-.address-form input { width: 100%; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.7rem; color: var(--text); background: var(--card); font: inherit; }
+.address-form input:not([type="checkbox"]) { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.7rem; color: var(--text); background: var(--card); font: inherit; }
+.address-form .checkbox-line { min-width: 0; gap: 0.5rem; line-height: 1.35; overflow-wrap: anywhere; }
+.address-form .checkbox-line input[type="checkbox"] { width: 1rem; height: 1rem; flex: 0 0 1rem; margin: 0.15rem 0 0; accent-color: var(--primary); }
+@media (max-width: 640px) {
+  .address-option { flex-wrap: wrap; }
+  .address-actions { width: 100%; justify-content: flex-end; padding-left: 1.7rem; }
+}
 .checkout-item, .order-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
 .checkout-item:last-child { border-bottom: 0; }
 .checkout-item-detailed > div { display: grid; min-width: 0; gap: 0.18rem; }

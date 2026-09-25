@@ -29,7 +29,8 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 			await sendOrderNotification(order, "You saved on this order", `You saved ₹${saved} (${Math.round(percent)}%) on order ${order.OrderNumber}. Thank you for shopping with us.`);
 		}
 		console.info(JSON.stringify({ level: "info", message: "Order response ready", requestId: req.requestId, userId: req.user.userId, orderId: order.OrderId, orderNumber: order.OrderNumber }));
-		return res.status(201).json({ success: true, message: "Order placed successfully.", order });
+		const conflictOrder = order.OrderStatus === "CANCELLED" && order.RefundStatus === "PENDING";
+		return res.status(201).json({ success: true, message: conflictOrder ? "Payment proof saved. The item was no longer available, so this order was cancelled and the payment will be verified for refund." : "Order placed successfully.", order });
 	} catch (error) {
 		console.error(JSON.stringify({ level: "error", message: "Order controller failed", requestId: req.requestId, userId: req.user.userId, addressId: req.body.addressId, error: error.message, code: error.code, constraint: error.constraint, table: error.table, column: error.column, stack: error.stack }));
 		return next(error);

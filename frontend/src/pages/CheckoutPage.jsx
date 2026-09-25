@@ -16,6 +16,7 @@ export default function CheckoutPage() {
   const [addressId, setAddressId] = useState("");
   const [form, setForm] = useState(emptyAddress);
   const [showForm, setShowForm] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
@@ -37,10 +38,50 @@ export default function CheckoutPage() {
   }
   useEffect(() => { load(); }, []);
 
-  async function addAddress(event) {
+  function addressToForm(address) {
+    return { fullName: address.FullName, mobileNumber: address.MobileNumber, addressLine1: address.AddressLine1, addressLine2: address.AddressLine2 || "", city: address.City, state: address.State, postalCode: address.PostalCode, country: address.Country || "India", isDefault: Boolean(address.IsDefault) };
+  }
+
+  function startAddAddress() {
+    setEditingAddressId(null);
+    setForm(emptyAddress);
+    setShowForm((current) => !current);
+  }
+
+  function startEditAddress(address) {
+    setEditingAddressId(address.AddressId);
+    setForm(addressToForm(address));
+    setShowForm(true);
+    setError("");
+  }
+
+  function cancelAddressForm() {
+    setEditingAddressId(null);
+    setForm(emptyAddress);
+    setShowForm(false);
+  }
+
+  async function saveAddress(event) {
     event.preventDefault();
-    try { const response = await api.post("/addresses", form); setAddresses((current) => [response.data.address, ...current]); setAddressId(String(response.data.address.AddressId)); setShowForm(false); setForm(emptyAddress); }
+    try {
+      const response = editingAddressId ? await api.put(`/addresses/${editingAddressId}`, form) : await api.post("/addresses", form);
+      const savedAddress = response.data.address;
+      setAddresses((current) => editingAddressId ? current.map((address) => address.AddressId === editingAddressId ? savedAddress : { ...address, IsDefault: savedAddress.IsDefault ? 0 : address.IsDefault }) : [savedAddress, ...current]);
+      setAddressId(String(savedAddress.AddressId));
+      cancelAddressForm();
+    }
     catch (requestError) { setError(requestError.response?.data?.message || "Unable to save address."); }
+  }
+
+  async function removeAddress(address) {
+    if (!window.confirm("Delete this saved address?")) return;
+    try {
+      await api.delete(`/addresses/${address.AddressId}`);
+      const remaining = addresses.filter((item) => item.AddressId !== address.AddressId);
+      setAddresses(remaining);
+      if (String(address.AddressId) === addressId) setAddressId(String(remaining[0]?.AddressId || ""));
+      if (editingAddressId === address.AddressId) cancelAddressForm();
+    } catch (requestError) { setError(requestError.response?.data?.message || "Unable to delete address."); }
   }
 
   async function startUpiPayment() {
@@ -79,7 +120,7 @@ export default function CheckoutPage() {
       setUpiPayment(null); setPaymentScreenshot(null);
       navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
     } catch (requestError) {
-      setError(requestError.response?.data?.message || "Unable to create the order after payment.");
+      setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
     } finally { setPlacing(false); }
   }
 
@@ -94,10 +135,10 @@ export default function CheckoutPage() {
       <div className="checkout-layout">
         <section className="checkout-main">
           <article className="checkout-section">
-            <div className="checkout-section-heading"><h2>Delivery Address</h2><button className="link-btn" onClick={() => setShowForm((v) => !v)}>{showForm ? "Cancel" : "Add Address"}</button></div>
+            <div className="checkout-section-heading"><h2>Delivery Address</h2><button className="link-btn" onClick={showForm ? cancelAddressForm : startAddAddress}>{showForm ? "Cancel" : "Add Address"}</button></div>
             {addresses.length === 0 && !showForm && <p className="muted">Add a delivery address to continue.</p>}
-            {addresses.length > 0 && <div className="address-list">{addresses.map((address) => <label className={`address-option${String(address.AddressId) === addressId ? " selected" : ""}`} key={address.AddressId}><input type="radio" name="address" value={address.AddressId} checked={String(address.AddressId) === addressId} onChange={(event) => setAddressId(event.target.value)} /><span><strong>{address.FullName}</strong><small>{address.AddressLine1}{address.AddressLine2 ? `, ${address.AddressLine2}` : ""}, {address.City}, {address.State} {address.PostalCode}</small><small>{address.MobileNumber}</small></span></label>)}</div>}
-            {showForm && <form className="address-form" onSubmit={addAddress}>{Object.entries(emptyAddress).filter(([key]) => key !== "isDefault").map(([key]) => <input key={key} required={!["addressLine2", "country"].includes(key)} placeholder={key.replace(/([A-Z])/g, " $1")} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} />)}<label className="checkbox-line"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />Use as default address</label><button className="btn btn-outline">Save Address</button></form>}
+            {addresses.length > 0 && <div className="address-list">{addresses.map((address) => <div className={`address-option${String(address.AddressId) === addressId ? " selected" : ""}`} key={address.AddressId}><label className="address-select"><input type="radio" name="address" value={address.AddressId} checked={String(address.AddressId) === addressId} onChange={(event) => setAddressId(event.target.value)} /><span><strong>{address.FullName}</strong><small>{address.AddressLine1}{address.AddressLine2 ? `, ${address.AddressLine2}` : ""}, {address.City}, {address.State} {address.PostalCode}</small><small>{address.MobileNumber}</small></span></label><div className="address-actions"><button type="button" className="link-btn" onClick={() => startEditAddress(address)}>Edit</button><button type="button" className="link-btn danger-link" onClick={() => removeAddress(address)}>Delete</button></div></div>)}</div>}
+              {showForm && <form className="address-form" onSubmit={saveAddress}>{Object.entries(emptyAddress).filter(([key]) => key !== "isDefault").map(([key]) => <input key={key} required={!['addressLine2', 'country'].includes(key)} placeholder={key.replace(/([A-Z])/g, " $1")} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} />)}<label className="checkbox-line"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />Use as default address</label><button className="btn btn-outline">{editingAddressId ? "Update Address" : "Save Address"}</button></form>}
           </article>
         </section>
         <aside className="checkout-summary-panel">

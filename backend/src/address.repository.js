@@ -39,6 +39,8 @@ export async function deleteAddress(userId, addressId) {
   return await transaction(async (tx) => {
     const address = await tx.get("SELECT * FROM Addresses WHERE UserId = ? AND AddressId = ?", [userId, addressId]);
     if (!address) return null;
+    const order = await tx.get("SELECT OrderId FROM Orders WHERE UserId = ? AND AddressId = ? LIMIT 1", [userId, addressId]);
+    if (order) return { conflict: true };
     await tx.run("DELETE FROM Addresses WHERE UserId = ? AND AddressId = ?", [userId, addressId]);
     if (address.IsDefault) await tx.run("UPDATE Addresses SET IsDefault = 1 WHERE AddressId = (SELECT AddressId FROM Addresses WHERE UserId = ? ORDER BY AddressId LIMIT 1)", [userId]);
     return address;
