@@ -196,7 +196,7 @@ ensureAdminUser().then(() => {
   const cleanupReservations = async () => {
     try {
       const expiring = await listExpiringReservations();
-      for (const reservation of expiring) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expiring Soon", "Your checkout reservation expires in less than 5 minutes.", "RESERVATION_EXPIRING");
+      for (const reservation of expiring) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expiring Soon", "Hurry! Your reservation will expire soon. Complete payment within the next 2 minutes.", "RESERVATION_EXPIRING");
       const expired = await releaseExpiredReservations();
       for (const reservation of expired) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expired", "Your checkout reservation expired and the items were released.", "RESERVATION_EXPIRED");
     } catch (error) {

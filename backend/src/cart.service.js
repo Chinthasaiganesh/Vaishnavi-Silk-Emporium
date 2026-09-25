@@ -1,11 +1,12 @@
 import { clearCart, getCartItem, getCartItemByProduct, getCartItems, getOrCreateCart, getProduct, removeItem, saveItem } from "./cart.repository.js";
+import { stockUnavailableError } from "./utils.js";
 
 function assertQuantity(quantity) {
   if (!Number.isInteger(quantity) || quantity < 1) throw Object.assign(new Error("Quantity must be a positive integer."), { status: 400 });
 }
 
-function assertStock(quantity, availableStock) {
-  if (availableStock < quantity) throw Object.assign(new Error(availableStock === 0 ? "Currently out of stock." : `Only ${availableStock} item${availableStock === 1 ? "" : "s"} available.`), { status: 409 });
+function assertStock(quantity, availableStock, reservedStock = 0) {
+  if (availableStock < quantity) throw stockUnavailableError(availableStock, reservedStock);
 }
 
 export function calculateTotals(items) {
@@ -26,7 +27,9 @@ function mapCartItem(item) {
   const originalPrice = Number(item.OriginalPrice ?? item.UnitPrice ?? 0);
   const unitPrice = Number(item.UnitPrice ?? originalPrice);
   const discountPercentage = unitPrice < originalPrice ? Math.round(((originalPrice - unitPrice) / originalPrice) * 100) : 0;
-  return { cartItemId: item.CartItemId, productId: item.ProductId, productName: item.ProductName, category: item.Category, imageUrl, quantity: item.Quantity, originalPrice, discountedPrice: unitPrice < originalPrice ? unitPrice : null, unitPrice, discountPercentage, availableStock: item.AvailableStock, subtotal: unitPrice * item.Quantity, createdDate: item.CreatedDate, updatedDate: item.UpdatedDate };
+  const availableStock = Number(item.AvailableStock ?? 0);
+  const reservedStock = Number(item.ReservedStock ?? 0);
+  return { cartItemId: item.CartItemId, productId: item.ProductId, productName: item.ProductName, category: item.Category, imageUrl, quantity: item.Quantity, originalPrice, discountedPrice: unitPrice < originalPrice ? unitPrice : null, unitPrice, discountPercentage, availableStock, reservedStock, temporarilyReserved: availableStock <= 0 && reservedStock > 0, subtotal: unitPrice * item.Quantity, createdDate: item.CreatedDate, updatedDate: item.UpdatedDate };
 }
 
 export async function getCart(userId) {
@@ -44,7 +47,7 @@ export async function addToCart(userId, productId, quantity, requestId) {
   if (!product || !product.IsActive) throw Object.assign(new Error("Product is unavailable."), { status: 404 });
   const existing = await getCartItemByProduct(cart.CartId, productId);
   const nextQuantity = (existing?.Quantity || 0) + quantity;
-  assertStock(nextQuantity, product.AvailableStock);
+  assertStock(nextQuantity, product.AvailableStock, product.ReservedStock);
   await saveItem(cart.CartId, productId, nextQuantity, product.Price, existing ? "QUANTITY_UPDATED" : "ADDED", userId, existing?.Quantity || null);
   return await getCart(userId);
 }
@@ -54,7 +57,7 @@ export async function updateQuantity(userId, cartItemId, quantity) {
   const cart = await getOrCreateCart(userId);
   const item = await getCartItem(cart.CartId, cartItemId);
   if (!item) throw Object.assign(new Error("Cart item not found."), { status: 404 });
-  assertStock(quantity, item.AvailableStock);
+  assertStock(quantity, item.AvailableStock, item.ReservedStock);
   await saveItem(cart.CartId, item.ProductId, quantity, item.UnitPrice, "QUANTITY_UPDATED", userId, item.Quantity);
   return await getCart(userId);
 }

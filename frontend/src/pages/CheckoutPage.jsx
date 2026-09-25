@@ -27,17 +27,23 @@ export default function CheckoutPage() {
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const idempotencyKey = useRef(crypto.randomUUID());
   const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
+  const serverClockOffset = useRef(0);
 
   function formatReservationTime(seconds) {
     const minutes = Math.floor(seconds / 60);
-    return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  function applyReservation(payload) {
+    if (payload?.serverTime) serverClockOffset.current = new Date(payload.serverTime).getTime() - Date.now();
+    setReservation(payload || null);
+    return payload;
   }
 
   async function reserveCheckout(selectedAddressId) {
     const response = await api.post("/checkout/reserve", { addressId: Number(selectedAddressId), sessionId: reservationSessionId.current });
     localStorage.setItem("checkout-reservation-session", reservationSessionId.current);
-    setReservation(response.data.reservation);
-    return response.data.reservation;
+    return applyReservation(response.data.reservation);
   }
 
   async function load() {
@@ -61,15 +67,39 @@ export default function CheckoutPage() {
     return () => window.clearInterval(timer);
   }, [reservation]);
 
-  const remainingSeconds = reservation ? Math.max(0, Math.ceil((new Date(reservation.ExpiresAt).getTime() - Date.now()) / 1000)) : 0;
+  // The reservation clock is owned by the server, so resync whenever this tab regains focus.
+  useEffect(() => {
+    if (!reservation?.ReservationId) return undefined;
+    const reservationId = reservation.ReservationId;
+    async function resync() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const response = await api.get(`/checkout/reservations/${reservationId}`);
+        applyReservation(response.data.reservation);
+      } catch { /* the expiry effect handles an unreachable reservation */ }
+    }
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    const poll = window.setInterval(resync, 30000);
+    return () => {
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+      window.clearInterval(poll);
+    };
+  }, [reservation?.ReservationId]);
+
+  const remainingSeconds = reservation?.ReservationStatus === "ACTIVE" ? Math.max(0, Math.ceil((new Date(reservation.ExpiresAt).getTime() - (Date.now() + serverClockOffset.current)) / 1000)) : 0;
   useEffect(() => {
     if (!reservation || remainingSeconds > 0) return;
     api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
     localStorage.removeItem("checkout-reservation-session");
     setReservation(null);
     setUpiPayment(null);
-    navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please place the order again." } });
+    navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please start checkout again." } });
   }, [reservation, remainingSeconds, navigate]);
+
+  const reservationTone = remainingSeconds <= 30 ? "critical" : remainingSeconds <= 60 ? "urgent" : remainingSeconds <= 120 ? "warning" : "";
+  const reservationWarning = remainingSeconds <= 30 ? "Final moments! Submit your payment proof now or the items will be released." : remainingSeconds <= 60 ? "Less than one minute remaining to complete payment." : remainingSeconds <= 120 ? "Hurry! Your reservation will expire soon." : "";
 
   function addressToForm(address) {
     return { fullName: address.FullName, mobileNumber: address.MobileNumber, addressLine1: address.AddressLine1, addressLine2: address.AddressLine2 || "", city: address.City, state: address.State, postalCode: address.PostalCode, country: address.Country || "India", isDefault: Boolean(address.IsDefault) };
@@ -140,6 +170,7 @@ export default function CheckoutPage() {
       return;
     }
     if (!paymentScreenshot) { setError("Upload your payment screenshot before continuing."); return; }
+    if (!reservation || remainingSeconds <= 0) { setError("Your reservation has expired. Please start checkout again."); return; }
     setPlacing(true); setError("");
     try {
       const formData = new FormData();
@@ -156,7 +187,7 @@ export default function CheckoutPage() {
     } catch (requestError) {
       if (requestError.response?.data?.code === "RESERVATION_EXPIRED") {
         localStorage.removeItem("checkout-reservation-session");
-        navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please place the order again." } });
+        navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please start checkout again." } });
         return;
       }
       setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
@@ -171,7 +202,7 @@ export default function CheckoutPage() {
     <main className="container section checkout-page">
       <div className="section-head"><div><p className="eyebrow">Secure order review</p><h1>Checkout</h1></div></div>
       {error && <p className="error-text" role="alert">{error}</p>}
-      {reservation && <div className={`reservation-timer${remainingSeconds <= 60 ? " urgent" : remainingSeconds <= 300 ? " warning" : ""}`} role="status"><strong>Items reserved for checkout</strong><span>Your items are reserved for {formatReservationTime(remainingSeconds)} minutes.</span>{remainingSeconds <= 60 && <small>Complete payment now. Your reservation will expire shortly.</small>}{remainingSeconds > 60 && remainingSeconds <= 300 && <small>Your reservation expires soon.</small>}</div>}
+      {reservation && <div className={`reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`} role="status" aria-live={remainingSeconds <= 60 ? "assertive" : "polite"}><strong>Items reserved for checkout</strong><span>Your items are reserved for {formatReservationTime(remainingSeconds)} minutes.</span>{reservationWarning && <small>{reservationWarning}</small>}</div>}
       <div className="checkout-layout">
         <section className="checkout-main">
           <article className="checkout-section">
@@ -196,7 +227,7 @@ export default function CheckoutPage() {
         <section className="payment-modal">
           <button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button>
           <h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2>
-          {reservation && <div className={`reservation-timer modal-reservation-timer${remainingSeconds <= 60 ? " urgent" : remainingSeconds <= 300 ? " warning" : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>Submit payment proof before the timer expires.</span></div>}
+          {reservation && <div className={`reservation-timer modal-reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>{reservationWarning || "Submit payment proof before the timer expires."}</span></div>}
           <p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p>
           <img src={upiPayment.qrDataUrl} alt="UPI payment QR code" />
           <p><strong>{upiPayment.upiId}</strong></p>

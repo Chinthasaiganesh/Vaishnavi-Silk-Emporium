@@ -30,7 +30,21 @@ export async function releaseExpiredReservations() {
 }
 
 export async function listExpiringReservations() {
-  return await db.prepare("SELECT ReservationId, UserId, ExpiresAt FROM CheckoutReservations WHERE ReservationStatus = 'ACTIVE' AND ExpiresAt > ? AND ExpiresAt <= ?").all(nowIso(), new Date(Date.now() + 5 * 60 * 1000).toISOString());
+  return await db.prepare("SELECT ReservationId, UserId, ExpiresAt FROM CheckoutReservations WHERE ReservationStatus = 'ACTIVE' AND ExpiresAt > ? AND ExpiresAt <= ?").all(nowIso(), new Date(Date.now() + 2 * 60 * 1000).toISOString());
+}
+
+export function reservationView(reservation) {
+  if (!reservation) return null;
+  const now = Date.now();
+  const expiresAt = new Date(reservation.ExpiresAt).getTime();
+  const isActive = reservation.ReservationStatus === "ACTIVE" && expiresAt > now;
+  return {
+    ...reservation,
+    ReservationStatus: reservation.ReservationStatus === "ACTIVE" && !isActive ? "EXPIRED" : reservation.ReservationStatus,
+    serverTime: new Date(now).toISOString(),
+    remainingSeconds: isActive ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : 0,
+    totalSeconds: config.checkoutReservationMinutes * 60
+  };
 }
 
 export async function getReservation(userId, reservationId) {
