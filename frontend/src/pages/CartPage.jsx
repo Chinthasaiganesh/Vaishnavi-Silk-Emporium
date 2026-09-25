@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { useCart } from "../CartContext";
 import { formatCurrency } from "../utils/currency";
 import ProductPrice from "../components/ProductPrice";
@@ -7,8 +8,15 @@ import { resolveImageUrl } from "../utils/image";
 function money(value) { return formatCurrency(value); }
 
 export default function CartPage() {
+  const location = useLocation();
   const { cart, updateQuantity, removeItem, clearCart } = useCart();
   const { items, totals } = cart;
+
+  useEffect(() => {
+    if (!location.state?.message) return;
+    window.alert(location.state.message);
+    window.history.replaceState({}, document.title);
+  }, [location]);
 
   return <main className="container section cart-page">
     <div className="section-head"><div><p className="eyebrow">Your selection</p><h1>Shopping Cart</h1></div>{items.length > 0 && <button className="btn btn-outline" onClick={clearCart}>Clear Cart</button>}</div>

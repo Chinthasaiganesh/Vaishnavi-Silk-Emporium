@@ -53,8 +53,10 @@ export async function updateStock(productId, stock, adminUserId, action = "UPDAT
   const timestamp = nowIso();
   const existing = await getInventoryById(productId);
   if (!existing) return null;
-  const status = statusFor(stock);
-  await db.prepare("UPDATE Inventory SET CurrentStock = ?, AvailableStock = ?, Status = ?, UpdatedDate = ? WHERE ProductId = ?").run(stock, stock, status, timestamp, productId);
+  if (stock < existing.ReservedStock) throw Object.assign(new Error(`Stock cannot be lower than the ${existing.ReservedStock} units reserved for checkout.`), { status: 409, code: "STOCK_BELOW_RESERVATIONS" });
+  const availableStock = stock - existing.ReservedStock;
+  const status = statusFor(availableStock);
+  await db.prepare("UPDATE Inventory SET CurrentStock = ?, AvailableStock = ?, Status = ?, UpdatedDate = ? WHERE ProductId = ?").run(stock, availableStock, status, timestamp, productId);
   await db.prepare("UPDATE Products SET Quantity = ?, UpdatedDate = ? WHERE ProductId = ?").run(stock, timestamp, productId);
   if (existing.CurrentStock !== stock) await recordProductAudit({ productId, userId: adminUserId, action: "INVENTORY_CHANGED", oldValues: { quantity: existing.CurrentStock }, newValues: { quantity: stock } });
   await db.prepare("INSERT INTO InventoryAuditLog (InventoryId, ProductId, AdminUserId, Action, OldStock, NewStock, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)").run(existing.InventoryId, productId, adminUserId, action, existing.CurrentStock, stock, timestamp);

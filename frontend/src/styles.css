@@ -1215,6 +1215,15 @@ a {
 .checkout-trust div { display: grid; gap: 0.1rem; }
 .checkout-trust small { color: #47785d; font-size: 0.72rem; }
 .checkout-pay-button { width: 100%; min-height: 3rem; }
+.reservation-timer { display: grid; gap: 0.2rem; margin: 0 0 1rem; border: 1px solid rgba(45, 118, 82, 0.3); border-radius: 0.65rem; padding: 0.8rem 0.95rem; color: #245d40; background: #f0faf3; }
+.reservation-timer strong { font-size: 1rem; }
+.reservation-timer span, .reservation-timer small { overflow-wrap: anywhere; }
+.reservation-timer small { color: #47785d; }
+.reservation-timer.warning { border-color: rgba(180, 115, 33, 0.45); color: #88500b; background: #fff8e9; }
+.reservation-timer.warning small { color: #9a6a2b; }
+.reservation-timer.urgent { border-color: rgba(180, 67, 33, 0.5); color: #9f2d2d; background: #fff1ed; }
+.reservation-timer.urgent small { color: #a44b3b; }
+.modal-reservation-timer { margin: 0; text-align: left; }
 .checkout-section { padding: 1.25rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--card); box-shadow: 0 8px 24px rgba(70, 33, 46, 0.07); }
 .checkout-section h2, .checkout-section-heading h2 { margin: 0; font-size: 1.35rem; }
 .checkout-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }

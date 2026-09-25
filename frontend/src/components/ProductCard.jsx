@@ -12,7 +12,7 @@ export default function ProductCard({ product }) {
       <div className="product-card-image-wrap">
         {product.isFeatured && <span className="discount-badge">Featured</span>}
         <ProductMediaCarousel product={product} />
-        {product.quantity <= 0 && <span className="stock-ribbon" aria-label="Out of stock">Out of Stock</span>}
+        {product.quantity <= 0 && <span className="stock-ribbon" aria-label={product.availabilityStatus || "Temporarily unavailable"}>{product.availabilityStatus || "Temporarily unavailable"}</span>}
       </div>
       <div className="product-card-body">
         <p className="pill">{product.category}</p>
@@ -21,7 +21,7 @@ export default function ProductCard({ product }) {
         <RatingBadge rating={product.rating} productId={product.productId} />
         <div className="product-meta">
           <span className={product.quantity > 0 ? "status in" : "status out"}>
-            {product.quantity > 0 ? t("inStock") : t("outOfStock")}
+            {product.quantity > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
           </span>
           <ProductPrice product={product} showSavings={false} />
         </div>

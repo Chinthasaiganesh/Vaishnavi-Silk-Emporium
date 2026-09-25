@@ -20,7 +20,9 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		const paymentReference = req.body.paymentReference || null;
 		if (paymentMethod !== "UPI_MANUAL" || !paymentReference || !req.file) return res.status(400).json({ success: false, message: "UPI reference and payment screenshot are required." });
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
-		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url);
+		const reservationId = req.get("Checkout-Reservation-Id")?.trim();
+		if (!reservationId) return res.status(409).json({ success: false, code: "RESERVATION_REQUIRED", message: "Your checkout reservation is missing. Please return to checkout and reserve your items again." });
+		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url, reservationId);
 		await sendOrderNotification(order, "Payment Submitted", "We have received your payment details and will verify them shortly.", "PAYMENT_STATUS");
 		if (Number(order.DiscountAmount) > 0) {
 			const saved = Number(order.DiscountAmount).toFixed(2);

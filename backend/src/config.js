@@ -30,6 +30,7 @@ export const config = {
   isAllowedOrigin,
   clientOrigin: clientOrigins[0],
   publicApiOrigin: process.env.PUBLIC_API_ORIGIN || `http://localhost:${process.env.PORT || 4000}`,
+  checkoutReservationMinutes: Math.max(1, Number(process.env.CHECKOUT_RESERVATION_MINUTES || 15)),
   jwtSecret: process.env.JWT_SECRET || "development-only-secret-change-me",
   nodeEnv,
   databaseUrl: process.env.DATABASE_URL || "",

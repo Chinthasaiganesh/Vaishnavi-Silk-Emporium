@@ -33,7 +33,7 @@ function mapProduct(row, canViewPrice = true) {
     canViewPrice,
     imageUrl: imageUrls[0] || "",
     imageUrls,
-    quantity: row.Quantity,
+    quantity: row.AvailableQuantity ?? row.Quantity,
     isActive: Boolean(row.IsActive),
     isFeatured: Boolean(row.IsFeatured),
     fabric: row.Fabric,
@@ -44,7 +44,7 @@ function mapProduct(row, canViewPrice = true) {
     blousePieceIncluded: Boolean(row.BlousePieceIncluded),
     careInstructions: row.CareInstructions,
     rating: row.Rating,
-    availabilityStatus: row.Quantity > 0 ? "In Stock" : "Out of Stock",
+    availabilityStatus: (row.AvailableQuantity ?? row.Quantity) > 0 ? "In Stock" : "Temporarily unavailable",
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
@@ -89,7 +89,7 @@ router.get(
     const featuredOnly = req.query.featured === "true";
 
     const canViewPrice = Boolean(req.user);
-    const activeProducts = await db.prepare("SELECT * FROM Products WHERE IsActive = 1").all();
+    const activeProducts = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.IsActive = 1").all();
 
     let products = activeProducts.filter((p) => {
       const text = `${p.ProductName} ${p.Description} ${p.Category} ${p.Fabric} ${p.Colour} ${p.Occasion} ${p.WeavingStyle}`.toLowerCase();
@@ -117,7 +117,7 @@ router.get(
 
 router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, async (req, res) => {
   const id = Number(req.params.id);
-  const row = await db.prepare("SELECT * FROM Products WHERE ProductId = ? AND IsActive = 1").get(id);
+  const row = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
   if (!row) {
     await logProductEvent("Product Load Miss", req.requestId, { scope: "public-detail", productId: id });
     return res.status(404).json({ message: "Product not found." });

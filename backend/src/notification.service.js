@@ -47,3 +47,9 @@ export async function sendOrderNotification(order, title, message, type = "ORDER
   if (existing) return existing;
   return await db.prepare("INSERT INTO Notifications (UserId, ProductId, OrderId, Type, Title, Message, CreatedDate) VALUES (?, NULL, ?, ?, ?, ?, ?)").run(order.UserId, order.OrderId, type, title, message, nowIso());
 }
+
+export async function sendReservationNotification(userId, reservationId, title, message, type) {
+  const existing = await db.prepare("SELECT NotificationId FROM Notifications WHERE UserId = ? AND Type = ? AND Title = ? AND Message = ? LIMIT 1").get(userId, type, title, message);
+  if (existing) return existing;
+  return await db.prepare("INSERT INTO Notifications (UserId, ProductId, OrderId, Type, Title, Message, CreatedDate) VALUES (?, NULL, NULL, ?, ?, ?, ?)").run(userId, type, title, message, nowIso());
+}
