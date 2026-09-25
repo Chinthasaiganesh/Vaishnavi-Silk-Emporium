@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { formatCurrency } from "../utils/currency";
 import { useCart } from "../CartContext";
+import { useNotifier } from "../NotifierContext";
+import { buildNotification } from "../utils/notificationPresets";
 import QRCode from "qrcode";
 import { resolveImageUrl } from "../utils/image";
 
@@ -11,6 +13,7 @@ const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", address
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { refreshCart } = useCart();
+  const { notify, confirm } = useNotifier();
   const [summary, setSummary] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [addressId, setAddressId] = useState("");
@@ -28,6 +31,8 @@ export default function CheckoutPage() {
   const idempotencyKey = useRef(crypto.randomUUID());
   const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
   const serverClockOffset = useRef(0);
+  const announcedReservation = useRef(false);
+  const announcedExpiryWarning = useRef(false);
 
   function formatReservationTime(seconds) {
     const minutes = Math.floor(seconds / 60);
@@ -89,13 +94,27 @@ export default function CheckoutPage() {
   }, [reservation?.ReservationId]);
 
   const remainingSeconds = reservation?.ReservationStatus === "ACTIVE" ? Math.max(0, Math.ceil((new Date(reservation.ExpiresAt).getTime() - (Date.now() + serverClockOffset.current)) / 1000)) : 0;
+
+  useEffect(() => {
+    if (!reservation?.ExpiresAt || remainingSeconds <= 0) return;
+    if (!announcedReservation.current) {
+      announcedReservation.current = true;
+      notify(buildNotification("RESERVATION_STARTED", { id: `reservation-started-${reservation.ReservationId}`, countdown: { expiresAt: reservation.ExpiresAt, totalSeconds: reservation.totalSeconds, label: "Reservation time remaining" } }));
+      return;
+    }
+    if (remainingSeconds <= 120 && !announcedExpiryWarning.current) {
+      announcedExpiryWarning.current = true;
+      notify(buildNotification("RESERVATION_EXPIRING", { id: `reservation-expiring-${reservation.ReservationId}`, countdown: { expiresAt: reservation.ExpiresAt, totalSeconds: reservation.totalSeconds, label: "Reservation time remaining" }, primaryAction: { onClick: () => { if (!upiPayment) startUpiPayment(); } } }));
+    }
+  }, [reservation?.ExpiresAt, remainingSeconds]);
+
   useEffect(() => {
     if (!reservation || remainingSeconds > 0) return;
     api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
     localStorage.removeItem("checkout-reservation-session");
     setReservation(null);
     setUpiPayment(null);
-    navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please start checkout again." } });
+    navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
   }, [reservation, remainingSeconds, navigate]);
 
   const reservationTone = remainingSeconds <= 30 ? "critical" : remainingSeconds <= 60 ? "urgent" : remainingSeconds <= 120 ? "warning" : "";
@@ -137,7 +156,8 @@ export default function CheckoutPage() {
   }
 
   async function removeAddress(address) {
-    if (!window.confirm("Delete this saved address?")) return;
+    const confirmed = await confirm({ variant: "warning", icon: "alert", eyebrow: "Delete address", title: "Delete This Address?", message: "This saved delivery address will be removed from your account. You can add it again later.", confirmLabel: "Delete Address", cancelLabel: "Keep Address" });
+    if (!confirmed) return;
     try {
       await api.delete(`/addresses/${address.AddressId}`);
       const remaining = addresses.filter((item) => item.AddressId !== address.AddressId);
@@ -183,11 +203,11 @@ export default function CheckoutPage() {
       localStorage.removeItem("checkout-reservation-session");
       setReservation(null);
       setUpiPayment(null); setPaymentScreenshot(null);
-      navigate(`/orders/${response.data.order.OrderId}`, { replace: true });
+      notify(buildNotification("PAYMENT_SUBMITTED", { dismissible: false, primaryAction: { label: "View Order", to: `/orders/${response.data.order.OrderId}`, navigateOptions: { replace: true } }, footnote: `Order ${response.data.order.OrderNumber || ""}`.trim() }));
     } catch (requestError) {
       if (requestError.response?.data?.code === "RESERVATION_EXPIRED") {
         localStorage.removeItem("checkout-reservation-session");
-        navigate("/cart", { replace: true, state: { message: "Your reservation has expired. Please start checkout again." } });
+        navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
         return;
       }
       setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");

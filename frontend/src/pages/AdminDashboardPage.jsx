@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import { useNotifier } from "../NotifierContext";
 import { formatCurrency } from "../utils/currency";
 import { resolveImageUrl } from "../utils/image";
 import CategoryCombobox from "../components/CategoryCombobox";
@@ -28,6 +29,7 @@ const initialForm = {
 };
 
 export default function AdminDashboardPage() {
+  const { confirm } = useNotifier();
   const [summary, setSummary] = useState({ totalProducts: 0, activeProducts: 0, lowStockProducts: 0 });
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -199,9 +201,8 @@ export default function AdminDashboardPage() {
   }
 
   async function deleteProduct(id) {
-    if (!window.confirm("Delete this product?")) {
-      return;
-    }
+    const confirmed = await confirm({ variant: "error", icon: "alert", eyebrow: "Delete product", title: "Delete This Product?", message: "The product will be removed from the catalogue and will no longer be visible to customers. This cannot be undone.", confirmLabel: "Delete Product", cancelLabel: "Keep Product" });
+    if (!confirmed) return;
     try {
       await api.delete(`/products/admin/${id}`);
       setMessage("Product deleted.");

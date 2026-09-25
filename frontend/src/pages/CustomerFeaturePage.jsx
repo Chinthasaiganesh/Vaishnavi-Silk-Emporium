@@ -6,6 +6,8 @@ import { getRecentlyViewed } from "../customerData";
 import { api } from "../api";
 import RatingBadge from "../components/RatingBadge";
 import ProductPrice from "../components/ProductPrice";
+import { NotificationGlyph } from "../components/NotificationModal";
+import { resolveNotificationVisual } from "../utils/notificationPresets";
 import { resolveImageUrl } from "../utils/image";
 
 function formatRelativeTime(value) {
@@ -17,13 +19,6 @@ function formatRelativeTime(value) {
   const [unit, seconds] = units.find(([, unitSeconds]) => elapsedSeconds >= unitSeconds) || ["minute", 60];
   const amount = Math.floor(elapsedSeconds / seconds);
   return `${amount} ${unit}${amount > 1 ? "s" : ""} ago`;
-}
-
-function getNotificationIcon(type) {
-  if (type === "PAYMENT_STATUS") return "Payment";
-  if (type === "ORDER_STATUS") return "Order";
-  if (type === "BACK_IN_STOCK" || type === "INVENTORY") return "Stock";
-  return "Note";
 }
 
 function getNotificationTarget(notification) {
@@ -169,6 +164,7 @@ export default function CustomerFeaturePage({ type }) {
             <AnimatePresence initial={false}>
               {notifications.map((notification) => {
                 const target = getNotificationTarget(notification);
+                const visual = resolveNotificationVisual(notification);
                 return (
                   <motion.article
                     layout
@@ -186,7 +182,7 @@ export default function CustomerFeaturePage({ type }) {
                     transition={{ duration: 0.24, ease: "easeOut" }}
                   >
                     {target && <Link className="notification-item-target" to={target.to} aria-label={`${notification.title}: ${target.label}`} onClick={() => { if (!notification.isRead) markAsRead(notification.notificationId); }} />}
-                    <div className="notification-icon" aria-hidden="true">{getNotificationIcon(notification.type)}</div>
+                    <div className={`notification-icon notification-icon-${visual.variant}`} aria-hidden="true"><NotificationGlyph icon={visual.icon} variant={visual.variant} reducedMotion /></div>
                     <div className="notification-copy">
                       <div className="notification-title-row">
                         <h3>{notification.title}</h3>

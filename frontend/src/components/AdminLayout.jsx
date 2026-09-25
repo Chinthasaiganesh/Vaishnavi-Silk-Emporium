@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
+import { useNotifier } from "../NotifierContext";
 import Avatar from "./Avatar";
 
 const adminLinks = [
@@ -18,6 +19,7 @@ export default function AdminLayout() {
   const { continueSession, expiryWarning, user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirm } = useNotifier();
   const [sessionMessage, setSessionMessage] = useState("");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem("adminSidebarCollapsed") === "true");
@@ -25,9 +27,8 @@ export default function AdminLayout() {
   const mainRef = useRef(null);
 
   async function handleLogout() {
-    if (!window.confirm("Log out of the admin portal?")) {
-      return;
-    }
+    const confirmed = await confirm({ variant: "info", icon: "info", eyebrow: "Admin session", title: "Log Out Of The Admin Portal?", message: "You'll need to sign in again to manage products, inventory, and orders.", confirmLabel: "Log Out", cancelLabel: "Stay Signed In" });
+    if (!confirmed) return;
     await logout();
     navigate("/", { replace: true });
   }

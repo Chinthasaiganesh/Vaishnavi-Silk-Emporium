@@ -4,6 +4,211 @@
 .payment-modal img { width: 280px; max-width: 100%; margin: 0 auto; }
 .payment-modal input { width: 100%; padding: 0.75rem; }
 .payment-modal small { color: var(--muted, #666); }
+
+/* Notification modal ------------------------------------------------------ */
+.notification-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgb(28 12 18 / 52%);
+  backdrop-filter: blur(6px);
+}
+
+.notification-modal {
+  --n-accent: #17557f;
+  --n-accent-strong: #0f3d5e;
+  --n-accent-soft: #eaf3fa;
+  position: relative;
+  width: min(100%, 27rem);
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 2rem 1.75rem 1.65rem;
+  background: var(--card);
+  box-shadow: 0 28px 70px rgb(42 18 28 / 28%), 0 2px 8px rgb(42 18 28 / 10%);
+  text-align: center;
+}
+
+.notification-modal::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.3rem;
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: linear-gradient(90deg, var(--n-accent), var(--n-accent-strong));
+}
+
+.notification-modal-success { --n-accent: #1b7f4d; --n-accent-strong: #146239; --n-accent-soft: #e9f7ef; }
+.notification-modal-warning { --n-accent: #a1660c; --n-accent-strong: #7d4f06; --n-accent-soft: #fdf4e3; }
+.notification-modal-error { --n-accent: #b3261e; --n-accent-strong: #8c1b15; --n-accent-soft: #fdecea; }
+.notification-modal-info { --n-accent: #17557f; --n-accent-strong: #0f3d5e; --n-accent-soft: #eaf3fa; }
+
+:root[data-theme="dark"] .notification-modal-success { --n-accent: #4ade80; --n-accent-strong: #22c55e; --n-accent-soft: rgb(34 197 94 / 16%); }
+:root[data-theme="dark"] .notification-modal-warning { --n-accent: #fbbf24; --n-accent-strong: #f59e0b; --n-accent-soft: rgb(245 158 11 / 16%); }
+:root[data-theme="dark"] .notification-modal-error { --n-accent: #f87171; --n-accent-strong: #ef4444; --n-accent-soft: rgb(239 68 68 / 16%); }
+:root[data-theme="dark"] .notification-modal-info { --n-accent: #7dd3fc; --n-accent-strong: #38bdf8; --n-accent-soft: rgb(56 189 248 / 16%); }
+
+.notification-modal-grip { display: none; }
+
+.notification-modal-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.notification-modal-close:hover { color: var(--text); background: var(--n-accent-soft); }
+.notification-modal-close:focus-visible { outline: 2px solid var(--n-accent); outline-offset: 2px; }
+
+.notification-modal-glyph {
+  display: grid;
+  width: 4.25rem;
+  height: 4.25rem;
+  margin: 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--n-accent-soft);
+}
+
+.notification-modal-glyph svg {
+  width: 2.1rem;
+  height: 2.1rem;
+  fill: none;
+  stroke: var(--n-accent);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notification-modal-copy { display: grid; gap: 0.45rem; }
+
+.notification-modal-eyebrow {
+  margin: 0;
+  color: var(--n-accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.notification-modal-copy h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  line-height: 1.25;
+}
+
+.notification-modal-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.notification-modal-detail {
+  border-radius: 0.65rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--n-accent-soft);
+  color: var(--n-accent-strong) !important;
+  font-size: 0.85rem !important;
+  font-weight: 600;
+}
+
+.notification-countdown { display: grid; gap: 0.4rem; text-align: left; }
+
+.notification-countdown-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.notification-countdown-head strong {
+  color: var(--n-accent-strong);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.notification-countdown-track {
+  height: 0.4rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--n-accent-soft);
+}
+
+.notification-countdown-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--n-accent), var(--n-accent-strong));
+  transition: width 900ms linear;
+}
+
+.notification-modal-actions { display: grid; gap: 0.6rem; }
+.notification-modal-actions .btn { width: 100%; min-height: 2.9rem; border-radius: 0.8rem; }
+
+.notification-modal-actions .btn-primary {
+  background: linear-gradient(135deg, var(--n-accent), var(--n-accent-strong));
+  box-shadow: 0 10px 24px rgb(42 18 28 / 18%);
+}
+
+.notification-modal-actions .btn-primary:active { transform: translateY(1px); }
+.notification-modal-actions .btn-outline { border-color: var(--border); color: var(--text); background: transparent; }
+.notification-modal-actions .btn-outline:hover { background: var(--n-accent-soft); }
+.notification-modal-actions .btn:focus-visible { outline: 2px solid var(--n-accent); outline-offset: 2px; }
+.notification-modal-actions .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.notification-modal-footnote { color: var(--muted); font-size: 0.75rem; }
+
+@media (max-width: 600px) {
+  .notification-modal-backdrop { align-items: end; padding: 0; }
+
+  .notification-modal {
+    width: 100%;
+    border-width: 0;
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding: 1.35rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  }
+
+  .notification-modal::before { border-radius: 1.25rem 1.25rem 0 0; }
+
+  .notification-modal-grip {
+    display: block;
+    width: 2.6rem;
+    height: 0.28rem;
+    margin: 0 auto -0.35rem;
+    border-radius: 999px;
+    background: var(--border);
+  }
+
+  .notification-modal-close { top: 0.6rem; right: 0.6rem; }
+  .notification-modal-actions .btn { min-height: 3.15rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-countdown-fill { transition: none; }
+}
+
 :root {
   --primary: #8e3a59;
   --secondary: #ffffff;
@@ -2823,7 +3028,16 @@ a {
 .notification-item:hover, .notification-item:focus-within { border-color: rgba(142, 58, 89, 0.25); box-shadow: 0 18px 34px rgba(70, 33, 46, 0.11); }
 .notification-item.unread { border-color: rgba(37, 99, 235, 0.28); border-left: 4px solid #2563eb; background: linear-gradient(135deg, rgba(239, 246, 255, 0.98), rgba(255, 255, 255, 0.96)); }
 .notification-icon { display: grid; width: 3.15rem; height: 3.15rem; place-items: center; border-radius: 0.7rem; color: var(--primary); background: #fff2e9; font-size: 0.78rem; font-weight: 900; }
-.notification-item.unread .notification-icon { color: #174ea6; background: #dbeafe; }
+.notification-icon svg { width: 1.5rem; height: 1.5rem; fill: none; stroke: currentcolor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.notification-icon-success { color: #146239; background: #e9f7ef; }
+.notification-icon-warning { color: #7d4f06; background: #fdf4e3; }
+.notification-icon-error { color: #8c1b15; background: #fdecea; }
+.notification-icon-info { color: #0f3d5e; background: #eaf3fa; }
+:root[data-theme="dark"] .notification-icon-success { color: #4ade80; background: rgb(34 197 94 / 16%); }
+:root[data-theme="dark"] .notification-icon-warning { color: #fbbf24; background: rgb(245 158 11 / 16%); }
+:root[data-theme="dark"] .notification-icon-error { color: #f87171; background: rgb(239 68 68 / 16%); }
+:root[data-theme="dark"] .notification-icon-info { color: #7dd3fc; background: rgb(56 189 248 / 16%); }
+.notification-item.unread .notification-icon { box-shadow: inset 0 0 0 1.5px currentcolor; }
 .notification-copy { display: grid; min-width: 0; gap: 0.28rem; }
 .notification-title-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .notification-title-row h3, .notification-copy p, .notification-copy small { margin: 0; }

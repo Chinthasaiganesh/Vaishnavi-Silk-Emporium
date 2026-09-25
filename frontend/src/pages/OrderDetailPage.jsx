@@ -2,6 +2,8 @@ import { Link, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api";
+import { useNotifier } from "../NotifierContext";
+import { buildNotification } from "../utils/notificationPresets";
 import { formatCurrency } from "../utils/currency";
 import { resolveImageUrl } from "../utils/image";
 
@@ -93,6 +95,7 @@ export default function OrderDetailPage() {
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const reducedMotion = useReducedMotion();
+  const { notify } = useNotifier();
   useEffect(() => {
     api
       .get(`/orders/${id}`)
@@ -103,6 +106,26 @@ export default function OrderDetailPage() {
         ),
       );
   }, [id]);
+  useEffect(() => {
+    if (!order) return;
+    const preset = order.PaymentStatus === "VERIFIED" ? "PAYMENT_APPROVED"
+      : order.PaymentStatus === "REJECTED" && order.OrderStatus !== "CANCELLED" ? "PAYMENT_REJECTED"
+        : order.OrderStatus === "SHIPPED" ? "ORDER_SHIPPED"
+          : order.OrderStatus === "PACKED" ? "ORDER_PACKED"
+            : null;
+    if (!preset) return;
+    // Announce each status transition once per browser session rather than on every visit.
+    const storageKey = `order-notice-${order.OrderId}`;
+    const signature = `${order.PaymentStatus}:${order.OrderStatus}`;
+    if (window.sessionStorage.getItem(storageKey) === signature) return;
+    window.sessionStorage.setItem(storageKey, signature);
+    notify(buildNotification(preset, {
+      detail: preset === "PAYMENT_REJECTED" && order.PaymentRejectionReason ? `Reason: ${order.PaymentRejectionReason}` : undefined,
+      primaryAction: preset === "PAYMENT_REJECTED"
+        ? { onClick: () => document.getElementById("payment-reference")?.focus() }
+        : { label: "Got it" }
+    }));
+  }, [order?.OrderId, order?.PaymentStatus, order?.OrderStatus, notify]);
   if (error)
     return (
       <main className="container section">
@@ -161,6 +184,7 @@ export default function OrderDetailPage() {
       setPaymentReference("");
       setPaymentScreenshot(null);
       setMessage(response.data.message);
+      notify(buildNotification("PAYMENT_SUBMITTED", { primaryAction: { label: "Got it" } }));
       window.dispatchEvent(new CustomEvent("notifications:changed"));
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Unable to submit payment proof.");

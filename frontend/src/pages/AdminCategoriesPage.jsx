@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { useNotifier } from "../NotifierContext";
 
 const blank = { categoryName: "", description: "", isActive: true };
 
 export default function AdminCategoriesPage() {
+  const { confirm } = useNotifier();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState(null);
@@ -77,7 +79,7 @@ export default function AdminCategoriesPage() {
                   <td data-label="Products">{category.productCount}</td>
                   <td data-label="Status">{category.isActive ? "Active" : "Inactive"}</td>
                   <td data-label="Created">{new Date(category.createdDate).toLocaleDateString()}</td>
-                  <td data-label="Actions"><button className="link-btn" onClick={() => { setEditing(category.categoryId); setForm({ categoryName: category.categoryName, description: category.description, isActive: category.isActive }); }}>Edit</button><button className="link-btn danger" onClick={async () => { if (window.confirm("Delete this category?")) { await api.delete(`/categories/${category.categoryId}`); await load(); } }}>Delete</button></td>
+                  <td data-label="Actions"><button className="link-btn" onClick={() => { setEditing(category.categoryId); setForm({ categoryName: category.categoryName, description: category.description, isActive: category.isActive }); }}>Edit</button><button className="link-btn danger" onClick={async () => { const confirmed = await confirm({ variant: "error", icon: "alert", eyebrow: "Delete category", title: "Delete This Category?", message: "Products assigned to this category will need to be re-categorised. This cannot be undone.", confirmLabel: "Delete Category", cancelLabel: "Keep Category" }); if (confirmed) { await api.delete(`/categories/${category.categoryId}`); await load(); } }}>Delete</button></td>
                 </tr>
               ))}
             </tbody>
