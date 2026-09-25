@@ -222,7 +222,7 @@ export default function OrderDetailPage() {
             <strong>{order.PaymentStatus === "PENDING" ? "Under Review" : prettyStatus(order.PaymentStatus)}</strong>
           </div>
           {order.PaymentStatus === "REJECTED" && <div className="payment-status-rejected"><span>Reason</span><strong>{order.PaymentRejectionReason}</strong></div>}
-          <div>
+          <div className="refund-summary-row">
             <span>Refund</span>
             <strong>{refundLabel(order)}</strong>
           </div>

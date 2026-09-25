@@ -1189,7 +1189,11 @@ a {
 .notification-bell svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .cart-summary { display: grid; gap: 0.8rem; padding: 1.25rem; position: sticky; top: 6rem; }
 .cart-summary h2 { margin: 0 0 0.35rem; font-size: 1.5rem; }
-.cart-summary > div { display: flex; justify-content: space-between; color: var(--muted); }
+.cart-summary > div { display: flex; min-width: 0; justify-content: space-between; gap: 1rem; color: var(--muted); }
+.cart-summary > div > span, .cart-summary > div > strong { min-width: 0; }
+.cart-summary > div > strong { overflow-wrap: anywhere; text-align: right; }
+.refund-summary-row { align-items: flex-start; }
+.refund-summary-row strong { max-width: 65%; color: var(--text); }
 .cart-summary .cart-total { padding-top: 0.8rem; border-top: 1px solid var(--border); color: var(--text); font-size: 1.12rem; }
 .cart-summary .btn { width: 100%; }
 .cart-empty { display: grid; justify-items: center; gap: 0.6rem; padding: 4rem 1.5rem; text-align: center; }
@@ -1315,7 +1319,7 @@ a {
 .cancellation-detail dt { color: var(--muted); font-size: 0.8rem; font-weight: 800; }
 .cancellation-detail dd { margin: 0; overflow-wrap: anywhere; }
 .refund-detail { display: grid; grid-template-columns: minmax(12rem, 0.7fr) minmax(0, 1.3fr); gap: 1.25rem; border-color: rgba(45, 118, 82, 0.28); }
-.refund-detail dl { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: 0.55rem 1rem; margin: 0; }
+.refund-detail dl { display: grid; grid-template-columns: minmax(8rem, auto) minmax(0, 1fr); gap: 0.55rem 1rem; min-width: 0; margin: 0; }
 .refund-detail dt { color: var(--muted); font-size: 0.8rem; font-weight: 800; }
 .refund-detail dd { margin: 0; overflow-wrap: anywhere; }
 .refund-timeline { border-color: rgba(45, 118, 82, 0.28); }
