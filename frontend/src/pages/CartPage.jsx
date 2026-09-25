@@ -1,6 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { useCart } from "../CartContext";
+import { useNotifier } from "../NotifierContext";
+import { buildNotification } from "../utils/notificationPresets";
 import { formatCurrency } from "../utils/currency";
 import ProductPrice from "../components/ProductPrice";
 import { resolveImageUrl } from "../utils/image";
@@ -9,14 +11,18 @@ function money(value) { return formatCurrency(value); }
 
 export default function CartPage() {
   const location = useLocation();
+  const { notify } = useNotifier();
   const { cart, updateQuantity, removeItem, clearCart } = useCart();
   const { items, totals } = cart;
 
   useEffect(() => {
-    if (!location.state?.message) return;
-    window.alert(location.state.message);
+    const { notice, message } = location.state || {};
+    if (!notice && !message) return;
+    notify(notice
+      ? buildNotification(notice, { id: `cart-notice-${notice}`, primaryAction: { label: "Return to Cart" } })
+      : { id: "cart-notice-message", variant: "info", icon: "info", title: "Update", message, primaryAction: { label: "Got it" } });
     window.history.replaceState({}, document.title);
-  }, [location]);
+  }, [location, notify]);
 
   return <main className="container section cart-page">
     <div className="section-head"><div><p className="eyebrow">Your selection</p><h1>Shopping Cart</h1></div>{items.length > 0 && <button className="btn btn-outline" onClick={clearCart}>Clear Cart</button>}</div>
