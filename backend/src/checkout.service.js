@@ -22,7 +22,7 @@ export async function validateCheckout(userId, addressId = null) {
   console.info(JSON.stringify({ level: "info", message: "Address validation result", userId, addressId, found: Boolean(address) }));
   if (!address) throw Object.assign(new Error("Address not found for this user."), { status: 404, code: "ADDRESS_NOT_FOUND" });
   for (const item of items) {
-    const current = await db.prepare("SELECT p.ProductId, p.IsActive, COALESCE(p.DiscountedPrice, p.Price) AS Price, COALESCE(i.AvailableStock, p.Quantity) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ?").get(item.ProductId);
+    const current = await db.prepare("SELECT p.ProductId, p.IsActive, COALESCE(p.DiscountedPrice, p.Price) AS Price, COALESCE(i.AvailableStock, 0) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ?").get(item.ProductId);
     if (!current || !current.IsActive) throw Object.assign(new Error(`Product not found or inactive: ${item.ProductName}.`), { status: 404, code: "PRODUCT_NOT_FOUND" });
     if (current.AvailableStock < item.Quantity) throw stockUnavailableError(current.AvailableStock, current.ReservedStock, item.ProductName);
     console.info(JSON.stringify({ level: "info", message: "Inventory validation result", userId, productId: item.ProductId, requestedQuantity: item.Quantity, availableStock: current.AvailableStock, available: true }));

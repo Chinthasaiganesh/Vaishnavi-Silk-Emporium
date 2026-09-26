@@ -176,7 +176,7 @@ export default function HomePage() {
             >
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
-                {product.quantity <= 0 && <span className={`stock-ribbon${product.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={product.availabilityStatus || "Out of Stock"}>{product.availabilityStatus || "Out of Stock"}</span>}
+                {Number(product.availableQuantity ?? 0) <= 0 && <span className={`stock-ribbon${product.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={product.availabilityStatus || "Out of Stock"}>{product.availabilityStatus || "Out of Stock"}</span>}
                 <ProductMediaCarousel product={product} />
               </div>
               <div className="featured-product-body">
@@ -186,12 +186,12 @@ export default function HomePage() {
                 <RatingBadge rating={product.rating} productId={product.productId} />
                 <div className="featured-price-row">
                   <ProductPrice product={product} showSavings={false} />
-                  <span className={product.quantity > 0 ? "featured-stock in" : "featured-stock out"}>
-                    {product.quantity > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
+                  <span className={Number(product.availableQuantity ?? 0) > 0 ? "featured-stock in" : "featured-stock out"}>
+                    {Number(product.availableQuantity ?? 0) > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
                   </span>
                 </div>
                 <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
-                <ProductCardActions product={product} compact onUnavailable={() => setFeaturedProducts((current) => current.map((item) => item.productId === product.productId ? { ...item, quantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" } : item))} />
+                <ProductCardActions product={product} compact onUnavailable={() => setFeaturedProducts((current) => current.map((item) => item.productId === product.productId ? { ...item, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" } : item))} />
               </div>
             </motion.article>
           ))}

@@ -10,7 +10,7 @@ export default function AddToCartButton({ product, inCart = false, className = "
   const { notify } = useNotifier();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
-  const outOfStock = product.quantity <= 0;
+  const outOfStock = Number(product.availableQuantity ?? 0) <= 0;
 
   async function handleAdd() {
     if (mode === "notify") {

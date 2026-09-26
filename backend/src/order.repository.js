@@ -3,6 +3,7 @@ import { nowIso } from "./utils.js";
 import { markReservationConverted, reservationError } from "./reservation.repository.js";
 import { calculateOrderTotals, priceReservedItems } from "./order-pricing.js";
 import { normalizeRejectionReason } from "./payment-review.js";
+import { orderNumberFromIdempotencyKey } from "./order-reference.js";
 
 export const ORDER_STATUSES = ["PENDING", "PROCESSING", "PACKED", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"];
 const cancellableStatuses = ["PENDING", "PROCESSING", "PACKED"];
@@ -94,10 +95,10 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
     console.info(JSON.stringify({ level: "info", message: "Order database row created", requestId, orderId: orderResult.lastInsertRowid, orderNumber, subtotal, grandTotal }));
     for (const item of items) {
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [orderResult.lastInsertRowid, item.ProductId, item.ProductName, item.Price, item.OriginalPrice ?? item.Price, item.DiscountedPrice ?? item.Price, item.DiscountPercentage ?? 0, item.SavingsAmount ?? 0, item.ImageUrl || null, item.Quantity, item.Price * item.Quantity, timestamp]);
-      const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, AvailableStock = AvailableStock - ?, Status = CASE WHEN CurrentStock - ? = 0 THEN 'OUT_OF_STOCK' WHEN CurrentStock - ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND AvailableStock >= ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity]);
+      const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, AvailableStock = AvailableStock - ?, Status = CASE WHEN AvailableStock - ? = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock - ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND AvailableStock >= ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity]);
       console.info(JSON.stringify({ level: "info", message: "Inventory update result", requestId, productId: item.ProductId, requestedQuantity: item.Quantity, changes: result.changes }));
       if (result.changes !== 1) throw Object.assign(new Error(`Insufficient stock available for ${item.ProductName}.`), { status: 409, code: "INSUFFICIENT_STOCK" });
-      await tx.run("UPDATE Products SET Quantity = Quantity - ?, UpdatedDate = ? WHERE ProductId = ?", [item.Quantity, timestamp, item.ProductId]);
+      await tx.run("UPDATE Products SET Quantity = (SELECT CurrentStock FROM Inventory WHERE ProductId = ?), UpdatedDate = ? WHERE ProductId = ?", [item.ProductId, timestamp, item.ProductId]);
       await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'INVENTORY_DEDUCTED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
     }
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CREATED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
@@ -123,8 +124,10 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
     if (new Date(reservation.ExpiresAt).getTime() <= Date.now()) throw reservationError("This checkout reservation has expired. Please start checkout again.", "RESERVATION_EXPIRED");
     const items = await tx.all("SELECT * FROM CheckoutReservationItems WHERE ReservationId = ? ORDER BY ReservationItemId", [reservationId]);
     if (!items.length) throw reservationError("This checkout reservation has no items.", "RESERVATION_EMPTY", 409);
-    const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
-    const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
+    const next = idempotencyKey ? null : await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
+    const orderNumber = idempotencyKey
+      ? orderNumberFromIdempotencyKey(idempotencyKey)
+      : `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
     const pricedItems = priceReservedItems(items);
     const { subtotal, discount } = calculateOrderTotals(pricedItems);
     const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "ReservationId", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, 0, ?, ?, ?, ?)', [userId, reservation.AddressId, orderNumber, idempotencyKey || null, reservationId, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, subtotal, discount, subtotal, timestamp, timestamp]);
@@ -132,6 +135,7 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) SELECT ?, r.ProductId, r.ProductName, ?, ?, ?, ?, ?, p.ImageUrl, r.Quantity, ? * r.Quantity, ? FROM CheckoutReservationItems r LEFT JOIN Products p ON p.ProductId = r.ProductId WHERE r.ReservationItemId = ?", [orderResult.lastInsertRowid, item.Price, item.OriginalPrice, item.DiscountedPrice, item.DiscountPercentage, item.SavingsAmount, item.Price, timestamp, item.ReservationItemId]);
       const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, ReservedStock = ReservedStock - ?, Status = CASE WHEN AvailableStock = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND ReservedStock >= ? AND CurrentStock >= ?", [item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity, item.Quantity]);
       if (result.changes !== 1) throw reservationError(`Unable to confirm reserved inventory for ${item.ProductName}.`, "RESERVATION_INVENTORY_MISMATCH", 409);
+      await tx.run("UPDATE Products SET Quantity = (SELECT CurrentStock FROM Inventory WHERE ProductId = ?), UpdatedDate = ? WHERE ProductId = ?", [item.ProductId, timestamp, item.ProductId]);
       await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'INVENTORY_DEDUCTED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
     }
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CREATED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
@@ -204,7 +208,10 @@ export async function updatePaymentStatus(orderId, paymentStatus, rejectionReaso
     const reservationRejected = paymentStatus === "REJECTED" && Boolean(existing.ReservationId);
     if (reservationRejected) {
       const orderItems = await tx.all("SELECT ProductId, Quantity FROM OrderItems WHERE OrderId = ?", [orderId]);
-      for (const item of orderItems) await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock + ?, AvailableStock = AvailableStock + ?, Status = CASE WHEN AvailableStock + ? = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock + ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId]);
+      for (const item of orderItems) {
+        await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock + ?, AvailableStock = AvailableStock + ?, Status = CASE WHEN AvailableStock + ? = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock + ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId]);
+        await tx.run("UPDATE Products SET Quantity = (SELECT CurrentStock FROM Inventory WHERE ProductId = ?), UpdatedDate = ? WHERE ProductId = ?", [item.ProductId, timestamp, item.ProductId]);
+      }
     }
     const nextOrderStatus = reservationRejected ? "CANCELLED" : paymentStatus === "VERIFIED" && existing.OrderStatus === "PENDING" ? "PROCESSING" : existing.OrderStatus;
     const refundStartsAfterCancellation = paymentStatus === "VERIFIED" && existing.OrderStatus === "CANCELLED" && existing.RefundStatus === "NOT_APPLICABLE";
@@ -273,7 +280,7 @@ export async function cancelOrder(userId, orderId, reason = "Customer requested 
     const orderItems = await tx.all("SELECT ProductId, Quantity FROM OrderItems WHERE OrderId = ?", [orderId]);
     for (const item of orderItems) {
       await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock + ?, AvailableStock = AvailableStock + ?, Status = CASE WHEN CurrentStock + ? = 0 THEN 'OUT_OF_STOCK' WHEN CurrentStock + ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId]);
-      await tx.run("UPDATE Products SET Quantity = Quantity + ?, UpdatedDate = ? WHERE ProductId = ?", [item.Quantity, timestamp, item.ProductId]);
+      await tx.run("UPDATE Products SET Quantity = (SELECT CurrentStock FROM Inventory WHERE ProductId = ?), UpdatedDate = ? WHERE ProductId = ?", [item.ProductId, timestamp, item.ProductId]);
     }
     await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, ?, 'CANCELLED', ?, ?)", [orderId, existing.OrderStatus, userId, timestamp]);
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CANCELLED', ?)", [orderId, userId, timestamp]);

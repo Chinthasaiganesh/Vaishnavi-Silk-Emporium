@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { body, param, query } from "express-validator";
-import { db } from "./db.js";
+import { db, transaction } from "./db.js";
 import { authRequired, adminOnly, optionalAuth, validateRequest } from "./middleware.js";
 import { upload } from "./upload.js";
 import { uploadImage, deleteImage } from "./s3-storage.service.js";
 import { nowIso, toBoolInt } from "./utils.js";
 import { sendAvailabilityNotification } from "./notification.service.js";
-import { initializeInventory, synchronizeProductInventory } from "./inventory.service.js";
+import { updateStockInTransaction } from "./inventory.repository.js";
+import { calculateInventoryState } from "./inventory-logic.js";
 import { getProductAudit, recordProductAudit } from "./product-audit.js";
 import { mergeProductImages, parseImageUrls } from "./product-images.js";
 
@@ -17,7 +18,8 @@ function mapProduct(row, canViewPrice = true) {
     return null;
   }
   const imageUrls = parseImageUrls(row.ImageUrl);
-  const availableQuantity = row.AvailableQuantity ?? row.Quantity;
+  const availableQuantity = Number(row.AvailableQuantity ?? 0);
+  const currentStock = Number(row.CurrentStock ?? 0);
   const reservedQuantity = Number(row.ReservedQuantity ?? 0);
   const temporarilyReserved = availableQuantity <= 0 && reservedQuantity > 0;
   const originalPrice = Number(row.Price);
@@ -37,6 +39,9 @@ function mapProduct(row, canViewPrice = true) {
     imageUrl: imageUrls[0] || "",
     imageUrls,
     quantity: availableQuantity,
+    currentStock,
+    availableQuantity,
+    reservedQuantity,
     temporarilyReserved,
     isActive: Boolean(row.IsActive),
     isFeatured: Boolean(row.IsFeatured),
@@ -55,6 +60,10 @@ function mapProduct(row, canViewPrice = true) {
   };
 }
 
+async function getProductWithInventory(productId) {
+  return await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ?").get(productId);
+}
+
 function imageFiles(req) {
   return [...(req.files?.image || []), ...(req.files?.images || [])];
 }
@@ -68,7 +77,7 @@ async function productCounts() {
     totalProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products").get()).count,
     activeProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 1").get()).count,
     inactiveProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 0").get()).count,
-    outOfStockProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE Quantity = 0").get()).count
+    outOfStockProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Inventory WHERE AvailableStock = 0").get()).count
   };
 }
 
@@ -94,7 +103,7 @@ router.get(
     const featuredOnly = req.query.featured === "true";
 
     const canViewPrice = Boolean(req.user);
-    const activeProducts = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.IsActive = 1").all();
+    const activeProducts = await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.IsActive = 1").all();
 
     let products = activeProducts.filter((p) => {
       const text = `${p.ProductName} ${p.Description} ${p.Category} ${p.Fabric} ${p.Colour} ${p.Occasion} ${p.WeavingStyle}`.toLowerCase();
@@ -122,7 +131,7 @@ router.get(
 
 router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, async (req, res) => {
   const id = Number(req.params.id);
-  const row = await db.prepare("SELECT p.*, COALESCE(i.AvailableStock, p.Quantity) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
+  const row = await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
   if (!row) {
     await logProductEvent("Product Load Miss", req.requestId, { scope: "public-detail", productId: id });
     return res.status(404).json({ message: "Product not found." });
@@ -132,7 +141,7 @@ router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateR
 });
 
 router.get("/admin", authRequired, adminOnly, async (req, res) => {
-  const rows = await db.prepare("SELECT * FROM Products ORDER BY datetime(CreatedDate) DESC").all();
+  const rows = await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId ORDER BY datetime(p.CreatedDate) DESC").all();
   const products = rows.map((row) => mapProduct(row, true));
   await logProductEvent("Product Loaded", req.requestId, { scope: "admin-list", userId: req.user.userId, resultCount: products.length });
   console.info(JSON.stringify({ level: "info", message: "Admin product prices retrieved", requestId: req.requestId, userId: req.user.userId, prices: products.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price })) }));
@@ -142,9 +151,7 @@ router.get("/admin", authRequired, adminOnly, async (req, res) => {
 router.get("/admin/summary", authRequired, adminOnly, async (req, res) => {
   const totalProducts = (await db.prepare("SELECT COUNT(*) as count FROM Products").get()).count;
   const activeProducts = (await db.prepare("SELECT COUNT(*) as count FROM Products WHERE IsActive = 1").get()).count;
-  const lowStockProducts = (await db
-    .prepare("SELECT COUNT(*) as count FROM Products WHERE Quantity BETWEEN 1 AND 5")
-    .get()).count;
+  const lowStockProducts = (await db.prepare("SELECT COUNT(*) as count FROM Inventory WHERE AvailableStock BETWEEN 1 AND 5").get()).count;
 
   return res.json({ totalProducts, activeProducts, lowStockProducts });
 });
@@ -180,39 +187,25 @@ router.post(
     const imageUrl = JSON.stringify(imageUrls);
 
     const timestamp = nowIso();
-    const result = await db
-      .prepare(
+    const result = await transaction(async (tx) => {
+      const createdProduct = await tx.run(
         `INSERT INTO Products
          (ProductName, Description, Category, Price, DiscountedPrice, ImageUrl, Quantity, IsActive, IsFeatured, Fabric, WeavingStyle, Colour, Occasion, SareeLength, BlousePieceIncluded, CareInstructions, Rating, CreatedDate, UpdatedDate)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        productName,
-        description,
-        category,
-        Number(price),
-        discountedPrice,
-        imageUrl,
-        Number(quantity),
-        toBoolInt(isActive),
-        toBoolInt(isFeatured),
-        req.body.fabric || "",
-        req.body.weavingStyle || "",
-        req.body.colour || "",
-        req.body.occasion || "",
-        req.body.sareeLength || "5.5 metres",
-        toBoolInt(req.body.blousePieceIncluded === undefined || req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
-        req.body.careInstructions || "Dry clean only.",
-        Number(req.body.rating || 4.5),
-        timestamp,
-        timestamp
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [productName, description, category, Number(price), discountedPrice, imageUrl, Number(quantity), toBoolInt(isActive), toBoolInt(isFeatured),
+          req.body.fabric || "", req.body.weavingStyle || "", req.body.colour || "", req.body.occasion || "", req.body.sareeLength || "5.5 metres",
+          toBoolInt(req.body.blousePieceIncluded === undefined || req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
+          req.body.careInstructions || "Dry clean only.", Number(req.body.rating || 4.5), timestamp, timestamp]
       );
+      const initialInventory = calculateInventoryState(Number(quantity));
+      await tx.run("INSERT INTO Inventory (ProductId, CurrentStock, AvailableStock, ReservedStock, Status, CreatedDate, UpdatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)", [createdProduct.lastInsertRowid, initialInventory.CurrentStock, initialInventory.AvailableStock, initialInventory.ReservedStock, initialInventory.Status, timestamp, timestamp]);
+      return createdProduct;
+    });
 
     const created = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(result.lastInsertRowid);
     await logProductEvent("Product Created", req.requestId, { productId: created.ProductId, productName: created.ProductName, priceStored: created.Price, quantity: created.Quantity, isActive: created.IsActive });
     await recordProductAudit({ productId: created.ProductId, userId: req.user.userId, action: "CREATED", newValues: auditValues(created) });
-    await initializeInventory();
-    return res.status(201).json({ product: mapProduct(created) });
+    return res.status(201).json({ product: mapProduct(await getProductWithInventory(created.ProductId)) });
   }
 );
 
@@ -263,47 +256,41 @@ router.put(
       isActive: toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
       isFeatured: toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true)
     };
+    const timestamp = nowIso();
+    let stockChange;
     try {
-      await db.prepare(
-        `UPDATE Products
-        SET ProductName = ?, Description = ?, Category = ?, Price = ?, DiscountedPrice = ?, ImageUrl = ?, Quantity = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
-         WHERE ProductId = ?`
-      ).run(
-        req.body.productName,
-        req.body.description,
-        req.body.category,
-        Number(req.body.price),
-        discountedPrice,
-        imageUrl,
-        Number(req.body.quantity),
-        toBoolInt(req.body.isActive === "true" || req.body.isActive === true),
-        toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true),
-        req.body.fabric || existing.Fabric,
-        req.body.weavingStyle || existing.WeavingStyle,
-        req.body.colour || existing.Colour,
-        req.body.occasion || existing.Occasion,
-        req.body.sareeLength || existing.SareeLength,
-        toBoolInt(req.body.blousePieceIncluded === undefined ? existing.BlousePieceIncluded : req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
-        req.body.careInstructions || existing.CareInstructions,
-        Number(req.body.rating || existing.Rating),
-        nowIso(),
-        id
-      );
+      stockChange = await transaction(async (tx) => {
+        const changedStock = await updateStockInTransaction(tx, id, Number(req.body.quantity), req.user.userId, "UPDATED", timestamp);
+        if (!changedStock) return null;
+        await tx.run(
+          `UPDATE Products
+          SET ProductName = ?, Description = ?, Category = ?, Price = ?, DiscountedPrice = ?, ImageUrl = ?, IsActive = ?, IsFeatured = ?, Fabric = ?, WeavingStyle = ?, Colour = ?, Occasion = ?, SareeLength = ?, BlousePieceIncluded = ?, CareInstructions = ?, Rating = ?, UpdatedDate = ?
+           WHERE ProductId = ?`,
+          [req.body.productName, req.body.description, req.body.category, Number(req.body.price), discountedPrice, imageUrl,
+            toBoolInt(req.body.isActive === "true" || req.body.isActive === true), toBoolInt(req.body.isFeatured === "true" || req.body.isFeatured === true),
+            req.body.fabric || existing.Fabric, req.body.weavingStyle || existing.WeavingStyle, req.body.colour || existing.Colour,
+            req.body.occasion || existing.Occasion, req.body.sareeLength || existing.SareeLength,
+            toBoolInt(req.body.blousePieceIncluded === undefined ? existing.BlousePieceIncluded : req.body.blousePieceIncluded === "true" || req.body.blousePieceIncluded === true),
+            req.body.careInstructions || existing.CareInstructions, Number(req.body.rating || existing.Rating), timestamp, id]
+        );
+        return changedStock;
+      });
     } catch (error) {
       await Promise.all(uploadedUrls.map((url) => deleteImage(url)));
       throw error;
     }
+    if (!stockChange) return res.status(404).json({ message: "Product not found." });
 
     await Promise.all(removedUrls.map((url) => deleteImage(url)));
 
     await recordProductAudit({ productId: id, userId: req.user.userId, action: "UPDATED", oldValues: auditValues(existing), newValues: updatedValues });
-    const updatedProduct = await db.prepare("SELECT * FROM Products WHERE ProductId = ?").get(id);
-    await logProductEvent("Product Updated", req.requestId, { productId: id, productName: updatedProduct.ProductName, priceStored: updatedProduct.Price, oldQuantity: existing.Quantity, newQuantity: updatedProduct.Quantity, oldIsActive: existing.IsActive, newIsActive: updatedProduct.IsActive });
-    await synchronizeProductInventory(updatedProduct);
+    const updatedProduct = await getProductWithInventory(id);
+    await logProductEvent("Product Updated", req.requestId, { productId: id, productName: updatedProduct.ProductName, priceStored: updatedProduct.Price, oldQuantity: stockChange.oldStock, newQuantity: updatedProduct.CurrentStock, oldIsActive: existing.IsActive, newIsActive: updatedProduct.IsActive });
+    if (Number(stockChange.oldStock) !== Number(stockChange.CurrentStock)) await recordProductAudit({ productId: id, userId: req.user.userId, action: "INVENTORY_CHANGED", oldValues: { quantity: stockChange.oldStock }, newValues: { quantity: stockChange.CurrentStock } });
     if (existing.IsActive !== updatedValues.isActive) await recordProductAudit({ productId: id, userId: req.user.userId, action: updatedValues.isActive ? "RESTORED" : "ARCHIVED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
     if (existing.IsActive !== updatedValues.isActive) await recordProductAudit({ productId: id, userId: req.user.userId, action: "VISIBILITY_CHANGED", oldValues: { isActive: existing.IsActive }, newValues: { isActive: updatedValues.isActive } });
 
-    const isBackInStock = existing.Quantity === 0 && Number(req.body.quantity) > 0;
+    const isBackInStock = Number(stockChange.oldAvailableStock) === 0 && Number(stockChange.AvailableStock) > 0;
     if (isBackInStock) {
       await sendAvailabilityNotification(id, req.body.productName);
     }

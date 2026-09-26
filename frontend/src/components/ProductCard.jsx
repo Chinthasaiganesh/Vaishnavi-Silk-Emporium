@@ -11,14 +11,14 @@ export default function ProductCard({ product }) {
   const [reservedAfterConflict, setReservedAfterConflict] = useState(false);
   useEffect(() => setReservedAfterConflict(false), [product]);
   const displayedProduct = reservedAfterConflict
-    ? { ...product, quantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }
+    ? { ...product, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }
     : product;
   return (
     <article className="product-card">
       <div className="product-card-image-wrap">
         {displayedProduct.isFeatured && <span className="discount-badge">Featured</span>}
         <ProductMediaCarousel product={displayedProduct} />
-        {displayedProduct.quantity <= 0 && <span className={`stock-ribbon${displayedProduct.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={displayedProduct.availabilityStatus || "Out of Stock"}>{displayedProduct.availabilityStatus || "Out of Stock"}</span>}
+        {Number(displayedProduct.availableQuantity ?? 0) <= 0 && <span className={`stock-ribbon${displayedProduct.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={displayedProduct.availabilityStatus || "Out of Stock"}>{displayedProduct.availabilityStatus || "Out of Stock"}</span>}
       </div>
       <div className="product-card-body">
         <p className="pill">{displayedProduct.category}</p>
@@ -26,8 +26,8 @@ export default function ProductCard({ product }) {
         <p className="product-desc">{displayedProduct.description}</p>
         <RatingBadge rating={displayedProduct.rating} productId={displayedProduct.productId} />
         <div className="product-meta">
-          <span className={displayedProduct.quantity > 0 ? "status in" : "status out"}>
-            {displayedProduct.quantity > 0 ? t("inStock") : displayedProduct.availabilityStatus || t("outOfStock")}
+          <span className={Number(displayedProduct.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
+            {Number(displayedProduct.availableQuantity ?? 0) > 0 ? t("inStock") : displayedProduct.availabilityStatus || t("outOfStock")}
           </span>
           <ProductPrice product={displayedProduct} showSavings={false} />
         </div>

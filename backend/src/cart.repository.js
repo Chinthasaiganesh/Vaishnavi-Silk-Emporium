@@ -3,7 +3,7 @@ import { nowIso } from "./utils.js";
 
 const cartItemsQuery = `
   SELECT ci.CartItemId, ci.CartId, ci.ProductId, ci.Quantity, p.Price AS OriginalPrice, p.DiscountedPrice, COALESCE(p.DiscountedPrice, p.Price) AS UnitPrice, ci.CreatedDate, ci.UpdatedDate,
-    p.ProductName, p.Category, p.ImageUrl, COALESCE(i.AvailableStock, p.Quantity) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock
+    p.ProductName, p.Category, p.ImageUrl, COALESCE(i.AvailableStock, 0) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock
   FROM CartItems ci
   JOIN Products p ON p.ProductId = ci.ProductId
   LEFT JOIN Inventory i ON i.ProductId = p.ProductId
@@ -28,7 +28,7 @@ export async function getCartItem(cartId, cartItemId) {
 }
 
 export async function getProduct(productId) {
-  return await db.prepare("SELECT p.ProductId, p.ProductName, COALESCE(p.DiscountedPrice, p.Price) AS Price, p.IsActive, COALESCE(i.AvailableStock, p.Quantity) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ?").get(productId);
+  return await db.prepare("SELECT p.ProductId, p.ProductName, COALESCE(p.DiscountedPrice, p.Price) AS Price, p.IsActive, COALESCE(i.AvailableStock, 0) AS AvailableStock, COALESCE(i.ReservedStock, 0) AS ReservedStock FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ?").get(productId);
 }
 
 export async function getCartItemByProduct(cartId, productId) {

@@ -7,6 +7,7 @@ import { useNotifier } from "../NotifierContext";
 import { buildNotification } from "../utils/notificationPresets";
 import QRCode from "qrcode";
 import { resolveImageUrl } from "../utils/image";
+import { buildUpiTransactionNote, getCheckoutOrderNumber, summarizeCheckoutProducts } from "../utils/upi";
 
 const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India", isDefault: false };
 
@@ -178,10 +179,12 @@ export default function CheckoutPage() {
       const upiId = import.meta.env.VITE_UPI_ID;
       if (!upiId) throw new Error("UPI payment is not configured. Set VITE_UPI_ID in the frontend environment.");
       const amount = activeReservation.items.reduce((total, item) => total + Number(item.UnitPrice) * Number(item.Quantity), 0).toFixed(2);
-      const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("Vaishnavi Silk Emporium")}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${idempotencyKey.current}`)}`;
+      const orderNumber = getCheckoutOrderNumber(idempotencyKey.current);
+      const transactionNote = buildUpiTransactionNote(orderNumber, activeReservation.items);
+      const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("Vaishnavi Silk Emporium")}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
       const qrDataUrl = await QRCode.toDataURL(upiUri, { width: 280, margin: 2 });
       setUpiReference("");
-      setUpiPayment({ amount, upiId, qrDataUrl });
+      setUpiPayment({ amount, upiId, qrDataUrl, orderNumber, productSummary: summarizeCheckoutProducts(activeReservation.items) });
     } catch (err) {
       console.error("UPI payment initialization failed", err);
       setError(err.response?.data?.message || err.message || "Payment initialization failed.");
@@ -256,6 +259,11 @@ export default function CheckoutPage() {
           {reservation && <div className={`reservation-timer modal-reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>{reservationWarning || "Submit payment proof before the timer expires."}</span></div>}
           <p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p>
           <img src={upiPayment.qrDataUrl} alt="UPI payment QR code" />
+          <dl className="upi-payment-summary">
+            <div><dt>Order ID</dt><dd>{upiPayment.orderNumber}</dd></div>
+            <div><dt>Product Summary</dt><dd>{upiPayment.productSummary}</dd></div>
+            <div><dt>Total Amount</dt><dd>{formatCurrency(upiPayment.amount)}</dd></div>
+          </dl>
           <p><strong>{upiPayment.upiId}</strong></p>
           <input value={upiReference} onChange={(event) => setUpiReference(event.target.value)} placeholder="UPI transaction reference / UTR" autoComplete="off" />
           <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPaymentScreenshot(event.target.files?.[0] || null)} />

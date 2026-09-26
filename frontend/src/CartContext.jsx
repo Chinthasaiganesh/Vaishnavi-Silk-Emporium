@@ -17,12 +17,39 @@ export function CartProvider({ children }) {
 
   useEffect(() => {
     let active = true;
+    let loadingCart = false;
     if (user?.role !== "USER") {
       setCart({ items: [], totals: { itemCount: 0, subtotal: 0, grandTotal: 0 } });
       return undefined;
     }
-    api.get("/cart").then((response) => { if (active) setCart(response.data); }).catch(() => { if (active) setNotice({ type: "error", text: "Unable to load your cart." }); });
-    return () => { active = false; };
+
+    async function loadCart(initial = false) {
+      if (loadingCart || (!initial && document.visibilityState !== "visible")) return;
+      loadingCart = true;
+      try {
+        const response = await api.get("/cart");
+        if (active) setCart(response.data);
+      } catch {
+        if (active && initial) setNotice({ type: "error", text: "Unable to load your cart." });
+      } finally {
+        loadingCart = false;
+      }
+    }
+
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") loadCart();
+    }
+
+    loadCart(true);
+    const interval = window.setInterval(() => loadCart(), 30000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
   }, [user]);
 
   async function refreshCart() {
