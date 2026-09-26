@@ -91,25 +91,29 @@ export default function ProductDetailPage() {
         {imageUrls.length > 1 && <div className="product-image-dots" aria-label="Product images">{imageUrls.map((url, index) => <button className={index === activeImageIndex ? "active" : ""} type="button" key={url} aria-label={`Show image ${index + 1}`} aria-pressed={index === activeImageIndex} onClick={() => setActiveImageIndex(index)} />)}</div>}
       </section>
       <section className="detail-content">
-        <p className="pill">{product.category}</p>
-        <h1>{product.productName}</h1>
-        <p>{product.description}</p>
-        <dl className="saree-details">
-          <dt>Fabric</dt><dd>{product.fabric || "Artisan fabric"}</dd>
-          <dt>Weaving Style</dt><dd>{product.weavingStyle || "Traditional weave"}</dd>
-          <dt>Colour</dt><dd>{product.colour || "Curated colour"}</dd>
-          <dt>Occasion</dt><dd>{product.occasion || "Traditional events"}</dd>
-          <dt>Saree Length</dt><dd>{product.sareeLength || "5.5 metres"}</dd>
-          <dt>Blouse Piece</dt><dd>{product.blousePieceIncluded ? "Included" : "Not included"}</dd>
-          <dt>Care</dt><dd>{product.careInstructions || "Dry clean only"}</dd>
-        </dl>
-        <RatingBadge rating={product.rating} productId={product.productId} />
-        <ProductPrice product={product} className="detail-product-price" />
-        <p className={Number(product.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
-          {Number(product.availableQuantity ?? 0) > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
-        </p>
-        {product.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
-        <ProductCardActions product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
+        <div className="detail-content-scroll">
+          <p className="pill">{product.category}</p>
+          <h1>{product.productName}</h1>
+          <p>{product.description}</p>
+          <dl className="saree-details">
+            <dt>Fabric</dt><dd>{product.fabric || "Artisan fabric"}</dd>
+            <dt>Weaving Style</dt><dd>{product.weavingStyle || "Traditional weave"}</dd>
+            <dt>Colour</dt><dd>{product.colour || "Curated colour"}</dd>
+            <dt>Occasion</dt><dd>{product.occasion || "Traditional events"}</dd>
+            <dt>Saree Length</dt><dd>{product.sareeLength || "5.5 metres"}</dd>
+            <dt>Blouse Piece</dt><dd>{product.blousePieceIncluded ? "Included" : "Not included"}</dd>
+            <dt>Care</dt><dd>{product.careInstructions || "Dry clean only"}</dd>
+          </dl>
+          <RatingBadge rating={product.rating} productId={product.productId} />
+          <ProductPrice product={product} className="detail-product-price" />
+          <p className={Number(product.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
+            {Number(product.availableQuantity ?? 0) > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
+          </p>
+          {product.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
+        </div>
+        <div className="detail-content-actions">
+          <ProductCardActions compact product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
+        </div>
       </section>
     </main>
   );

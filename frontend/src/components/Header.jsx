@@ -200,7 +200,7 @@ export default function Header() {
   }, [user]);
 
   return (
-    <header className="site-header">
+    <header className={`site-header${mobileNavOpen ? " mobile-navigation-open" : ""}`}>
       <div className="container header-inner">
         <Link className="logo" to="/">
           <img className="brand-logo" src="/brand/vaishnavi-vs-monogram.png" alt="Vaishnavi Silk Emporium" />

@@ -5,7 +5,7 @@ import { useAuth } from "../AuthContext";
 import { useCart } from "../CartContext";
 import AddToCartButton from "./AddToCartButton";
 
-export default function ProductCardActions({ product, compact = false, onUnavailable }) {
+export default function ProductCardActions({ product, compact = false, fixedFooter = false, onUnavailable, children }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [saved, setSaved] = useState(false);
@@ -67,8 +67,9 @@ export default function ProductCardActions({ product, compact = false, onUnavail
     }
   }
 
-  return <div className={`product-card-actions${compact ? " product-card-actions-compact" : ""}`}>
+  return <div className={`product-card-actions${compact ? " product-card-actions-compact" : ""}${fixedFooter ? " product-card-actions-fixed-footer" : ""}`}>
     <button className={saved ? "wishlist-action wishlist-action-saved" : "wishlist-action"} onClick={toggleWishlist} aria-pressed={saved}>{saved ? "♥ Saved to Wishlist" : "♡ Save to Wishlist"}</button>
+    {children}
     {Number(product.availableQuantity ?? 0) > 0 && <AddToCartButton product={product} inCart={inCart} onUnavailable={onUnavailable} />}
     {Number(product.availableQuantity ?? 0) <= 0 && <AddToCartButton product={product} mode="notify" notifyState={subscribing ? "loading" : subscribed ? "subscribed" : "idle"} onNotify={notifyWhenAvailable} />}
     {notice && <span className="product-action-notice" role="status">{notice}</span>}
