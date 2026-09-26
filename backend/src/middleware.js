@@ -76,5 +76,5 @@ export function errorHandler(err, req, res, next) {
   };
   const status = err.status || (postgresMessages[err.code] ? (err.code === "23505" ? 409 : err.code === "23503" ? 404 : 500) : 500);
   const message = err.status ? err.message : postgresMessages[err.code] || "Database transaction failed.";
-  return res.status(status).json({ success: false, message, requestId: req.requestId, diagnosticCode: err.code || "APPLICATION_ERROR" });
+  return res.status(status).json({ success: false, message, requestId: req.requestId, diagnosticCode: err.code || "APPLICATION_ERROR", ...(err.activePaymentSession ? { activePaymentSession: err.activePaymentSession } : {}) });
 }

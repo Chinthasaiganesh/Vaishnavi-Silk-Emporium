@@ -118,6 +118,14 @@ export const notificationPresets = {
     title: "Temporarily Unavailable",
     message: "Another customer is completing checkout for this item. Please try again shortly.",
     primaryLabel: "Got It"
+  },
+  PAYMENT_IN_PROGRESS: {
+    variant: "warning",
+    icon: "payment",
+    eyebrow: "Checkout locked",
+    title: "Payment In Progress",
+    message: "You already have an active payment transaction. Complete it or cancel the session before making changes to your cart.",
+    primaryLabel: "Continue Payment"
   }
 };
 
@@ -131,6 +139,11 @@ export function resolveNotificationVisual(notification = {}) {
     if (/verified|confirmed|approved/.test(title)) return { variant: "success", icon: "check" };
     if (/failed|rejected|declined/.test(title)) return { variant: "error", icon: "declined" };
     return { variant: "warning", icon: "payment" };
+  }
+  if (type === "REFUND_STATUS") {
+    if (/completed/.test(title)) return { variant: "success", icon: "check" };
+    if (/failed|issue/.test(title)) return { variant: "error", icon: "declined" };
+    return { variant: "info", icon: "payment" };
   }
   if (type === "ORDER_STATUS" || type === "ORDER_PLACED") {
     if (title.includes("delivered")) return { variant: "success", icon: "check" };

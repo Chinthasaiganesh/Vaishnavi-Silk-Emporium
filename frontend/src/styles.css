@@ -1428,6 +1428,15 @@ a {
 .reservation-timer strong { font-size: 1rem; }
 .reservation-timer span, .reservation-timer small { overflow-wrap: anywhere; }
 .reservation-timer small { color: #47785d; }
+.payment-session-notice { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0 0 1rem; border: 1px solid rgba(180, 115, 33, 0.4); border-left: 4px solid #b47321; border-radius: 0.65rem; padding: 1rem; color: var(--text); background: #fff8e9; }
+.payment-session-copy { display: grid; gap: 0.3rem; }
+.payment-session-copy > strong { color: #88500b; font-size: 1rem; }
+.payment-session-copy p { margin: 0; color: var(--muted); font-size: 0.88rem; }
+.payment-session-copy > span { margin-top: 0.25rem; color: #88500b; font-size: 0.85rem; }
+.payment-session-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+.payment-session-actions .btn { white-space: nowrap; }
+.payment-session-lock-active .cart-item-actions { pointer-events: none; opacity: 0.55; }
+.payment-session-lock-active .cart-item-actions button { cursor: not-allowed; }
 .reservation-timer.warning { border-color: rgba(180, 115, 33, 0.45); color: #88500b; background: #fff8e9; }
 .reservation-timer.warning small { color: #9a6a2b; }
 .reservation-timer.urgent { border-color: rgba(180, 67, 33, 0.5); color: #9f2d2d; background: #fff1ed; }
@@ -1436,6 +1445,7 @@ a {
 .reservation-timer.critical small, .reservation-timer.critical span { color: #ffe7e3; }
 @keyframes reservation-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
 @media (prefers-reduced-motion: reduce) { .reservation-timer.critical { animation: none; } }
+@media (max-width: 700px) { .payment-session-notice { align-items: stretch; flex-direction: column; } .payment-session-actions { display: grid; grid-template-columns: 1fr; } }
 .modal-reservation-timer { margin: 0; text-align: left; }
 .checkout-section { padding: 1.25rem; border: 1px solid var(--border); border-radius: 0.7rem; background: var(--card); box-shadow: 0 8px 24px rgba(70, 33, 46, 0.07); }
 .checkout-section h2, .checkout-section-heading h2 { margin: 0; font-size: 1.35rem; }
