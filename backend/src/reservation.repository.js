@@ -64,7 +64,7 @@ export async function reserveCart(userId, addressId, sessionId) {
     if (existing?.ReservationStatus === "ACTIVE") await releaseLockedReservation(tx, existing, "EXPIRED");
     const address = addressId ? await tx.get("SELECT AddressId FROM Addresses WHERE AddressId = ? AND UserId = ?", [addressId, userId]) : await tx.get("SELECT AddressId FROM Addresses WHERE UserId = ? AND IsDefault = 1 ORDER BY AddressId LIMIT 1", [userId]);
     if (!address) throw reservationError("Address not found for this user.", "ADDRESS_NOT_FOUND", 404);
-    const cartItems = await tx.all("SELECT ci.ProductId, ci.Quantity, p.ProductName, COALESCE(p.DiscountedPrice, p.Price) AS UnitPrice, p.IsActive FROM CartItems ci JOIN Carts c ON c.CartId = ci.CartId JOIN Products p ON p.ProductId = ci.ProductId WHERE c.UserId = ? ORDER BY ci.CreatedDate", [userId]);
+    const cartItems = await tx.all("SELECT ci.ProductId, ci.Quantity, p.ProductName, p.Price AS OriginalPrice, COALESCE(p.DiscountedPrice, p.Price) AS UnitPrice, p.IsActive FROM CartItems ci JOIN Carts c ON c.CartId = ci.CartId JOIN Products p ON p.ProductId = ci.ProductId WHERE c.UserId = ? ORDER BY ci.CreatedDate", [userId]);
     if (!cartItems.length) throw reservationError("Cart is empty.", "CART_EMPTY", 400);
     const timestamp = nowIso();
     const newReservationId = existing?.ReservationId || crypto.randomUUID();
@@ -78,7 +78,7 @@ export async function reserveCart(userId, addressId, sessionId) {
       const inventory = await tx.get("SELECT i.ProductId, i.AvailableStock, i.ReservedStock FROM Inventory i WHERE i.ProductId = ? FOR UPDATE", [item.ProductId]);
       if (!item.IsActive || !inventory || inventory.AvailableStock < item.Quantity) throw reservationError(`Only ${inventory?.AvailableStock || 0} item${inventory?.AvailableStock === 1 ? "" : "s"} available for ${item.ProductName}.`, "INSUFFICIENT_STOCK");
       await tx.run("UPDATE Inventory SET AvailableStock = AvailableStock - ?, ReservedStock = ReservedStock + ?, Status = CASE WHEN AvailableStock - ? = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock - ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND AvailableStock >= ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity]);
-      await tx.run("INSERT INTO CheckoutReservationItems (ReservationId, ProductId, ProductName, UnitPrice, Quantity, CreatedDate) VALUES (?, ?, ?, ?, ?, ?)", [newReservationId, item.ProductId, item.ProductName, item.UnitPrice, item.Quantity, timestamp]);
+      await tx.run("INSERT INTO CheckoutReservationItems (ReservationId, ProductId, ProductName, UnitPrice, OriginalPrice, Quantity, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)", [newReservationId, item.ProductId, item.ProductName, item.UnitPrice, item.OriginalPrice, item.Quantity, timestamp]);
     }
     return newReservationId;
   });

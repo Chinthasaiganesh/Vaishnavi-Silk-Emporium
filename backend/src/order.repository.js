@@ -1,6 +1,8 @@
 import { db, transaction } from "./db.js";
 import { nowIso } from "./utils.js";
 import { markReservationConverted, reservationError } from "./reservation.repository.js";
+import { calculateOrderTotals, priceReservedItems } from "./order-pricing.js";
+import { normalizeRejectionReason } from "./payment-review.js";
 
 export const ORDER_STATUSES = ["PENDING", "PROCESSING", "PACKED", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"];
 const cancellableStatuses = ["PENDING", "PROCESSING", "PACKED"];
@@ -123,17 +125,18 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
     if (!items.length) throw reservationError("This checkout reservation has no items.", "RESERVATION_EMPTY", 409);
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const subtotal = items.reduce((sum, item) => sum + Number(item.UnitPrice) * item.Quantity, 0);
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "ReservationId", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, 0, 0, ?, ?, ?)', [userId, reservation.AddressId, orderNumber, idempotencyKey || null, reservationId, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, subtotal, subtotal, timestamp, timestamp]);
-    for (const item of items) {
-      await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) SELECT ?, r.ProductId, r.ProductName, r.UnitPrice, r.UnitPrice, r.UnitPrice, 0, 0, p.ImageUrl, r.Quantity, r.UnitPrice * r.Quantity, ? FROM CheckoutReservationItems r LEFT JOIN Products p ON p.ProductId = r.ProductId WHERE r.ReservationItemId = ?", [orderResult.lastInsertRowid, timestamp, item.ReservationItemId]);
+    const pricedItems = priceReservedItems(items);
+    const { subtotal, discount } = calculateOrderTotals(pricedItems);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "ReservationId", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, 0, ?, ?, ?, ?)', [userId, reservation.AddressId, orderNumber, idempotencyKey || null, reservationId, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, subtotal, discount, subtotal, timestamp, timestamp]);
+    for (const item of pricedItems) {
+      await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) SELECT ?, r.ProductId, r.ProductName, ?, ?, ?, ?, ?, p.ImageUrl, r.Quantity, ? * r.Quantity, ? FROM CheckoutReservationItems r LEFT JOIN Products p ON p.ProductId = r.ProductId WHERE r.ReservationItemId = ?", [orderResult.lastInsertRowid, item.Price, item.OriginalPrice, item.DiscountedPrice, item.DiscountPercentage, item.SavingsAmount, item.Price, timestamp, item.ReservationItemId]);
       const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, ReservedStock = ReservedStock - ?, Status = CASE WHEN AvailableStock = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND ReservedStock >= ? AND CurrentStock >= ?", [item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity, item.Quantity]);
       if (result.changes !== 1) throw reservationError(`Unable to confirm reserved inventory for ${item.ProductName}.`, "RESERVATION_INVENTORY_MISMATCH", 409);
       await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'INVENTORY_DEDUCTED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
     }
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_CREATED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
     await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, NULL, 'PENDING', ?, ?)", [orderResult.lastInsertRowid, userId, timestamp]);
-    await addLifecycleEvent(tx, orderResult.lastInsertRowid, "ORDER_PLACED", "Payment Verification Pending", "Your payment proof was submitted and is waiting for verification.", "CUSTOMER", userId, timestamp);
+    await addLifecycleEvent(tx, orderResult.lastInsertRowid, "ORDER_PLACED", "Order Placed", "Your order was placed successfully.", "CUSTOMER", userId, timestamp);
     await addLifecycleEvent(tx, orderResult.lastInsertRowid, "PAYMENT_SUBMITTED", "Payment Submitted", "Your payment details were submitted for verification.", "CUSTOMER", userId, timestamp);
     await markReservationConverted(tx, reservationId);
     await tx.run("DELETE FROM CartItems WHERE CartId = (SELECT CartId FROM Carts WHERE UserId = ?)", [userId]);
@@ -193,7 +196,7 @@ export async function updateOrderStatus(orderId, newStatus, adminUserId) {
 
 export async function updatePaymentStatus(orderId, paymentStatus, rejectionReason, adminUserId) {
   if (!["VERIFIED", "REJECTED"].includes(paymentStatus)) throw Object.assign(new Error("Invalid payment status."), { status: 400 });
-  if (paymentStatus === "REJECTED" && !rejectionReason?.trim()) throw Object.assign(new Error("A rejection reason is required."), { status: 400 });
+  const normalizedRejectionReason = normalizeRejectionReason(paymentStatus, rejectionReason);
   const timestamp = nowIso();
   const updated = await transaction(async (tx) => {
     const existing = await tx.get("SELECT PaymentStatus, OrderStatus, RefundStatus, ReservationId FROM Orders WHERE OrderId = ?", [orderId]);
@@ -206,7 +209,7 @@ export async function updatePaymentStatus(orderId, paymentStatus, rejectionReaso
     const nextOrderStatus = reservationRejected ? "CANCELLED" : paymentStatus === "VERIFIED" && existing.OrderStatus === "PENDING" ? "PROCESSING" : existing.OrderStatus;
     const refundStartsAfterCancellation = paymentStatus === "VERIFIED" && existing.OrderStatus === "CANCELLED" && existing.RefundStatus === "NOT_APPLICABLE";
     const nextRefundStatus = refundStartsAfterCancellation ? "PENDING" : existing.RefundStatus;
-    await tx.run("UPDATE Orders SET PaymentStatus = ?, PaymentReviewedAt = ?, PaymentRejectionReason = ?, OrderStatus = ?, CancelledAt = CASE WHEN ? = 1 THEN ? ELSE CancelledAt END, CancellationReason = CASE WHEN ? = 1 THEN ? ELSE CancellationReason END, CancelledByRole = CASE WHEN ? = 1 THEN 'ADMIN' ELSE CancelledByRole END, RefundStatus = ?, RefundInitiatedAt = CASE WHEN ? = 1 THEN ? ELSE RefundInitiatedAt END, UpdatedDate = ? WHERE OrderId = ?", [paymentStatus, timestamp, paymentStatus === "REJECTED" ? rejectionReason.trim() : null, nextOrderStatus, reservationRejected ? 1 : 0, timestamp, reservationRejected ? 1 : 0, `Payment rejected: ${rejectionReason.trim()}`, reservationRejected ? 1 : 0, reservationRejected ? "NOT_APPLICABLE" : nextRefundStatus, refundStartsAfterCancellation ? 1 : 0, timestamp, timestamp, orderId]);
+    await tx.run("UPDATE Orders SET PaymentStatus = ?, PaymentReviewedAt = ?, PaymentRejectionReason = ?, OrderStatus = ?, CancelledAt = CASE WHEN ? = 1 THEN ? ELSE CancelledAt END, CancellationReason = CASE WHEN ? = 1 THEN ? ELSE CancellationReason END, CancelledByRole = CASE WHEN ? = 1 THEN 'ADMIN' ELSE CancelledByRole END, RefundStatus = ?, RefundInitiatedAt = CASE WHEN ? = 1 THEN ? ELSE RefundInitiatedAt END, UpdatedDate = ? WHERE OrderId = ?", [paymentStatus, timestamp, normalizedRejectionReason, nextOrderStatus, reservationRejected ? 1 : 0, timestamp, reservationRejected ? 1 : 0, normalizedRejectionReason ? `Payment rejected: ${normalizedRejectionReason}` : null, reservationRejected ? 1 : 0, reservationRejected ? "NOT_APPLICABLE" : nextRefundStatus, refundStartsAfterCancellation ? 1 : 0, timestamp, timestamp, orderId]);
     if (paymentStatus === "VERIFIED") {
       await addLifecycleEvent(tx, orderId, "PAYMENT_VERIFIED", "Payment Verified", "Your payment was verified successfully.", "ADMIN", adminUserId, timestamp);
       if (existing.OrderStatus !== "CANCELLED") {
@@ -215,7 +218,7 @@ export async function updatePaymentStatus(orderId, paymentStatus, rejectionReaso
       }
       if (refundStartsAfterCancellation) await addLifecycleEvent(tx, orderId, "REFUND_INITIATED", "Refund Initiated", "Payment was verified after cancellation. Your refund is ready for processing.", "SYSTEM", adminUserId, timestamp);
     } else {
-      await addLifecycleEvent(tx, orderId, "PAYMENT_REJECTED", "Payment Verification Failed", `Reason: ${rejectionReason.trim()}`, "ADMIN", adminUserId, timestamp);
+      await addLifecycleEvent(tx, orderId, "PAYMENT_REJECTED", "Payment Verification Failed", `Reason: ${normalizedRejectionReason}`, "ADMIN", adminUserId, timestamp);
     }
     if (nextOrderStatus !== existing.OrderStatus) {
       await tx.run("INSERT INTO OrderStatusHistory (OrderId, OldStatus, NewStatus, ChangedBy, ChangedAt) VALUES (?, ?, ?, ?, ?)", [orderId, existing.OrderStatus, nextOrderStatus, adminUserId, timestamp]);
