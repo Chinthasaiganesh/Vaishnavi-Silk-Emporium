@@ -6,7 +6,7 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:4010/api" },
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
     { "key": "accessToken", "value": "" },
     { "key": "productId", "value": "1" },
     { "key": "cartItemId", "value": "1" },
@@ -14,6 +14,10 @@
     { "key": "addressId", "value": "1" },
     { "key": "orderId", "value": "1" },
     { "key": "orderNumber", "value": "" },
+    { "key": "reservationId", "value": "" },
+    { "key": "reservationSessionId", "value": "" },
+    { "key": "adminUserId", "value": "" },
+    { "key": "adminUserEmail", "value": "" },
     { "key": "notificationId", "value": "1" },
     { "key": "idempotencyKey", "value": "postman-{{$timestamp}}" },
     { "key": "adminOrderStatus", "value": "PROCESSING" },
@@ -41,6 +45,7 @@
     },
     {
       "name": "Authentication",
+      "description": "Login, registration, session, and OAuth start calls. OAuth start requests stop at the provider redirect; Google/GitHub must make the callback with a real one-time code and signed state.",
       "item": [
         {
           "name": "Register Customer",
@@ -97,8 +102,8 @@
         },
         { "name": "Logout", "request": { "auth": { "type": "noauth" }, "method": "POST", "url": "{{baseUrl}}/auth/logout" } },
         { "name": "OAuth Provider Status", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/providers" } },
-        { "name": "Google OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/google" } },
-        { "name": "GitHub OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/github" } }
+        { "name": "Google OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/google" }, "protocolProfileBehavior": { "followRedirects": false } },
+        { "name": "GitHub OAuth Redirect", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/auth/oauth/github" }, "protocolProfileBehavior": { "followRedirects": false } }
       ]
     },
     {
@@ -172,7 +177,7 @@
     },
     {
       "name": "Inventory",
-      "description": "Admin-only inventory APIs. Inventory updates synchronize Inventory rows and Products.Quantity.",
+      "description": "Admin-only inventory APIs. Inventory is authoritative: currentStock is physical stock, availableStock is sellable stock, and reservedStock is held for active checkout sessions. Products.Quantity mirrors Inventory.CurrentStock.",
       "item": [
         { "name": "List Inventory", "request": { "method": "GET", "url": "{{baseUrl}}/inventory" } },
         { "name": "Inventory Details", "request": { "method": "GET", "url": "{{baseUrl}}/inventory/{{productId}}" } },
@@ -184,9 +189,14 @@
     },
     {
       "name": "Cart",
-      "description": "Customer-only cart APIs. Totals are server-calculated and stock is validated server-side.",
+      "description": "Customer-only cart APIs. Totals and availability are server-calculated from Inventory. GET /cart includes activePaymentSession; cart mutations are locked with HTTP 409 ACTIVE_PAYMENT_SESSION until that session is released, converted, or expires.",
       "item": [
         { "name": "Get Current Cart", "request": { "method": "GET", "url": "{{baseUrl}}/cart" } },
+        {
+          "name": "Add Item During Active Payment (Expected 409)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 1\n}" }, "url": "{{baseUrl}}/cart/items", "description": "Run after Checkout / Create or Resume Reservation. Confirms the active payment session prevents cart changes." },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('active payment locks cart mutation', () => pm.response.to.have.status(409));", "const body = pm.response.json();", "pm.test('active session error returned', () => pm.expect(body.code || body.diagnosticCode).to.eql('ACTIVE_PAYMENT_SESSION'));", "pm.test('active session details returned', () => pm.expect(body.activePaymentSession).to.be.an('object'));" ] } }]
+        },
         {
           "name": "Add Item To Cart",
           "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 1\n}" }, "url": "{{baseUrl}}/cart/items" },
@@ -214,21 +224,33 @@
     },
     {
       "name": "Checkout",
-      "description": "Customer-only checkout preflight APIs. Add a cart item and create an address first.",
+      "description": "Customer-only checkout APIs. Create a cart item/address, reserve the cart, then use the same reservation ID for order placement. A reservation locks cart mutations and snapshots its items and prices.",
       "item": [
         { "name": "Checkout Summary", "request": { "method": "GET", "url": "{{baseUrl}}/checkout/summary" } },
-        { "name": "Validate Checkout", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}}\n}" }, "url": "{{baseUrl}}/checkout/validate" } }
+        { "name": "Validate Checkout", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}}\n}" }, "url": "{{baseUrl}}/checkout/validate" } },
+        {
+          "name": "Create Fresh Reservation",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}},\n  \"sessionId\": \"postman-{{$guid}}\"\n}" }, "url": "{{baseUrl}}/checkout/reserve", "description": "Creates a fresh reservation session for this run. The response stores its session ID for the explicit resume request." },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('reservation created', () => pm.expect([200, 201]).to.include(pm.response.code));", "const reservation = pm.response.json().reservation;", "pm.test('reservation ID and expiry returned', () => { pm.expect(reservation.ReservationId).to.be.a('string'); pm.expect(reservation.ExpiresAt).to.be.a('string'); });", "pm.collectionVariables.set('reservationId', reservation.ReservationId);", "pm.collectionVariables.set('reservationSessionId', reservation.ReservationSessionId);", "pm.collectionVariables.set('idempotencyKey', reservation.ReservationId);", "pm.test('reservation contains immutable items', () => pm.expect(reservation.items).to.be.an('array').that.is.not.empty);" ] } }]
+        },
+        { "name": "Resume Active Reservation", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"addressId\": {{addressId}},\n  \"sessionId\": \"{{reservationSessionId}}\"\n}" }, "url": "{{baseUrl}}/checkout/reserve", "description": "Resubmits the saved session ID; while the reservation is active, the API returns the same ID/items/expiry rather than reserving again." } },
+        { "name": "Get Reservation and Countdown", "request": { "method": "GET", "url": "{{baseUrl}}/checkout/reservations/{{reservationId}}", "description": "Refresh reservation status, fixed items/prices, expiry, and remainingSeconds." } },
+        {
+          "name": "Cancel Reservation and Release Stock",
+          "request": { "method": "POST", "url": "{{baseUrl}}/checkout/reservations/{{reservationId}}/release", "description": "Releases reserved inventory and unlocks cart mutations. Run only when the customer has not already sent payment." },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('reservation release succeeded', () => pm.response.to.have.status(200));", "const reservation = pm.response.json().reservation;", "pm.test('reservation no longer active', () => pm.expect(reservation.ReservationStatus).to.eql('RELEASED'));" ] } }]
+        }
       ]
     },
     {
       "name": "Orders",
-      "description": "Customer-only order APIs. Place Order requires Idempotency-Key and clears the cart on success.",
+      "description": "Customer-only order APIs. Place Order requires Idempotency-Key and Checkout-Reservation-Id, converts the reserved snapshot, and clears the cart on success.",
       "item": [
         { "name": "List My Orders", "request": { "method": "GET", "url": "{{baseUrl}}/orders" } },
         { "name": "Get My Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/orders/{{orderId}}" } },
         {
           "name": "Place Order",
-          "request": { "method": "POST", "header": [{ "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "formdata", "formdata": [
+          "request": { "method": "POST", "header": [{ "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }, { "key": "Checkout-Reservation-Id", "value": "{{reservationId}}" }], "body": { "mode": "formdata", "formdata": [
             { "key": "addressId", "value": "{{addressId}}", "type": "text" },
             { "key": "paymentMethod", "value": "UPI_MANUAL", "type": "text" },
             { "key": "paymentReference", "value": "UTR123456789", "type": "text" },
@@ -237,10 +259,10 @@
           "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const order = pm.response.json().order;", "  if (order?.OrderId) pm.collectionVariables.set('orderId', order.OrderId);", "  if (order?.OrderNumber) pm.collectionVariables.set('orderNumber', order.OrderNumber);", "}"] } }]
         },
         { "name": "Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Changed my mind\"\n}" }, "url": "{{baseUrl}}/orders/{{orderId}}/cancel" } },
-        { "name": "Resubmit Payment Proof", "request": { "method": "POST", "body": { "mode": "formdata", "formdata": [
+        { "name": "Resubmit Payment Proof (Legacy Non-Cancelled Order)", "request": { "method": "POST", "body": { "mode": "formdata", "formdata": [
             { "key": "paymentReference", "value": "UTR123456790", "type": "text" },
             { "key": "paymentScreenshot", "type": "file", "src": "" }
-          ] }, "url": "{{baseUrl}}/orders/{{orderId}}/payment-proof", "description": "Customer-only. Re-submits payment reference/screenshot after a REJECTED payment verification. Returns 409 if the payment was not rejected." } }
+          ] }, "url": "{{baseUrl}}/orders/{{orderId}}/payment-proof", "description": "Customer-only. Re-submits proof for a REJECTED, non-cancelled UPI order. New reservation-backed orders are canceled when rejected, so this returns 409 for those; retained for eligible legacy orders." } }
       ]
     },
     {
@@ -251,7 +273,7 @@
         { "name": "Filter Orders By Status", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders?status=PROCESSING" } },
         { "name": "Get Admin Order Detail", "request": { "method": "GET", "url": "{{baseUrl}}/admin/orders/{{orderId}}" } },
         { "name": "Update Order Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"status\": \"{{adminOrderStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/status", "description": "Allowed statuses: PENDING, PROCESSING, PACKED, SHIPPED, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED." } },
-        { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. VERIFIED sends a payment confirmation notification to the customer." } },
+        { "name": "Verify or Reject Payment", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"paymentStatus\": \"{{paymentStatus}}\",\n  \"rejectionReason\": \"Payment evidence could not be verified\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/payment", "description": "Admin-only. Accepted values: VERIFIED or REJECTED. A rejection reason is required for REJECTED; the sample includes one. VERIFIED sends a payment confirmation notification to the customer." } },
         { "name": "Admin Cancel Order", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Out of stock\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/cancel", "description": "Admin-only. Cancels the order and opens a refund case (PENDING) when a payment was already submitted; the refund becomes actionable once payment is verified." } },
         { "name": "Update Refund Status", "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"refundStatus\": \"PROCESSING\",\n  \"refundReference\": \"REF-123456\"\n}" }, "url": "{{baseUrl}}/admin/orders/{{orderId}}/refund", "description": "Admin-only. Accepted statuses: PROCESSING, COMPLETED, FAILED. Payment must be verified first." } }
       ]
@@ -301,9 +323,9 @@
       "name": "Admin Users",
       "item": [
         { "name": "List Admin Users", "request": { "method": "GET", "url": "{{baseUrl}}/admin/users" } },
-        { "name": "Create Admin User", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"username\": \"storemanager\",\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"manager@example.com\",\n  \"mobileNumber\": \"9000000002\",\n  \"password\": \"ManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users" } },
-        { "name": "Update Admin User / Reset Password", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"manager@example.com\",\n  \"mobileNumber\": \"9000000002\",\n  \"isEnabled\": true,\n  \"newPassword\": \"NewManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users/2" } },
-        { "name": "Delete Admin User", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/2" } }
+        { "name": "Create Admin User", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"username\": \"storemanager-{{$timestamp}}\",\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"manager-{{$timestamp}}@example.com\",\n  \"mobileNumber\": \"9000000002\",\n  \"password\": \"ManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users" }, "event": [{ "listen": "test", "script": { "exec": ["if ([200, 201].includes(pm.response.code)) {", "  const user = pm.response.json().user;", "  if (user?.userId) pm.collectionVariables.set('adminUserId', user.userId);", "  if (user?.email) pm.collectionVariables.set('adminUserEmail', user.email);", "}"] } }] },
+        { "name": "Update Admin User / Reset Password", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Store Manager\",\n  \"displayName\": \"Manager\",\n  \"email\": \"{{adminUserEmail}}\",\n  \"mobileNumber\": \"9000000002\",\n  \"isEnabled\": true,\n  \"newPassword\": \"NewManagerPass123!\"\n}" }, "url": "{{baseUrl}}/admin/users/{{adminUserId}}" } },
+        { "name": "Delete Admin User", "request": { "method": "DELETE", "url": "{{baseUrl}}/admin/users/{{adminUserId}}" } }
       ]
     }
   ]
