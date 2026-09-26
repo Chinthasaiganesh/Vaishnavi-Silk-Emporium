@@ -2411,11 +2411,25 @@ a {
   box-shadow: 0 10px 24px rgba(26, 41, 67, 0.07);
 }
 
+.detail-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  min-width: 0;
+  overflow: hidden;
+  background: #f8f3f4;
+}
+
 .detail-media img {
+  height: 100%;
   width: 100%;
   display: block;
-  border-radius: 1rem;
+  object-fit: contain;
+  object-position: center;
+  background: #f8f3f4;
 }
+
+.detail-media .product-image-dots { position: absolute; right: 0; bottom: 0.25rem; left: 0; z-index: 2; }
 
 .detail-content {
   padding: 1.2rem;
