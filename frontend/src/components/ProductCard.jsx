@@ -35,7 +35,7 @@ export default function ProductCard({ product }) {
         <Link className="btn btn-outline" to={`/products/${displayedProduct.productId}`}>
           {t("viewDetails")}
         </Link>
-        <ProductCardActions product={displayedProduct} onUnavailable={() => setReservedAfterConflict(true)} />
+        <ProductCardActions product={displayedProduct} compact onUnavailable={() => setReservedAfterConflict(true)} />
       </div>
     </article>
   );

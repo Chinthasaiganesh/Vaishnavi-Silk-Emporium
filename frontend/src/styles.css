@@ -2269,7 +2269,7 @@ a {
 .product-card img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
 }
 
@@ -2278,30 +2278,28 @@ a {
   padding: 1rem;
   display: grid;
   gap: 0.6rem;
-  grid-template-rows: auto 2.8rem 3.5rem 1.6rem 2.7rem auto auto;
+  grid-template-rows: auto;
+  align-content: start;
 }
 
 .pill {
   width: fit-content;
   max-width: 100%;
   margin: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--accent);
   background: rgba(255, 122, 0, 0.12);
   padding: 0.26rem 0.65rem;
   border-radius: 999px;
   font-weight: 700;
   font-size: 0.78rem;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .product-desc {
-  display: -webkit-box;
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--muted);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
   line-height: 1.45;
   margin: 0;
 }
@@ -2327,12 +2325,10 @@ a {
 }
 
 .product-card-body h3 {
-  display: -webkit-box;
-  overflow: hidden;
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   line-height: 1.4;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .product-card-body > .btn,
