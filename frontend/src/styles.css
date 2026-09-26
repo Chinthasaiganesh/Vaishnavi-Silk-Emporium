@@ -3264,7 +3264,7 @@ a {
     font-size: 0.9rem;
   }
 
-  .site-header .account-trigger > span { display: none; }
+  .site-header .account-trigger > span:not(.avatar) { display: none; }
 
   .site-header .header-actions > .btn {
     width: 2.6rem;
