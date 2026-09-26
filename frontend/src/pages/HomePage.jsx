@@ -158,9 +158,6 @@ export default function HomePage() {
             <p className="eyebrow">Handpicked For You</p>
             <h2>Featured Sarees</h2>
           </div>
-          <Link className="btn btn-outline" to="/products">
-            Explore Collections
-          </Link>
         </div>
         <div className="featured-products-grid">
           {featuredLoading && Array.from({ length: 4 }, (_, index) => <div className="skeleton-card" key={index} />)}
