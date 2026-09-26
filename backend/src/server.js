@@ -134,7 +134,7 @@ app.get("/api/health", async (req, res) => {
     await db.prepare("SELECT 1").get();
     const totalProducts = (await db.prepare("SELECT COUNT(*) AS count FROM Products").get()).count;
     const activeProducts = (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 1").get()).count;
-    const outOfStockProducts = (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE Quantity = 0").get()).count;
+    const outOfStockProducts = (await db.prepare("SELECT COUNT(*) AS count FROM Inventory WHERE AvailableStock = 0").get()).count;
     res.json({ status: "ok", database: "postgresql", version: await getDatabaseVersion(), inventory: { status: "ok", routeRegistered: true, productCount: totalProducts, activeProducts, outOfStockProducts }, environment: config.nodeEnv, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error(JSON.stringify({ level: "error", message: "Health check failed", requestId: req.requestId, error: error.message, stack: error.stack }));

@@ -28,7 +28,7 @@ export default function AdminInventoryPage() {
   useEffect(() => { loadInventory(); }, []);
 
   async function saveStock(product) {
-    const quantity = quantities[product.productId] ?? product.quantity;
+    const quantity = quantities[product.productId] ?? product.currentStock;
     setError("");
     try {
       await api.put(`/inventory/${product.productId}`, { stock: quantity });
@@ -41,7 +41,7 @@ export default function AdminInventoryPage() {
     }
   }
 
-  const lowStock = products.filter((product) => product.quantity <= 5);
+  const lowStock = products.filter((product) => product.availableStock > 0 && product.availableStock <= 5);
   return (
     <main className="container section admin-layout">
       <div className="admin-head"><div><p className="eyebrow">Stock Control</p><h1>Inventory Management</h1></div></div>
@@ -53,7 +53,7 @@ export default function AdminInventoryPage() {
           <div className="stats-grid">
             <article><h3>Current Sarees</h3><p>{products.length}</p></article>
             <article><h3>Low Stock Alerts</h3><p>{lowStock.length}</p></article>
-            <article><h3>Out Of Stock</h3><p>{products.filter((product) => product.quantity === 0).length}</p></article>
+            <article><h3>Out Of Stock</h3><p>{products.filter((product) => product.availableStock === 0).length}</p></article>
           </div>
           <section className="admin-table-wrap">
             <h2>Stock Management</h2>
@@ -63,17 +63,19 @@ export default function AdminInventoryPage() {
               <div className="table-scroll">
                 <table className="admin-table">
                   <thead>
-                    <tr><th>Saree</th><th>Availability</th><th>Current Stock</th><th>Restock</th></tr>
+                    <tr><th>Saree</th><th>Availability</th><th>Current Stock</th><th>Available</th><th>Reserved</th><th>Set Current Stock</th></tr>
                   </thead>
                   <tbody>
                     {products.map((product) => (
                       <tr key={product.productId}>
                         <td data-label="Saree">{product.productName}</td>
-                        <td data-label="Availability">{product.quantity > 0 ? "Available" : "Out Of Stock"}</td>
-                        <td data-label="Current Stock">{product.quantity}</td>
-                        <td data-label="Restock">
+                        <td data-label="Availability">{product.availabilityStatus}</td>
+                        <td data-label="Current Stock">{product.currentStock}</td>
+                        <td data-label="Available">{product.availableStock}</td>
+                        <td data-label="Reserved">{product.reservedStock}</td>
+                        <td data-label="Set Current Stock">
                           <div className="inventory-control">
-                            <input type="number" min="0" value={quantities[product.productId] ?? product.quantity} onChange={(event) => setQuantities({ ...quantities, [product.productId]: event.target.value })} />
+                            <input type="number" min={product.reservedStock} value={quantities[product.productId] ?? product.currentStock} onChange={(event) => setQuantities({ ...quantities, [product.productId]: event.target.value })} />
                             <button className="btn btn-primary" onClick={() => saveStock(product)}>Update</button>
                           </div>
                         </td>

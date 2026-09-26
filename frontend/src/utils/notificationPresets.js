@@ -55,6 +55,14 @@ export const notificationPresets = {
     message: "Your order has been placed successfully and your payment is currently under verification. We'll notify you once the payment verification is completed.",
     primaryLabel: "View Order"
   },
+  ORDER_PROCESSING: {
+    variant: "info",
+    icon: "info",
+    eyebrow: "Order update",
+    title: "Processing",
+    message: "Your order is being prepared for packing.",
+    primaryLabel: "Track Order"
+  },
   ORDER_PACKED: {
     variant: "info",
     icon: "package",
@@ -70,6 +78,30 @@ export const notificationPresets = {
     title: "Order Shipped",
     message: "Your order is on its way. Track it any time from your orders page.",
     primaryLabel: "Track Order"
+  },
+  ORDER_OUT_FOR_DELIVERY: {
+    variant: "info",
+    icon: "shipping",
+    eyebrow: "Order update",
+    title: "Out For Delivery",
+    message: "Your order is with the delivery partner and is out for delivery.",
+    primaryLabel: "Track Order"
+  },
+  ORDER_DELIVERED: {
+    variant: "success",
+    icon: "check",
+    eyebrow: "Order complete",
+    title: "Order Delivered",
+    message: "Your order has been delivered successfully.",
+    primaryLabel: "View Order"
+  },
+  ORDER_REFUNDED: {
+    variant: "info",
+    icon: "check",
+    eyebrow: "Refund complete",
+    title: "Refund Completed",
+    message: "Your refund has been completed.",
+    primaryLabel: "View Order"
   },
   ORDER_CANCELLED: {
     variant: "warning",

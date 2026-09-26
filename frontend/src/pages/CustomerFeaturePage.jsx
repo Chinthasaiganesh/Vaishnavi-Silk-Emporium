@@ -45,7 +45,33 @@ export default function CustomerFeaturePage({ type }) {
 
   useEffect(() => {
     if (type !== "wishlist" || user?.role !== "USER") return undefined;
-    api.get("/wishlists").then((response) => setItems(response.data.products || [])).catch(() => setItems([]));
+    let active = true;
+    let loadingWishlist = false;
+    async function loadWishlist() {
+      if (loadingWishlist || document.visibilityState !== "visible") return;
+      loadingWishlist = true;
+      try {
+        const response = await api.get("/wishlists");
+        if (active) setItems(response.data.products || []);
+      } catch {
+        if (active) setItems([]);
+      } finally {
+        loadingWishlist = false;
+      }
+    }
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") loadWishlist();
+    }
+    loadWishlist();
+    const interval = window.setInterval(loadWishlist, 30000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+    };
   }, [type, user]);
 
   useEffect(() => {
@@ -207,7 +233,32 @@ export default function CustomerFeaturePage({ type }) {
   }
 
   const title = type === "wishlist" ? "My Wishlist" : "Recently Viewed";
-  return <main className="container section"><h1>{title}</h1>{items.length === 0 ? <div className="customer-empty"><p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p><Link className="btn btn-primary" to="/products">Explore Products</Link></div> : <div className="customer-product-grid">{items.map((product) => <article className="customer-product" key={product.productId}><img src={resolveImage(product.imageUrl)} alt={product.productName} /><h3>{product.productName}</h3><RatingBadge rating={product.rating} productId={product.productId} /><ProductPrice product={product} />{product.viewedAt && <small>Viewed {new Date(product.viewedAt).toLocaleDateString()}</small>}<Link to={`/products/${product.productId}`}>View Details</Link>{type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems(items.filter((item) => item.productId !== product.productId)); }}>Remove</button>}</article>)}</div>}</main>;
+  return (
+    <main className="container section">
+      <h1>{title}</h1>
+      {items.length === 0 ? (
+        <div className="customer-empty">
+          <p>{type === "wishlist" ? "Save favorite products to see them here." : "Products you view will appear here."}</p>
+          <Link className="btn btn-primary" to="/products">Explore Products</Link>
+        </div>
+      ) : (
+        <div className="customer-product-grid">
+          {items.map((product) => (
+            <article className="customer-product" key={product.productId}>
+              <img src={resolveImage(product.imageUrl)} alt={product.productName} />
+              <h3>{product.productName}</h3>
+              {type === "wishlist" && <p className={`status ${Number(product.availableQuantity ?? 0) > 0 ? "in" : "out"}`}>{product.availabilityStatus}</p>}
+              <RatingBadge rating={product.rating} productId={product.productId} />
+              <ProductPrice product={product} />
+              {product.viewedAt && <small>Viewed {new Date(product.viewedAt).toLocaleDateString()}</small>}
+              <Link to={`/products/${product.productId}`}>View Details</Link>
+              {type === "wishlist" && <button onClick={async () => { await api.delete(`/wishlists/${product.productId}`); setItems((current) => current.filter((item) => item.productId !== product.productId)); }}>Remove</button>}
+            </article>
+          ))}
+        </div>
+      )}
+    </main>
+  );
 }
 
 function resolveImage(url) {

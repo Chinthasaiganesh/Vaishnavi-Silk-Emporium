@@ -2,6 +2,13 @@ import bcrypt from "bcryptjs";
 import { db } from "./db.js";
 import { config } from "./config.js";
 import { nowIso } from "./utils.js";
+import { calculateInventoryState } from "./inventory-logic.js";
+import { initializeInventory } from "./inventory.service.js";
+
+async function createSeedInventory(productId, stock, timestamp) {
+  const state = calculateInventoryState(stock);
+  await db.prepare("INSERT OR IGNORE INTO Inventory (ProductId, CurrentStock, AvailableStock, ReservedStock, Status, CreatedDate, UpdatedDate) VALUES (?, ?, ?, ?, ?, ?, ?)").run(productId, state.CurrentStock, state.AvailableStock, state.ReservedStock, state.Status, timestamp, timestamp);
+}
 
 const existingAdmin = await db
   .prepare("SELECT UserId FROM Users WHERE Username = ?")
@@ -70,7 +77,8 @@ const seedProducts = [
 const created = nowIso();
 for (const product of seedProducts) {
   if (!(await db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(product[0]))) {
-    await insertProduct.run(product[0], product[1], product[2], product[3], product[4], product[5], product[6], product[7], created, created);
+    const result = await insertProduct.run(product[0], product[1], product[2], product[3], product[4], product[5], product[6], product[7], created, created);
+    await createSeedInventory(result.lastInsertRowid, product[5], created);
   }
 }
 
@@ -86,7 +94,8 @@ const sarees = [
 ];
 for (const saree of sarees) {
   if (!(await db.prepare("SELECT ProductId FROM Products WHERE ProductName = ?").get(saree[0]))) {
-    await insertSaree.run(...saree.slice(0, -1), now, now);
+    const result = await insertSaree.run(...saree.slice(0, -1), now, now);
+    await createSeedInventory(result.lastInsertRowid, saree[5], now);
   }
 }
 

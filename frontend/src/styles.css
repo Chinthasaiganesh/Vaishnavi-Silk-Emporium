@@ -2,6 +2,10 @@
 .payment-modal { width: min(100%, 420px); display: grid; gap: 0.8rem; padding: 1.5rem; background: var(--card, #fff); border-radius: 8px; box-shadow: 0 20px 60px rgb(0 0 0 / 25%); text-align: center; }
 .payment-modal .link-btn { justify-self: end; }
 .payment-modal img { width: 280px; max-width: 100%; margin: 0 auto; }
+.upi-payment-summary { display: grid; gap: 0.55rem; margin: 0; padding: 0.75rem 0; border-block: 1px solid var(--border, #ddd); text-align: left; }
+.upi-payment-summary > div { display: flex; justify-content: space-between; gap: 1rem; }
+.upi-payment-summary dt { color: var(--muted, #666); font-size: 0.82rem; }
+.upi-payment-summary dd { max-width: 68%; margin: 0; color: var(--text); font-size: 0.85rem; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
 .payment-modal input { width: 100%; padding: 0.75rem; }
 .payment-modal small { color: var(--muted, #666); }
 

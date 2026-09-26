@@ -15,7 +15,9 @@ export default function AdminOverviewPage() {
       .catch(() => setError("Unable to load dashboard insights."));
   }, []);
 
-  const outOfStock = products.filter((product) => product.quantity === 0).length;
+  const activeProducts = products.filter((product) => product.isActive);
+  const outOfStock = activeProducts.filter((product) => Number(product.availableQuantity ?? 0) === 0).length;
+  const availableProducts = activeProducts.filter((product) => Number(product.availableQuantity ?? 0) > 0).length;
   const featured = products.filter((product) => product.isFeatured).length;
   const recent = products.slice(0, 5);
 
@@ -29,7 +31,7 @@ export default function AdminOverviewPage() {
       </div>
       <div className="stats-grid">
         <article><h3>Total Sarees</h3><p>{summary.totalProducts}</p></article>
-        <article><h3>Available Sarees</h3><p>{summary.activeProducts - outOfStock}</p></article>
+        <article><h3>Available Sarees</h3><p>{availableProducts}</p></article>
         <article><h3>Out Of Stock</h3><p>{outOfStock}</p></article>
         <article><h3>Featured Sarees</h3><p>{featured}</p></article>
       </div>
@@ -39,15 +41,17 @@ export default function AdminOverviewPage() {
         <div className="table-scroll">
           <table className="admin-table">
             <thead>
-              <tr><th>Saree</th><th>Category</th><th>Stock</th><th>Status</th></tr>
+              <tr><th>Saree</th><th>Category</th><th>Current</th><th>Available</th><th>Reserved</th><th>Status</th></tr>
             </thead>
             <tbody>
               {recent.map((product) => (
                 <tr key={product.productId}>
                   <td data-label="Saree">{product.productName}</td>
                   <td data-label="Category">{product.category}</td>
-                  <td data-label="Stock">{product.quantity}</td>
-                  <td data-label="Status">{product.quantity > 0 ? "Available" : "Out Of Stock"}</td>
+                  <td data-label="Current">{product.currentStock}</td>
+                  <td data-label="Available">{product.availableQuantity}</td>
+                  <td data-label="Reserved">{product.reservedQuantity}</td>
+                  <td data-label="Status">{product.isActive ? product.availabilityStatus : "Inactive"}</td>
                 </tr>
               ))}
             </tbody>

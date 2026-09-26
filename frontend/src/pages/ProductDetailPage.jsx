@@ -105,11 +105,11 @@ export default function ProductDetailPage() {
         </dl>
         <RatingBadge rating={product.rating} productId={product.productId} />
         <ProductPrice product={product} className="detail-product-price" />
-        <p className={product.quantity > 0 ? "status in" : "status out"}>
-          {product.quantity > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
+        <p className={Number(product.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
+          {Number(product.availableQuantity ?? 0) > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
         </p>
         {product.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
-        <ProductCardActions product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
+        <ProductCardActions product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
       </section>
     </main>
   );

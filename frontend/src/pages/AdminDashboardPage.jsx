@@ -103,7 +103,7 @@ export default function AdminDashboardPage() {
       rating: String(product.rating || 4.5),
       price: String(product.originalPrice ?? product.price),
       discountedPrice: product.discountedPrice == null ? "" : String(product.discountedPrice),
-      quantity: String(product.quantity),
+      quantity: String(product.currentStock ?? 0),
       isActive: product.isActive,
       isFeatured: product.isFeatured,
       existingImages: product.imageUrls?.length ? [...product.imageUrls] : product.imageUrl ? [product.imageUrl] : [],
@@ -269,7 +269,7 @@ export default function AdminDashboardPage() {
           <input
             type="number"
             min="0"
-            placeholder="Quantity"
+            placeholder="Current Stock"
             value={form.quantity}
             onChange={(e) => onFieldChange("quantity", e.target.value)}
             required
@@ -362,7 +362,9 @@ export default function AdminDashboardPage() {
                 <th>Name</th>
                 <th>Category</th>
                 <th>Price</th>
-                <th>Qty</th>
+                <th>Current Stock</th>
+                <th>Available</th>
+                <th>Reserved</th>
                 <th>Status</th>
                 <th>Featured</th>
                 <th>Actions</th>
@@ -374,7 +376,9 @@ export default function AdminDashboardPage() {
                   <td data-label="Name">{p.productName}</td>
                   <td data-label="Category">{p.category}</td>
                   <td data-label="Price"><ProductPrice product={p} /></td>
-                  <td data-label="Qty">{p.quantity}</td>
+                  <td data-label="Current Stock">{p.currentStock}</td>
+                  <td data-label="Available">{p.availableQuantity}</td>
+                  <td data-label="Reserved">{p.reservedQuantity}</td>
                   <td data-label="Status">{p.isActive ? "Active" : "Inactive"}</td>
                   <td data-label="Featured">{p.isFeatured ? "Yes" : "No"}</td>
                   <td data-label="Actions">

@@ -11,7 +11,7 @@ function mapInventory(row) {
     availableStock: row.AvailableStock,
     reservedStock: row.ReservedStock,
     status: row.Status,
-    availabilityStatus: row.Status === "OUT_OF_STOCK" ? "Out of Stock" : "In Stock",
+    availabilityStatus: row.AvailableStock > 0 ? "In Stock" : row.ReservedStock > 0 ? "Temporarily Unavailable" : "Out of Stock",
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };
