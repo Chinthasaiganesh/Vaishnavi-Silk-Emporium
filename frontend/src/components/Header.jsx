@@ -51,7 +51,7 @@ export default function Header() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationItems, setNotificationItems] = useState([]);
-  const previousUnreadNotifications = useRef(null);
+  const seenNotificationIds = useRef(null);
   const displayName = user?.displayName || user?.fullName || user?.username;
   const { language, setLanguage, t } = useLanguage();
   const { cartCount } = useCart();
@@ -160,19 +160,27 @@ export default function Header() {
       try {
         const response = await api.get("/notifications");
         const unreadCount = response.data.unreadCount || 0;
-        if (active && previousUnreadNotifications.current !== null && unreadCount > previousUnreadNotifications.current) {
-          const newNotifications = (response.data.notifications || []).filter((notification) => !notification.isRead).slice(0, unreadCount - previousUnreadNotifications.current);
-          for (const notification of newNotifications.reverse()) {
+        const notifications = response.data.notifications || [];
+        if (active) {
+          const previousIds = seenNotificationIds.current;
+          const newNotifications = notifications.filter((notification) => {
+            const notificationId = String(notification.notificationId);
+            if (previousIds) return !previousIds.has(notificationId);
+            const age = Date.now() - new Date(notification.createdDate).getTime();
+            return Number.isFinite(age) && age >= 0 && age <= 30000;
+          });
+          seenNotificationIds.current = new Set(notifications.map((notification) => String(notification.notificationId)));
+          if (newNotifications.length) {
+            window.dispatchEvent(new CustomEvent("notifications:received", { detail: { notifications: newNotifications } }));
+          }
+          for (const notification of newNotifications.filter((item) => !item.isRead).reverse()) {
             if ("Notification" in window && Notification.permission === "granted") {
               try { new Notification(notification.title, { body: notification.message, silent: false }); } catch (error) { console.warn("Device notification could not be displayed.", error); }
             }
             playNotificationSound().catch((error) => console.warn("Notification sound could not be played.", error));
           }
-        }
-        previousUnreadNotifications.current = unreadCount;
-        if (active) {
           setUnreadNotifications(unreadCount);
-          setNotificationItems((response.data.notifications || []).slice(0, 5));
+          setNotificationItems(notifications.slice(0, 5));
         }
       } catch {
         if (active) {

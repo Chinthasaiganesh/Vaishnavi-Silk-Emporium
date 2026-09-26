@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api";
 import { useNotifier } from "../NotifierContext";
-import { buildNotification } from "../utils/notificationPresets";
+import { buildNotification, resolveNotificationVisual } from "../utils/notificationPresets";
 import { formatCurrency } from "../utils/currency";
 import { resolveImageUrl } from "../utils/image";
 
@@ -121,17 +121,56 @@ export default function OrderDetailPage() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const reducedMotion = useReducedMotion();
   const { notify } = useNotifier();
+  const orderFetchSequence = useRef(0);
   useEffect(() => {
     let active = true;
+    const sequence = ++orderFetchSequence.current;
     setOrder(null);
     setError("");
     api.get(`/orders/${id}`)
-      .then((response) => { if (active) setOrder(response.data.order); })
+      .then((response) => { if (active && sequence === orderFetchSequence.current) setOrder(response.data.order); })
       .catch((requestError) => {
-        if (active) setError(requestError.response?.data?.message || "Unable to load order.");
+        if (active && sequence === orderFetchSequence.current) setError(requestError.response?.data?.message || "Unable to load order.");
       });
     return () => { active = false; };
   }, [id]);
+  useEffect(() => {
+    let active = true;
+    async function refreshForNotification(notification) {
+      const sequence = ++orderFetchSequence.current;
+      try {
+        const response = await api.get(`/orders/${id}`);
+        if (!active || sequence !== orderFetchSequence.current) return;
+        const freshOrder = response.data.order;
+        window.sessionStorage.setItem(`order-notice-${freshOrder.OrderId}`, `${freshOrder.PaymentStatus}:${freshOrder.OrderStatus}`);
+        setOrder(freshOrder);
+        const visual = resolveNotificationVisual({ type: notification.type, title: notification.title });
+        notify({
+          id: `order-refresh-${notification.notificationId}`,
+          ...visual,
+          eyebrow: "Order update",
+          title: notification.title || "Order Updated",
+          message: notification.message || `Order status: ${orderStatusLabel(freshOrder.OrderStatus)}.`,
+          primaryAction: { label: "Got it" }
+        });
+      } catch (requestError) {
+        if (active && sequence === orderFetchSequence.current) console.warn("Order refresh after notification failed.", requestError);
+      }
+    }
+
+    function handleNotificationsReceived(event) {
+      const notifications = (event.detail?.notifications || [])
+        .filter((notification) => String(notification.orderId) === String(id))
+        .sort((first, second) => new Date(second.createdDate).getTime() - new Date(first.createdDate).getTime());
+      if (notifications.length) refreshForNotification(notifications[0]);
+    }
+
+    window.addEventListener("notifications:received", handleNotificationsReceived);
+    return () => {
+      active = false;
+      window.removeEventListener("notifications:received", handleNotificationsReceived);
+    };
+  }, [id, notify]);
   useEffect(() => {
     if (!order) return;
     const statusPresets = {

@@ -54,10 +54,27 @@ export async function getReservation(userId, reservationId) {
   return { ...reservation, items };
 }
 
+export async function getActiveReservation(userId) {
+  await releaseExpiredReservations();
+  const reservation = await db.prepare("SELECT * FROM CheckoutReservations WHERE UserId = ? AND ReservationStatus = 'ACTIVE' AND ExpiresAt > ? ORDER BY ReservedAt DESC LIMIT 1").get(userId, nowIso());
+  return reservation ? await getReservation(userId, reservation.ReservationId) : null;
+}
+
+export async function assertNoActivePaymentSession(userId) {
+  const reservation = await getActiveReservation(userId);
+  if (!reservation) return;
+  throw Object.assign(new Error("You already have an active payment transaction. Complete it or cancel the session before changing your cart."), {
+    status: 409,
+    code: "ACTIVE_PAYMENT_SESSION",
+    activePaymentSession: reservationView(reservation)
+  });
+}
+
 export async function reserveCart(userId, addressId, sessionId) {
   if (!sessionId || sessionId.length > 100) throw reservationError("A valid checkout session is required.", "INVALID_RESERVATION_SESSION", 400);
   await releaseExpiredReservations();
   const reservationId = await transaction(async (tx) => {
+    await tx.get("SELECT CartId FROM Carts WHERE UserId = ? FOR UPDATE", [userId]);
     let existing = await tx.get("SELECT * FROM CheckoutReservations WHERE UserId = ? AND ReservationSessionId = ? FOR UPDATE", [userId, sessionId]);
     if (!existing) existing = await tx.get("SELECT * FROM CheckoutReservations WHERE UserId = ? AND ReservationStatus = 'ACTIVE' ORDER BY ReservedAt DESC LIMIT 1 FOR UPDATE", [userId]);
     if (existing?.ReservationStatus === "ACTIVE" && new Date(existing.ExpiresAt).getTime() > Date.now()) return existing.ReservationId;

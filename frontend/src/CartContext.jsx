@@ -58,6 +58,13 @@ export function CartProvider({ children }) {
     setCart(response.data);
   }
 
+  async function releasePaymentSession(reservationId) {
+    await api.post(`/checkout/reservations/${reservationId}/release`);
+    localStorage.removeItem("checkout-reservation-session");
+    sessionStorage.removeItem(`checkout-payment-${reservationId}`);
+    await refreshCart();
+  }
+
   useEffect(() => {
     if (!notice) return undefined;
     const timer = window.setTimeout(() => setNotice(null), 3200);
@@ -72,6 +79,14 @@ export function CartProvider({ children }) {
 
   function showGuestPrompt() {
     setNotice({ type: "guest", text: "Please sign in to add products to your cart." });
+  }
+
+  function capturePaymentSession(error) {
+    const { activePaymentSession } = error.response?.data || {};
+    const code = error.response?.data?.code || error.response?.data?.diagnosticCode;
+    if (code !== "ACTIVE_PAYMENT_SESSION" || !activePaymentSession) return false;
+    setCart((current) => ({ ...current, activePaymentSession }));
+    return true;
   }
 
   async function addToCart(productId, quantity = 1, product = null, sourceRect = null, targetRect = null) {
@@ -104,6 +119,7 @@ export function CartProvider({ children }) {
       const serverMessage = error.response?.data?.message;
       console.error("Cart add failed", { requestUrl, method: "POST", userId: user.userId, productId, quantity, status: status || null, response: error.response?.data || null, requestId: requestId || null, error: error.message });
       if (errorCode === "TEMPORARILY_RESERVED") return { code: errorCode, message: serverMessage };
+      if (capturePaymentSession(error)) return { code: errorCode, message: serverMessage, activePaymentSession: error.response.data.activePaymentSession };
       setNotice({ type: "error", text: serverMessage || (status ? `Cart API failed (HTTP ${status}) at ${requestUrl}.` : `Cart API unavailable at ${requestUrl}.`) });
       return false;
     }
@@ -111,20 +127,20 @@ export function CartProvider({ children }) {
 
   async function updateQuantity(cartItemId, quantity) {
     try { const response = await api.put(`/cart/items/${cartItemId}`, { quantity }); setCart(response.data); setNotice({ type: "success", text: response.data.message }); }
-    catch (error) { setNotice({ type: "error", text: error.response?.data?.message || "Unable to update cart quantity." }); }
+    catch (error) { capturePaymentSession(error); setNotice({ type: "error", text: error.response?.data?.message || "Unable to update cart quantity." }); }
   }
 
   async function removeItem(cartItemId) {
     try { const response = await api.delete(`/cart/items/${cartItemId}`); setCart(response.data); setNotice({ type: "success", text: response.data.message }); }
-    catch (error) { setNotice({ type: "error", text: error.response?.data?.message || "Unable to remove item." }); }
+    catch (error) { capturePaymentSession(error); setNotice({ type: "error", text: error.response?.data?.message || "Unable to remove item." }); }
   }
 
   async function clearCart() {
     try { const response = await api.delete("/cart"); setCart(response.data); setNotice({ type: "success", text: response.data.message }); }
-    catch (error) { setNotice({ type: "error", text: error.response?.data?.message || "Unable to clear cart." }); }
+    catch (error) { capturePaymentSession(error); setNotice({ type: "error", text: error.response?.data?.message || "Unable to clear cart." }); }
   }
 
-  return <CartContext.Provider value={{ cart, cartCount: cart.totals.itemCount, addToCart, updateQuantity, removeItem, clearCart, refreshCart }}>
+  return <CartContext.Provider value={{ cart, cartCount: cart.totals.itemCount, addToCart, updateQuantity, removeItem, clearCart, refreshCart, releasePaymentSession }}>
     {children}
     {flyingProduct && <img className="flying-cart-product" src={resolveImage(flyingProduct.imageUrl)} style={{ left: flyingProduct.sourceRect.left, top: flyingProduct.sourceRect.top, width: flyingProduct.sourceRect.width, height: flyingProduct.sourceRect.height, "--cart-left": `${flyingProduct.targetRect?.left || window.innerWidth - 64}px`, "--cart-top": `${flyingProduct.targetRect?.top || 16}px` }} alt="" aria-hidden="true" />}
     {notice && <div className={`cart-toast cart-toast-${notice.type}`} role="status"><span className="cart-toast-icon" aria-hidden="true">{notice.type === "success" ? "✓" : "!"}</span><span>{notice.text}</span>{notice.type === "guest" && <><button onClick={() => navigate("/login")}>Sign In</button><button onClick={() => navigate("/login?mode=register")}>Register</button></>}</div>}

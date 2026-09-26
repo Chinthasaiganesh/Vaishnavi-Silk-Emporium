@@ -8,12 +8,14 @@ import { buildNotification } from "../utils/notificationPresets";
 import QRCode from "qrcode";
 import { resolveImageUrl } from "../utils/image";
 import { buildUpiTransactionNote, getCheckoutOrderNumber, summarizeCheckoutProducts } from "../utils/upi";
+import PaymentSessionNotice from "../components/PaymentSessionNotice";
 
 const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India", isDefault: false };
+const paymentCacheKey = (reservationId) => `checkout-payment-${reservationId}`;
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { refreshCart } = useCart();
+  const { refreshCart, releasePaymentSession } = useCart();
   const { notify, confirm } = useNotifier();
   const [summary, setSummary] = useState(null);
   const [addresses, setAddresses] = useState([]);
@@ -29,9 +31,9 @@ export default function CheckoutPage() {
   const [upiPayment, setUpiPayment] = useState(null);
   const [upiReference, setUpiReference] = useState("");
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
   const idempotencyKey = useRef(crypto.randomUUID());
   const placingRef = useRef(false);
-  const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
   const serverClockOffset = useRef(0);
   const announcedReservation = useRef(false);
   const announcedExpiryWarning = useRef(false);
@@ -43,13 +45,17 @@ export default function CheckoutPage() {
 
   function applyReservation(payload) {
     if (payload?.serverTime) serverClockOffset.current = new Date(payload.serverTime).getTime() - Date.now();
+    if (payload?.ReservationId) idempotencyKey.current = payload.ReservationId;
+    if (payload?.ReservationSessionId) {
+      reservationSessionId.current = payload.ReservationSessionId;
+      localStorage.setItem("checkout-reservation-session", payload.ReservationSessionId);
+    }
     setReservation(payload || null);
     return payload;
   }
 
   async function reserveCheckout(selectedAddressId) {
     const response = await api.post("/checkout/reserve", { addressId: Number(selectedAddressId), sessionId: reservationSessionId.current });
-    localStorage.setItem("checkout-reservation-session", reservationSessionId.current);
     return applyReservation(response.data.reservation);
   }
 
@@ -62,7 +68,20 @@ export default function CheckoutPage() {
       setAddresses(saved);
       const selectedAddressId = String(saved.find((address) => address.IsDefault)?.AddressId || saved[0]?.AddressId || "");
       setAddressId(selectedAddressId);
-      if (selectedAddressId) await reserveCheckout(selectedAddressId);
+      if (selectedAddressId) {
+        const activeReservation = await reserveCheckout(selectedAddressId);
+        if (activeReservation?.AddressId) setAddressId(String(activeReservation.AddressId));
+        const cachedPayment = sessionStorage.getItem(paymentCacheKey(activeReservation?.ReservationId));
+        if (cachedPayment) {
+          try {
+            const savedPayment = JSON.parse(cachedPayment);
+            if (savedPayment.reservationId === activeReservation.ReservationId) setUpiPayment(savedPayment);
+            else sessionStorage.removeItem(paymentCacheKey(activeReservation.ReservationId));
+          } catch {
+            sessionStorage.removeItem(paymentCacheKey(activeReservation.ReservationId));
+          }
+        }
+      }
     } catch (requestError) { setError(requestError.response?.data?.message || "Unable to load checkout."); }
     finally { setLoading(false); }
   }
@@ -117,6 +136,7 @@ export default function CheckoutPage() {
     if (!expired) return;
     api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
     localStorage.removeItem("checkout-reservation-session");
+    sessionStorage.removeItem(paymentCacheKey(reservation.ReservationId));
     setReservation(null);
     setUpiPayment(null);
     navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
@@ -175,19 +195,48 @@ export default function CheckoutPage() {
   async function startUpiPayment() {
     setError("");
     try {
-      const activeReservation = await reserveCheckout(addressId);
+      const reservationIsActive = reservation?.ReservationStatus === "ACTIVE"
+        && new Date(reservation.ExpiresAt).getTime() > Date.now() + serverClockOffset.current;
+      const activeReservation = reservationIsActive ? reservation : await reserveCheckout(addressId);
+      if (upiPayment?.reservationId === activeReservation.ReservationId) return;
+      const cachedPayment = sessionStorage.getItem(paymentCacheKey(activeReservation.ReservationId));
+      if (cachedPayment) {
+        const savedPayment = JSON.parse(cachedPayment);
+        if (savedPayment.reservationId === activeReservation.ReservationId) {
+          setUpiPayment(savedPayment);
+          return;
+        }
+      }
       const upiId = import.meta.env.VITE_UPI_ID;
       if (!upiId) throw new Error("UPI payment is not configured. Set VITE_UPI_ID in the frontend environment.");
       const amount = activeReservation.items.reduce((total, item) => total + Number(item.UnitPrice) * Number(item.Quantity), 0).toFixed(2);
-      const orderNumber = getCheckoutOrderNumber(idempotencyKey.current);
+      idempotencyKey.current = activeReservation.ReservationId;
+      const orderNumber = getCheckoutOrderNumber(activeReservation.ReservationId);
       const transactionNote = buildUpiTransactionNote(orderNumber, activeReservation.items);
       const upiUri = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent("Vaishnavi Silk Emporium")}&am=${amount}&cu=INR&tn=${encodeURIComponent(transactionNote)}`;
       const qrDataUrl = await QRCode.toDataURL(upiUri, { width: 280, margin: 2 });
       setUpiReference("");
-      setUpiPayment({ amount, upiId, qrDataUrl, orderNumber, productSummary: summarizeCheckoutProducts(activeReservation.items) });
+      const payment = { amount, upiId, qrDataUrl, orderNumber, productSummary: summarizeCheckoutProducts(activeReservation.items), reservationId: activeReservation.ReservationId };
+      sessionStorage.setItem(paymentCacheKey(activeReservation.ReservationId), JSON.stringify(payment));
+      setUpiPayment(payment);
     } catch (err) {
       console.error("UPI payment initialization failed", err);
       setError(err.response?.data?.message || err.message || "Payment initialization failed.");
+    }
+  }
+
+  async function cancelPaymentSession() {
+    if (!reservation?.ReservationId) return;
+    const confirmed = await confirm({ variant: "warning", icon: "alert", eyebrow: "Payment in progress", title: "Cancel Payment Session?", message: "Your reserved items will be released and the QR will no longer match checkout. Do not cancel if you have already sent the payment.", confirmLabel: "Cancel Session", cancelLabel: "Continue Payment" });
+    if (!confirmed) return;
+    try {
+      await releasePaymentSession(reservation.ReservationId);
+      setReservation(null);
+      setUpiPayment(null);
+      setPaymentScreenshot(null);
+      notify({ variant: "success", icon: "check", title: "Payment Session Cancelled", message: "Your reserved items have been released. You can now update your cart.", primaryAction: { label: "Got it" } });
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || "Unable to cancel the payment session.");
     }
   }
 
@@ -214,8 +263,9 @@ export default function CheckoutPage() {
       const orderReference = response.data.order.OrderNumber || response.data.order.OrderId;
       notify(buildNotification("ORDER_PLACED", { dismissible: false, primaryAction: { label: "View Order", to: `/orders/${response.data.order.OrderId}`, navigateOptions: { replace: true } }, footnote: `Order ID: #${orderReference}` }));
     } catch (requestError) {
-      if (requestError.response?.data?.code === "RESERVATION_EXPIRED") {
+      if (["RESERVATION_EXPIRED"].includes(requestError.response?.data?.code || requestError.response?.data?.diagnosticCode)) {
         localStorage.removeItem("checkout-reservation-session");
+        sessionStorage.removeItem(paymentCacheKey(reservation.ReservationId));
         navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
         return;
       }
@@ -231,6 +281,7 @@ export default function CheckoutPage() {
     <main className="container section checkout-page">
       <div className="section-head"><div><p className="eyebrow">Secure order review</p><h1>Checkout</h1></div></div>
       {error && <p className="error-text" role="alert">{error}</p>}
+      {reservation?.ReservationStatus === "ACTIVE" && <PaymentSessionNotice session={reservation} onContinue={startUpiPayment} onCancel={cancelPaymentSession} />}
       {reservation && <div className={`reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`} role="status" aria-live={remainingSeconds <= 60 ? "assertive" : "polite"}><strong>Items reserved for checkout</strong><span>Your items are reserved for {formatReservationTime(remainingSeconds)} minutes.</span>{reservationWarning && <small>{reservationWarning}</small>}</div>}
       <div className="checkout-layout">
         <section className="checkout-main">
@@ -248,7 +299,7 @@ export default function CheckoutPage() {
             <div className="checkout-price-breakdown"><div><span>Original price</span><strong>{formatCurrency(summary.originalSubtotal ?? summary.items.reduce((total, item) => total + item.originalPrice * item.quantity, 0))}</strong></div><div><span>Discount</span><strong className="checkout-savings">-{formatCurrency(summary.discount)}</strong></div><div><span>Delivery</span><strong>Free</strong></div><div className="checkout-grand-total"><span>Final payable</span><strong>{formatCurrency(summary.grandTotal)}</strong></div></div>
             {Number(summary.discount) > 0 && <div className="order-savings-callout"><strong>You save {formatCurrency(summary.discount)} on this order</strong><span>Discounts are locked in at checkout.</span></div>}
             <div className="checkout-trust"><span aria-hidden="true">✓</span><div><strong>Secure checkout</strong><small>Safe UPI payment and order protection.</small></div></div>
-            <button className="btn btn-primary checkout-pay-button" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : "Pay securely with UPI QR"}</button>
+            <button className="btn btn-primary checkout-pay-button" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : reservation?.ReservationStatus === "ACTIVE" ? "Continue Payment" : "Pay securely with UPI QR"}</button>
           </article>
         </aside>
       </div>

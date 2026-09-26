@@ -5,7 +5,7 @@ import { useNotifier } from "../NotifierContext";
 import { buildNotification } from "../utils/notificationPresets";
 
 export default function AddToCartButton({ product, inCart = false, className = "btn btn-primary", mode = "cart", notifyState = "idle", onNotify, onUnavailable }) {
-  const { addToCart } = useCart();
+  const { addToCart, releasePaymentSession } = useCart();
   const navigate = useNavigate();
   const { notify } = useNotifier();
   const [adding, setAdding] = useState(false);
@@ -32,6 +32,26 @@ export default function AddToCartButton({ product, inCart = false, className = "
         title: "Temporarily Unavailable",
         message: `${product.productName} is reserved while another customer completes checkout. Please try again shortly.`,
         primaryAction: { label: "Got it" }
+      }));
+      return;
+    }
+    if (result?.code === "ACTIVE_PAYMENT_SESSION") {
+      const activePaymentSession = result.activePaymentSession;
+      notify(buildNotification("PAYMENT_IN_PROGRESS", {
+        message: "You already have an active payment transaction. Complete it or cancel the session before making changes to your cart.",
+        countdown: activePaymentSession ? { expiresAt: activePaymentSession.ExpiresAt, totalSeconds: activePaymentSession.totalSeconds, label: "Time Remaining" } : undefined,
+        primaryAction: { label: "Continue Payment", to: "/checkout" },
+        secondaryAction: activePaymentSession ? {
+          label: "Cancel Payment Session",
+          onClick: async () => {
+            try {
+              await releasePaymentSession(activePaymentSession.ReservationId);
+              notify({ variant: "success", icon: "check", title: "Payment Session Cancelled", message: "Your reserved items have been released. You can now update your cart.", primaryAction: { label: "Got it" } });
+            } catch {
+              notify({ variant: "error", icon: "declined", title: "Unable to Cancel Session", message: "Please try again." });
+            }
+          }
+        } : undefined
       }));
       return;
     }
