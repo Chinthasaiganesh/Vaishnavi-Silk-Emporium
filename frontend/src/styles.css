@@ -1083,6 +1083,7 @@ a {
 }
 
 .notification-menu { position: relative; z-index: 62; order: 2; display: flex; }
+.site-header.mobile-navigation-open .notification-menu { z-index: 45; }
 
 .notification-bell {
   position: relative;
