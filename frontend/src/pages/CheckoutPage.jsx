@@ -234,7 +234,7 @@ export default function CheckoutPage() {
       setReservation(null);
       setUpiPayment(null);
       setPaymentScreenshot(null);
-      notify({ variant: "success", icon: "check", title: "Payment Session Cancelled", message: "Your reserved items have been released. You can now update your cart.", primaryAction: { label: "Got it" } });
+      navigate("/cart", { replace: true, state: { notice: "PAYMENT_SESSION_CANCELLED" } });
     } catch (requestError) {
       setError(requestError.response?.data?.message || "Unable to cancel the payment session.");
     }

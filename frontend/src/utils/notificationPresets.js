@@ -23,6 +23,14 @@ export const notificationPresets = {
     message: "Your reservation has expired and the items are now available to other customers. Please restart checkout if you'd like to purchase them.",
     primaryLabel: "Return to Cart"
   },
+  PAYMENT_SESSION_CANCELLED: {
+    variant: "success",
+    icon: "check",
+    eyebrow: "Payment session closed",
+    title: "Payment Session Cancelled",
+    message: "Your payment session has been cancelled successfully. You can now update your cart or proceed to checkout again.",
+    primaryLabel: "Got It"
+  },
   PAYMENT_SUBMITTED: {
     variant: "info",
     icon: "payment",

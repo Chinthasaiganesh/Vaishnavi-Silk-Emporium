@@ -45,7 +45,7 @@ export default function CartPage() {
     setCancelingSession(true);
     try {
       await releasePaymentSession(activePaymentSession.ReservationId);
-      notify({ variant: "success", icon: "check", title: "Payment Session Cancelled", message: "Your reserved items have been released. You can now update your cart.", primaryAction: { label: "Got it" } });
+      notify(buildNotification("PAYMENT_SESSION_CANCELLED", { id: `payment-session-cancelled-${activePaymentSession.ReservationId}` }));
     } catch (error) {
       notify({ variant: "error", icon: "declined", title: "Unable to Cancel Session", message: error.response?.data?.message || "Please try again." });
     } finally {
