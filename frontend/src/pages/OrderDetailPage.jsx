@@ -15,6 +15,11 @@ function prettyStatus(status = "") {
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
+
+function orderStatusLabel(status) {
+  return status === "PENDING" ? "Order Placed" : prettyStatus(status);
+}
+
 function getTimelineSteps(order) {
   const lifecycle = (order.lifecycle || []).map((event) => ({
     key: `lifecycle-${event.LifecycleEventId}`,
@@ -117,22 +122,31 @@ export default function OrderDetailPage() {
   const reducedMotion = useReducedMotion();
   const { notify } = useNotifier();
   useEffect(() => {
-    api
-      .get(`/orders/${id}`)
-      .then((response) => setOrder(response.data.order))
-      .catch((requestError) =>
-        setError(
-          requestError.response?.data?.message || "Unable to load order.",
-        ),
-      );
+    let active = true;
+    setOrder(null);
+    setError("");
+    api.get(`/orders/${id}`)
+      .then((response) => { if (active) setOrder(response.data.order); })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || "Unable to load order.");
+      });
+    return () => { active = false; };
   }, [id]);
   useEffect(() => {
     if (!order) return;
-    const preset = order.PaymentStatus === "VERIFIED" ? "PAYMENT_APPROVED"
-      : order.PaymentStatus === "REJECTED" && order.OrderStatus !== "CANCELLED" ? "PAYMENT_REJECTED"
-        : order.OrderStatus === "SHIPPED" ? "ORDER_SHIPPED"
-          : order.OrderStatus === "PACKED" ? "ORDER_PACKED"
-            : null;
+    const statusPresets = {
+      PROCESSING: "ORDER_PROCESSING",
+      PACKED: "ORDER_PACKED",
+      SHIPPED: "ORDER_SHIPPED",
+      OUT_FOR_DELIVERY: "ORDER_OUT_FOR_DELIVERY",
+      DELIVERED: "ORDER_DELIVERED",
+      CANCELLED: "ORDER_CANCELLED",
+      REFUNDED: "ORDER_REFUNDED"
+    };
+    const preset = order.PaymentStatus === "REJECTED" && order.OrderStatus !== "CANCELLED"
+      ? "PAYMENT_REJECTED"
+      : statusPresets[order.OrderStatus]
+        || (order.PaymentStatus === "VERIFIED" ? "PAYMENT_APPROVED" : null);
     if (!preset) return;
     // Announce each status transition once per browser session rather than on every visit.
     const storageKey = `order-notice-${order.OrderId}`;
@@ -224,6 +238,7 @@ export default function OrderDetailPage() {
               : "Order Details"}
           </h1>
           <p>{order.OrderNumber}</p>
+          <p><strong>Status: {orderStatusLabel(order.OrderStatus)}</strong></p>
         </div>
         {canCancel && (
           <button
@@ -261,6 +276,10 @@ export default function OrderDetailPage() {
         </section>
         <aside className="cart-summary">
           <h2>Order Total</h2>
+          <div>
+            <span>Order Status</span>
+            <strong>{orderStatusLabel(order.OrderStatus)}</strong>
+          </div>
           <div>
             <span>Payment</span>
             <strong>{order.PaymentStatus === "PENDING" ? "Under Review" : prettyStatus(order.PaymentStatus)}</strong>
@@ -305,15 +324,7 @@ export default function OrderDetailPage() {
         <div className="order-timeline-head">
           <div>
             <h2>Status Timeline</h2>
-            <p>
-              {isTerminal
-                ? `Order ${prettyStatus(order.OrderStatus)}`
-                : order.PaymentStatus === "REJECTED"
-                  ? "Current status: Payment Verification Failed"
-                  : order.PaymentStatus === "PENDING"
-                    ? "Current status: Payment Under Review"
-                    : `Current status: ${prettyStatus(order.OrderStatus)}`}
-            </p>
+            <p>Current status: {orderStatusLabel(order.OrderStatus)}</p>
           </div>
         </div>
         {isTerminal && (
