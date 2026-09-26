@@ -29,6 +29,7 @@ export default function CheckoutPage() {
   const [upiReference, setUpiReference] = useState("");
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
   const idempotencyKey = useRef(crypto.randomUUID());
+  const placingRef = useRef(false);
   const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
   const serverClockOffset = useRef(0);
   const announcedReservation = useRef(false);
@@ -109,13 +110,16 @@ export default function CheckoutPage() {
   }, [reservation?.ExpiresAt, remainingSeconds]);
 
   useEffect(() => {
-    if (!reservation || remainingSeconds > 0) return;
+    if (!reservation || placing || placingRef.current) return;
+    const expired = reservation.ReservationStatus === "EXPIRED"
+      || (reservation.ReservationStatus === "ACTIVE" && remainingSeconds <= 0);
+    if (!expired) return;
     api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
     localStorage.removeItem("checkout-reservation-session");
     setReservation(null);
     setUpiPayment(null);
     navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
-  }, [reservation, remainingSeconds, navigate]);
+  }, [reservation, remainingSeconds, placing, navigate]);
 
   const reservationTone = remainingSeconds <= 30 ? "critical" : remainingSeconds <= 60 ? "urgent" : remainingSeconds <= 120 ? "warning" : "";
   const reservationWarning = remainingSeconds <= 30 ? "Final moments! Submit your payment proof now or the items will be released." : remainingSeconds <= 60 ? "Less than one minute remaining to complete payment." : remainingSeconds <= 120 ? "Hurry! Your reservation will expire soon." : "";
@@ -191,6 +195,7 @@ export default function CheckoutPage() {
     }
     if (!paymentScreenshot) { setError("Upload your payment screenshot before continuing."); return; }
     if (!reservation || remainingSeconds <= 0) { setError("Your reservation has expired. Please start checkout again."); return; }
+    placingRef.current = true;
     setPlacing(true); setError("");
     try {
       const formData = new FormData();
@@ -199,11 +204,12 @@ export default function CheckoutPage() {
       formData.append("paymentReference", upiReference.trim());
       formData.append("paymentScreenshot", paymentScreenshot);
       const response = await api.post("/orders", formData, { headers: { "Idempotency-Key": idempotencyKey.current, "Checkout-Reservation-Id": reservation.ReservationId } });
-      try { await refreshCart(); } catch { /* order was created */ }
       localStorage.removeItem("checkout-reservation-session");
       setReservation(null);
       setUpiPayment(null); setPaymentScreenshot(null);
-      notify(buildNotification("PAYMENT_SUBMITTED", { dismissible: false, primaryAction: { label: "View Order", to: `/orders/${response.data.order.OrderId}`, navigateOptions: { replace: true } }, footnote: `Order ${response.data.order.OrderNumber || ""}`.trim() }));
+      try { await refreshCart(); } catch { /* order was created */ }
+      const orderReference = response.data.order.OrderNumber || response.data.order.OrderId;
+      notify(buildNotification("ORDER_PLACED", { dismissible: false, primaryAction: { label: "View Order", to: `/orders/${response.data.order.OrderId}`, navigateOptions: { replace: true } }, footnote: `Order ID: #${orderReference}` }));
     } catch (requestError) {
       if (requestError.response?.data?.code === "RESERVATION_EXPIRED") {
         localStorage.removeItem("checkout-reservation-session");
@@ -211,7 +217,7 @@ export default function CheckoutPage() {
         return;
       }
       setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
-    } finally { setPlacing(false); }
+    } finally { placingRef.current = false; setPlacing(false); }
   }
 
   if (loading) return <main className="container section"><p>Loading checkout...</p></main>;

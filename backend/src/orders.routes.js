@@ -23,7 +23,7 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		const reservationId = req.get("Checkout-Reservation-Id")?.trim();
 		if (!reservationId) return res.status(409).json({ success: false, code: "RESERVATION_REQUIRED", message: "Your checkout reservation is missing. Please return to checkout and reserve your items again." });
 		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url, reservationId);
-		await sendOrderNotification(order, "Payment Submitted", "We have received your payment details and will verify them shortly.", "PAYMENT_STATUS");
+		await sendOrderNotification(order, "Order Placed Successfully", `Your order #${order.OrderNumber} has been placed successfully and your payment is currently under verification. We'll notify you once payment verification is completed.`, "ORDER_PLACED");
 		if (Number(order.DiscountAmount) > 0) {
 			const saved = Number(order.DiscountAmount).toFixed(2);
 			const originalTotal = order.items.reduce((sum, item) => sum + Number(item.OriginalPrice || item.ProductPrice || 0) * Number(item.Quantity || 0), 0);
