@@ -21,21 +21,24 @@ export default function ProductCard({ product }) {
         {Number(displayedProduct.availableQuantity ?? 0) <= 0 && <span className={`stock-ribbon${displayedProduct.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={displayedProduct.availabilityStatus || "Out of Stock"}>{displayedProduct.availabilityStatus || "Out of Stock"}</span>}
       </div>
       <div className="product-card-body">
-        <p className="pill">{displayedProduct.category}</p>
-        <h3>{displayedProduct.productName}</h3>
-        <p className="product-desc">{displayedProduct.description}</p>
-        <RatingBadge rating={displayedProduct.rating} productId={displayedProduct.productId} />
-        <div className="product-meta">
-          <span className={Number(displayedProduct.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
-            {Number(displayedProduct.availableQuantity ?? 0) > 0 ? t("inStock") : displayedProduct.availabilityStatus || t("outOfStock")}
-          </span>
-          <ProductPrice product={displayedProduct} showSavings={false} />
+        <div className="product-card-content" aria-label={`${displayedProduct.productName} details`}>
+          <p className="pill">{displayedProduct.category}</p>
+          <h3>{displayedProduct.productName}</h3>
+          <p className="product-desc">{displayedProduct.description}</p>
+          <RatingBadge rating={displayedProduct.rating} productId={displayedProduct.productId} />
+          <div className="product-meta">
+            <span className={Number(displayedProduct.availableQuantity ?? 0) > 0 ? "status in" : "status out"}>
+              {Number(displayedProduct.availableQuantity ?? 0) > 0 ? t("inStock") : displayedProduct.availabilityStatus || t("outOfStock")}
+            </span>
+            <ProductPrice product={displayedProduct} showSavings={false} />
+          </div>
+          {displayedProduct.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
         </div>
-        {displayedProduct.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
-        <Link className="btn btn-outline" to={`/products/${displayedProduct.productId}`}>
-          {t("viewDetails")}
-        </Link>
-        <ProductCardActions product={displayedProduct} compact onUnavailable={() => setReservedAfterConflict(true)} />
+        <ProductCardActions product={displayedProduct} compact fixedFooter onUnavailable={() => setReservedAfterConflict(true)}>
+          <Link className="featured-details-link product-card-details-link" to={`/products/${displayedProduct.productId}`}>
+            {t("viewDetails")}
+          </Link>
+        </ProductCardActions>
       </div>
     </article>
   );
