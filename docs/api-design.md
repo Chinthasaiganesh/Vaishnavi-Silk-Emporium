@@ -1,4 +1,6 @@
-# API Design
+# Legacy API Design Note
+
+> Superseded by [API_REFERENCE.md](API_REFERENCE.md). This early sketch contains stale login payloads and example catalog data; use route implementations and the API reference for current contracts.
 
 ## Auth
 

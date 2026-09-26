@@ -1,3 +1,7 @@
+-- ARCHIVED SQLITE SNAPSHOT. This file is retained for historical reference only.
+-- Do not apply it to the current application database.
+-- Runtime schema: ../backend/src/db.js. Table reference: DATABASE_SCHEMA.md.
+/*
 CREATE TABLE Users (
   UserId INTEGER PRIMARY KEY AUTOINCREMENT,
   Username TEXT UNIQUE NOT NULL,
@@ -25,3 +29,4 @@ CREATE INDEX idx_products_active ON Products(IsActive);
 CREATE INDEX idx_products_category ON Products(Category);
 CREATE INDEX idx_products_name ON Products(ProductName);
 CREATE INDEX idx_products_featured ON Products(IsFeatured);
+*/

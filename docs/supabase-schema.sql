@@ -1,5 +1,8 @@
--- Supabase PostgreSQL target schema. Apply after completing the backend
--- PostgreSQL adapter migration described in deployment.md.
+-- ARCHIVED, INCOMPLETE POSTGRESQL DRAFT. Do not apply to any current environment.
+-- Its snake_case names, JSONB preferences, and incomplete table set do not match runtime.
+-- Runtime schema: ../backend/src/db.js. Table reference: DATABASE_SCHEMA.md.
+/*
+-- Original draft note (obsolete): proposed applying after a PostgreSQL adapter migration.
 create table if not exists users (
   user_id bigint generated always as identity primary key,
   username text unique not null,
@@ -35,3 +38,4 @@ create table if not exists refresh_sessions (session_id uuid primary key, user_i
 create table if not exists wishlists (wishlist_id bigint generated always as identity primary key, user_id bigint references users(user_id) on delete cascade, product_id bigint references products(product_id) on delete cascade, created_date timestamptz not null default now(), unique(user_id, product_id));
 create table if not exists notification_subscriptions (subscription_id bigint generated always as identity primary key, user_id bigint references users(user_id) on delete cascade, product_id bigint references products(product_id) on delete cascade, notification_type text not null default 'BACK_IN_STOCK', is_active boolean not null default true, is_sent boolean not null default false, created_date timestamptz not null default now(), sent_date timestamptz, unique(user_id, product_id, notification_type));
 create table if not exists notifications (notification_id bigint generated always as identity primary key, user_id bigint references users(user_id) on delete cascade, product_id bigint references products(product_id) on delete set null, type text not null, title text not null, message text not null, is_read boolean not null default false, created_date timestamptz not null default now());
+*/
