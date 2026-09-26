@@ -50,9 +50,9 @@ export const notificationPresets = {
   ORDER_PLACED: {
     variant: "success",
     icon: "check",
-    eyebrow: "Order confirmed",
-    title: "Order Placed",
-    message: "Your order has been placed successfully. We'll keep you posted at every step.",
+    eyebrow: "Payment Under Verification",
+    title: "Order Placed Successfully",
+    message: "Your order has been placed successfully and your payment is currently under verification. We'll notify you once the payment verification is completed.",
     primaryLabel: "View Order"
   },
   ORDER_PACKED: {
@@ -82,10 +82,10 @@ export const notificationPresets = {
   ITEM_UNAVAILABLE: {
     variant: "warning",
     icon: "timer",
-    eyebrow: "Temporarily reserved",
-    title: "Item Temporarily Unavailable",
-    message: "This item is temporarily unavailable because another customer is currently completing checkout. Please try again in a few minutes.",
-    primaryLabel: "Keep Browsing"
+    eyebrow: "Checkout in progress",
+    title: "Temporarily Unavailable",
+    message: "Another customer is completing checkout for this item. Please try again shortly.",
+    primaryLabel: "Got It"
   }
 };
 
@@ -100,7 +100,7 @@ export function resolveNotificationVisual(notification = {}) {
     if (/failed|rejected|declined/.test(title)) return { variant: "error", icon: "declined" };
     return { variant: "warning", icon: "payment" };
   }
-  if (type === "ORDER_STATUS") {
+  if (type === "ORDER_STATUS" || type === "ORDER_PLACED") {
     if (title.includes("delivered")) return { variant: "success", icon: "check" };
     if (/cancelled|failed/.test(title)) return { variant: "error", icon: "declined" };
     if (/shipped|out for delivery/.test(title)) return { variant: "info", icon: "shipping" };

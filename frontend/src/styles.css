@@ -1494,6 +1494,8 @@ a {
 .timeline-step:hover { transform: translateY(-2px); color: var(--primary); }
 .timeline-marker { display: grid; width: 2.05rem; height: 2.05rem; place-items: center; border: 2px solid var(--border); border-radius: 50%; background: var(--card); color: #fff; box-shadow: 0 4px 12px rgba(70, 33, 46, 0.08); }
 .timeline-step.complete .timeline-marker { border-color: #2d7652; background: #2d7652; }
+.timeline-step.pending .timeline-marker { background: var(--card); box-shadow: none; }
+.timeline-step.pending:not(:last-child)::after { background: var(--border); }
 .timeline-step.current .timeline-marker { border-color: var(--accent); background: #fff5e9; box-shadow: 0 0 0 0.4rem rgba(212, 163, 115, 0.18), 0 0 1rem rgba(142, 58, 89, 0.18); animation: timeline-current-pulse 1.6s ease-in-out infinite; }
 .timeline-step.failed .timeline-marker { border-color: #b44321; background: #fff1ed; box-shadow: 0 0 0 0.4rem rgba(180, 67, 33, 0.12); }
 .timeline-step.failed .timeline-marker i { background: #b44321; }
@@ -3262,7 +3264,7 @@ a {
     font-size: 0.9rem;
   }
 
-  .site-header .account-trigger > span { display: none; }
+  .site-header .account-trigger > span:not(.avatar) { display: none; }
 
   .site-header .header-actions > .btn {
     width: 2.6rem;

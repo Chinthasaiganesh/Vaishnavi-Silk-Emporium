@@ -73,8 +73,10 @@ export function CartProvider({ children }) {
     } catch (error) {
       const status = error.response?.status;
       const requestId = error.response?.headers?.["x-request-id"];
+      const errorCode = error.response?.data?.code;
       const serverMessage = error.response?.data?.message;
       console.error("Cart add failed", { requestUrl, method: "POST", userId: user.userId, productId, quantity, status: status || null, response: error.response?.data || null, requestId: requestId || null, error: error.message });
+      if (errorCode === "TEMPORARILY_RESERVED") return { code: errorCode, message: serverMessage };
       setNotice({ type: "error", text: serverMessage || (status ? `Cart API failed (HTTP ${status}) at ${requestUrl}.` : `Cart API unavailable at ${requestUrl}.`) });
       return false;
     }

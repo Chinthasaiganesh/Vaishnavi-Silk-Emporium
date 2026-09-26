@@ -19,33 +19,48 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let loadingProduct = false;
 
-    async function loadProduct() {
-      setLoading(true);
-      setError("");
+    async function loadProduct(initial = false) {
+      if (loadingProduct || (!initial && document.visibilityState !== "visible")) return;
+      loadingProduct = true;
+      if (initial) {
+        setLoading(true);
+        setError("");
+      }
       try {
         const response = await api.get(`/products/public/${id}`);
         if (!cancelled) {
           setProduct(response.data.product);
-          setActiveImageIndex(0);
-          if (user?.role === "USER") {
+          setError("");
+          if (initial) setActiveImageIndex(0);
+          if (initial && user?.role === "USER") {
             addRecentlyViewed(user.userId, response.data.product);
           }
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && initial) {
           setError("Product not found or unavailable.");
         }
       } finally {
-        if (!cancelled) {
+        loadingProduct = false;
+        if (!cancelled && initial) {
           setLoading(false);
         }
       }
     }
 
-    loadProduct();
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") loadProduct();
+    }
+
+    loadProduct(true);
+    const interval = window.setInterval(() => loadProduct(), 15000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [id, user]);
 
@@ -91,10 +106,10 @@ export default function ProductDetailPage() {
         <RatingBadge rating={product.rating} productId={product.productId} />
         <ProductPrice product={product} className="detail-product-price" />
         <p className={product.quantity > 0 ? "status in" : "status out"}>
-          {product.quantity > 0 ? t("inStock") : product.temporarilyReserved ? "Temporarily Reserved" : t("outOfStock")}
+          {product.quantity > 0 ? t("inStock") : product.availabilityStatus || t("outOfStock")}
         </p>
-        {product.temporarilyReserved && <p className="reserved-note" role="status">Currently unavailable. Another customer is completing checkout.</p>}
-        <ProductCardActions product={product} />
+        {product.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
+        <ProductCardActions product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
       </section>
     </main>
   );

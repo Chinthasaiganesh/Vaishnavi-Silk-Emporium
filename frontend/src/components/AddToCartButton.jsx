@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useCart } from "../CartContext";
 import { useNavigate } from "react-router-dom";
+import { useNotifier } from "../NotifierContext";
+import { buildNotification } from "../utils/notificationPresets";
 
-export default function AddToCartButton({ product, inCart = false, className = "btn btn-primary", mode = "cart", notifyState = "idle", onNotify }) {
+export default function AddToCartButton({ product, inCart = false, className = "btn btn-primary", mode = "cart", notifyState = "idle", onNotify, onUnavailable }) {
   const { addToCart } = useCart();
   const navigate = useNavigate();
+  const { notify } = useNotifier();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const outOfStock = product.quantity <= 0;
@@ -21,9 +24,18 @@ export default function AddToCartButton({ product, inCart = false, className = "
     setAdding(true);
     const image = document.querySelector(`[data-cart-product="${product.productId}"]`);
     const cart = document.querySelector(".cart-link");
-    const succeeded = await addToCart(product.productId, 1, product, image?.getBoundingClientRect(), cart?.getBoundingClientRect());
+    const result = await addToCart(product.productId, 1, product, image?.getBoundingClientRect(), cart?.getBoundingClientRect());
     setAdding(false);
-    if (succeeded) {
+    if (result?.code === "TEMPORARILY_RESERVED") {
+      onUnavailable?.();
+      notify(buildNotification("ITEM_UNAVAILABLE", {
+        title: "Temporarily Unavailable",
+        message: `${product.productName} is reserved while another customer completes checkout. Please try again shortly.`,
+        primaryAction: { label: "Got it" }
+      }));
+      return;
+    }
+    if (result === true) {
       setAdded(true);
       window.setTimeout(() => setAdded(false), 1800);
     }

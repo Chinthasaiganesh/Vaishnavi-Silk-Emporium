@@ -48,8 +48,8 @@ function mapProduct(row, canViewPrice = true) {
     blousePieceIncluded: Boolean(row.BlousePieceIncluded),
     careInstructions: row.CareInstructions,
     rating: row.Rating,
-    availabilityStatus: availableQuantity > 0 ? "In Stock" : temporarilyReserved ? "Temporarily Reserved" : "Temporarily unavailable",
-    availabilityMessage: availableQuantity > 0 ? "" : temporarilyReserved ? "Currently unavailable. Another customer is completing checkout." : "This product is currently out of stock.",
+    availabilityStatus: availableQuantity > 0 ? "In Stock" : temporarilyReserved ? "Temporarily Unavailable" : "Out of Stock",
+    availabilityMessage: availableQuantity > 0 ? "" : temporarilyReserved ? "Another customer is completing checkout. Please try again shortly." : "This product is currently out of stock.",
     createdDate: row.CreatedDate,
     updatedDate: row.UpdatedDate
   };

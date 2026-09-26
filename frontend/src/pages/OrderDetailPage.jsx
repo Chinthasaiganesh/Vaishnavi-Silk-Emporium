@@ -19,9 +19,9 @@ function getTimelineSteps(order) {
   const lifecycle = (order.lifecycle || []).map((event) => ({
     key: `lifecycle-${event.LifecycleEventId}`,
     type: event.EventType,
-    label: event.EventType === "ORDER_PLACED" ? "Order Placed" : event.Title || prettyStatus(event.EventType),
+    label: event.EventType === "ORDER_PLACED" ? "Order Placed" : event.EventType === "PAYMENT_SUBMITTED" ? "Payment Under Verification" : event.Title || prettyStatus(event.EventType),
     date: event.EventDate,
-    description: event.EventType === "ORDER_PLACED" ? "Your order was placed successfully." : event.Description || "",
+    description: event.EventType === "ORDER_PLACED" ? "Your order was placed successfully." : event.EventType === "PAYMENT_SUBMITTED" ? "Your payment proof was received and is awaiting verification." : event.Description || "",
     actorRole: event.ActorRole
   }));
   const recordedTypes = new Set(lifecycle.map((event) => event.type));
@@ -31,8 +31,9 @@ function getTimelineSteps(order) {
   };
 
   addFallback("ORDER_PLACED", "Order Placed", order.CreatedDate, "Your order was created successfully.");
-  addFallback("PAYMENT_SUBMITTED", "Payment Submitted", order.PaymentSubmittedAt, "Payment details received for verification.");
+  addFallback("PAYMENT_SUBMITTED", "Payment Under Verification", order.PaymentSubmittedAt, "Your payment proof was received and is awaiting verification.");
   if (order.PaymentStatus === "VERIFIED") addFallback("PAYMENT_VERIFIED", "Payment Verified", order.PaymentReviewedAt, "Your payment was verified successfully.");
+  if (order.PaymentStatus === "VERIFIED" && order.OrderStatus !== "CANCELLED") addFallback("ORDER_CONFIRMED", "Order Confirmed", order.PaymentReviewedAt, "Your order is confirmed and being processed.");
   if (order.PaymentStatus === "REJECTED") addFallback("PAYMENT_REJECTED", "Payment Verification Failed", order.PaymentReviewedAt, order.PaymentRejectionReason || "Payment verification failed.");
 
   const statusDetails = {
@@ -52,7 +53,7 @@ function getTimelineSteps(order) {
   addFallback("REFUND_IN_PROGRESS", "Refund Processing", order.RefundProcessingAt, "Your refund is being processed.");
   addFallback("REFUNDED", "Refund Completed", order.RefundCompletedAt, "Your refund was completed.");
 
-  return [...lifecycle, ...fallbackEvents]
+  const completedSteps = [...lifecycle, ...fallbackEvents]
     .sort((first, second) => new Date(first.date).getTime() - new Date(second.date).getTime())
     .map((event) => {
       const cancelled = event.type === "CANCELLED";
@@ -67,6 +68,25 @@ function getTimelineSteps(order) {
         failed
       };
     });
+
+    if (terminalStatuses.includes(order.OrderStatus) || order.PaymentStatus === "REJECTED") return completedSteps;
+
+    const completedTypes = new Set(completedSteps.map((step) => step.type));
+    const upcomingSteps = [
+      ["PAYMENT_VERIFIED", "Payment Verified", "Your payment will be confirmed after verification."],
+      ["ORDER_CONFIRMED", "Order Confirmed", "Your order will be confirmed after payment verification."],
+      ["PROCESSING", "Processing", "Your order will be prepared for packing."],
+      ["PACKED", "Packed", "Your order will be packed and ready to ship."],
+      ["SHIPPED", "Shipped", "Your order will be on its way."],
+      ["OUT_FOR_DELIVERY", "Out For Delivery", "Your order will be with the delivery partner."],
+      ["DELIVERED", "Delivered", "Your order will be delivered."]
+    ];
+    return [
+      ...completedSteps,
+      ...upcomingSteps
+        .filter(([type]) => !completedTypes.has(type))
+        .map(([type, label, description]) => ({ key: `upcoming-${type}`, type, label, description, complete: false, pending: true }))
+    ];
 }
 function refundLabel(order) {
   if (order.PaymentMethod === "COD") return "Not applicable";
@@ -306,7 +326,7 @@ export default function OrderDetailPage() {
             const latest = index === timelineSteps.length - 1;
             return (
               <motion.div
-                className={`timeline-step complete${latest ? " latest" : ""}${step.failed ? " failed" : ""}`}
+                className={`timeline-step${step.complete ? " complete" : " pending"}${latest ? " latest" : ""}${step.failed ? " failed" : ""}`}
                 key={step.key}
                 initial={
                   reducedMotion ? false : { opacity: 0, y: 12, scale: 0.96 }
@@ -329,11 +349,11 @@ export default function OrderDetailPage() {
                     animate={reducedMotion ? undefined : { scale: 1, opacity: 1 }}
                     transition={{ type: "spring", stiffness: 320, damping: 18, delay: index * 0.07 + 0.12 }}
                   >
-                    {step.cancelled ? "×" : "✓"}
+                    {step.cancelled ? "×" : step.complete ? "✓" : ""}
                   </motion.b>
                 </motion.span>
                 <strong>{step.label}</strong>
-                <small>{new Date(step.date).toLocaleString()}</small>
+                <small>{step.date ? new Date(step.date).toLocaleString() : "Upcoming"}</small>
                 <span className="timeline-description">{step.description}</span>
               </motion.div>
             );

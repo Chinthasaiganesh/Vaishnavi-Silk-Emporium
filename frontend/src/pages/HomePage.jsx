@@ -36,23 +36,37 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+    let loadingProducts = false;
 
-    async function loadFeaturedProducts() {
+    async function loadFeaturedProducts(initial = false) {
+      if (loadingProducts || (!initial && document.visibilityState !== "visible")) return;
+      loadingProducts = true;
       try {
         const response = await api.get("/products/public", { params: { featured: true } });
         if (!cancelled) {
           setFeaturedProducts(response.data.products || []);
         }
+      } catch {
+        // Keep the last known availability when a background refresh fails.
       } finally {
+        loadingProducts = false;
         if (!cancelled) {
           setFeaturedLoading(false);
         }
       }
     }
 
-    loadFeaturedProducts();
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") loadFeaturedProducts();
+    }
+
+    loadFeaturedProducts(true);
+    const interval = window.setInterval(() => loadFeaturedProducts(), 15000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
 
@@ -162,7 +176,7 @@ export default function HomePage() {
             >
               <div className="featured-image-wrap">
                 <span className="discount-badge">Featured</span>
-                {product.quantity <= 0 && <span className="stock-ribbon" aria-label={product.availabilityStatus || "Temporarily unavailable"}>{product.availabilityStatus || "Temporarily unavailable"}</span>}
+                {product.quantity <= 0 && <span className={`stock-ribbon${product.temporarilyReserved ? " stock-ribbon-reserved" : ""}`} aria-label={product.availabilityStatus || "Out of Stock"}>{product.availabilityStatus || "Out of Stock"}</span>}
                 <ProductMediaCarousel product={product} />
               </div>
               <div className="featured-product-body">
@@ -177,7 +191,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
-                <ProductCardActions product={product} compact />
+                <ProductCardActions product={product} compact onUnavailable={() => setFeaturedProducts((current) => current.map((item) => item.productId === product.productId ? { ...item, quantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" } : item))} />
               </div>
             </motion.article>
           ))}

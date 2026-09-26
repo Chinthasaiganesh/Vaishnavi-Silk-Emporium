@@ -70,8 +70,6 @@ router.patch("/:id/payment", authRequired, adminOnly, param("id").isInt({ min: 1
           if (order.RefundStatus === "PENDING") await sendOrderNotification(order, "Refund Ready for Processing", `Refund verification is complete for order ${order.OrderNumber}.`, "REFUND_STATUS");
         } else {
           await sendOrderNotification(order, "Payment Verified", `Your payment has been successfully verified. Order ${order.OrderNumber} is now confirmed and being processed.`, "PAYMENT_STATUS");
-          await sendOrderNotification(order, "Order Confirmed", `Order ${order.OrderNumber} is confirmed and being processed.`);
-          await sendOrderNotification(order, "Order Processing", "Your order is being prepared for packing.");
         }
       } else {
         await sendOrderNotification(order, "Payment Verification Failed", `Order #${order.OrderNumber} requires your attention. Reason: ${order.PaymentRejectionReason}. Please re-submit payment details or contact support.`, "PAYMENT_STATUS");

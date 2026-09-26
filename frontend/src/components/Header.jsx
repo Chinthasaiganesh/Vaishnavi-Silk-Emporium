@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../AuthContext";
+import { useNotifier } from "../NotifierContext";
 import Avatar from "./Avatar";
 import { api } from "../api";
 import { useLanguage } from "../LanguageContext";
@@ -42,6 +43,7 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const { checking, logout, user } = useAuth();
+  const { confirm } = useNotifier();
   const [term, setTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -140,6 +142,9 @@ export default function Header() {
   }, [term]);
 
   async function handleLogout() {
+    setProfileOpen(false);
+    const confirmed = await confirm({ variant: "info", icon: "info", eyebrow: "Account session", title: "Log Out Of Your Account?", message: "You'll need to sign in again to access your account, orders, and saved items.", confirmLabel: "Log Out", cancelLabel: "Stay Signed In" });
+    if (!confirmed) return;
     await logout();
     navigate("/", { replace: true });
   }

@@ -20,30 +20,45 @@ export default function ProductsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let loadingProducts = false;
 
-    async function loadProducts() {
-      setLoading(true);
-      setError("");
+    async function loadProducts(initial = false) {
+      if (loadingProducts || (!initial && document.visibilityState !== "visible")) return;
+      loadingProducts = true;
+      if (initial) {
+        setLoading(true);
+        setError("");
+      }
 
       try {
         const response = await api.get("/products/public", { params: { q, category, sort } });
         if (!cancelled) {
           setProducts(response.data.products || []);
+          setError("");
         }
       } catch {
-        if (!cancelled) {
+        if (!cancelled && initial) {
           setError("Unable to load products right now.");
         }
       } finally {
-        if (!cancelled) {
+        loadingProducts = false;
+        if (!cancelled && initial) {
           setLoading(false);
         }
       }
     }
 
-    loadProducts();
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") loadProducts();
+    }
+
+    loadProducts(true);
+    const interval = window.setInterval(() => loadProducts(), 15000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [q, category, sort]);
 
