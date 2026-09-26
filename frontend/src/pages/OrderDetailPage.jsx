@@ -19,9 +19,9 @@ function getTimelineSteps(order) {
   const lifecycle = (order.lifecycle || []).map((event) => ({
     key: `lifecycle-${event.LifecycleEventId}`,
     type: event.EventType,
-    label: event.Title || prettyStatus(event.EventType),
+    label: event.EventType === "ORDER_PLACED" ? "Order Placed" : event.Title || prettyStatus(event.EventType),
     date: event.EventDate,
-    description: event.Description || "",
+    description: event.EventType === "ORDER_PLACED" ? "Your order was placed successfully." : event.Description || "",
     actorRole: event.ActorRole
   }));
   const recordedTypes = new Set(lifecycle.map((event) => event.type));
