@@ -1,5 +1,4 @@
 # Admin Guide
-
 ## Access
 
 Use the shared `/login` page with an ADMIN account. `/admin/*` frontend routes wait for session restoration and reject non-admin roles; backend admin APIs also require bearer JWT plus `ADMIN`. Customer accounts cannot elevate themselves through registration/OAuth. Production credentials are supplied through configured backend environment variables and must be rotated from examples.
