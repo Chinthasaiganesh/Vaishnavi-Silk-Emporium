@@ -8,14 +8,16 @@ flowchart TB
   Vercel[Vercel static SPA: frontend/ Vite build]
   Render[Render Node Web Service: backend/ Express]
   Supabase[(Supabase PostgreSQL via DATABASE_URL pooler)]
-  Storage[Supabase Storage S3 endpoint / public object URLs]
+  ProductStorage[Supabase public product/avatar bucket]
+  ProofStorage[Supabase private payment-proof bucket]
   Google[Google OAuth, optional]
   GitHub[GitHub OAuth, optional]
   UPI[External UPI apps; no gateway API]
   User -->|HTTPS| Vercel
   Vercel -->|HTTPS /api REST| Render
   Render -->|PostgreSQL TLS connection| Supabase
-  Render -->|S3-compatible API| Storage
+  Render -->|S3-compatible API| ProductStorage
+  Render -->|S3 API + short-lived signed reads| ProofStorage
   Render --> Google
   Render --> GitHub
   User -->|scan generated QR; external transfer| UPI
@@ -29,7 +31,7 @@ Evidence in repo: `render.yaml` defines Render Node service rooted at `backend`;
 | Frontend hosting | Vercel target, root `frontend`, Vite static build; SPA rewrite sends deep links to `/index.html`. |
 | Backend hosting | Render Blueprint web service `vaishnavi-silk-emporium-api`, root `backend`, `npm ci`, `npm start`, health `/api/health`. |
 | Database | Supabase PostgreSQL via `pg.Pool` and `DATABASE_URL`; pooler URL is documented. Runtime schema is app-created. |
-| File storage | AWS S3 SDK against configurable S3-compatible endpoint, intended Supabase Storage. Public URLs and cache-control are generated. No local upload serving is mounted. |
+| File storage | AWS S3 SDK against configurable S3-compatible endpoint, intended Supabase Storage. Product/avatar images use `S3_BUCKET`; proofs use a distinct private `S3_PAYMENT_PROOFS_BUCKET` and admin-only five-minute signed reads. No local upload serving is mounted. |
 | CDN | No custom CDN config. Vercel/object-provider delivery is platform-level; no separate CDN is configured in repository. |
 | Domain/SSL | No custom domain/certificate definitions. Use provider-managed HTTPS and update exact allowed origins/provider callbacks. Verify DNS/TLS in dashboards. |
 | CI/CD | GitHub Actions validates `main` pushes and PRs to `main`; deploy jobs are absent. Vercel/Render Git-based auto deploy may be enabled externally but cannot be proven from repo. |
@@ -47,7 +49,7 @@ No staging service or deployment map is defined. Recommended setup: separate Ren
 
 ### Production
 
-Set backend environment and frontend build-time values, connect hosting to approved Git repository/branch, verify DB schema bootstrap against a backup/clone, then test `/api/health` and controlled end-to-end workflows. `NODE_ENV=production` enables secure refresh cookie, PostgreSQL SSL option and explicit credential validation. Configure S3 values even though the backend does not fail startup when missing; otherwise uploads fail at runtime.
+Set backend environment and frontend build-time values, connect hosting to approved Git repository/branch, verify DB schema bootstrap against a backup/clone, then test `/api/health` and controlled end-to-end workflows. `NODE_ENV=production` enables secure refresh cookie, PostgreSQL SSL option and validates required S3 credentials plus distinct bucket names. The app cannot verify bucket ACLs; confirm the proof bucket is private in Supabase.
 
 ## Environment Variables
 
@@ -67,15 +69,16 @@ Values are intentionally omitted. Store secrets in Render/Vercel/Supabase secret
 | `USER_USERNAME`, `USER_PASSWORD` | Startup-created USER/demo account if username is absent. Required by current production config guard. | Required in production by code | Backend |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth app credentials; both required to enable provider. | Optional | Backend |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | GitHub OAuth app credentials; both required to enable provider. | Optional | Backend |
-| `S3_ENDPOINT` | S3-compatible API endpoint, typically Supabase Storage `/storage/v1/s3`. | Required for uploads; not startup-validated | Backend |
+| `S3_ENDPOINT` | S3-compatible API endpoint, typically Supabase Storage `/storage/v1/s3`. | Required for uploads; all S3 settings are startup-validated in production | Backend |
 | `S3_REGION` | S3 client region. | Required for storage client | Backend |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | S3 API credentials. | Required for storage client; secrets | Backend |
-| `S3_BUCKET` | Bucket for product/avatar/payment-proof objects. | Required for uploads | Backend |
+| `S3_BUCKET` | Bucket for public product/avatar media. Do not use for payment proofs. | Required in production | Backend |
+| `S3_PAYMENT_PROOFS_BUCKET` | Dedicated private bucket for payment screenshots; must differ from `S3_BUCKET`. Production startup rejects missing/shared bucket names. Set bucket policy to deny anonymous reads. | Required in production | Backend |
 | `VITE_API_URL` | Frontend API base; `/api` suffix normalized. | Optional due code default; set per environment | Frontend build-time |
 | `VITE_UPI_ID` | Payee ID used to create UPI QR. | Required for checkout QR; public build-time config | Frontend build-time |
 | `INDIC_TRANS2_URL` | Current code only changes the cached provider label; it does not call this URL. | No operational effect now | Backend if set |
 
-`render.yaml` declares most backend values but omits S3 settings and `CHECKOUT_RESERVATION_MINUTES`; add through dashboard or extend Blueprint after review. `frontend/.env.example` documents `VITE_API_URL` and `VITE_UPI_ID`. `VITE_*` values are public build config, never secrets. `NEXT_PUBLIC_API_URL` is not used by this Vite app.
+`render.yaml` declares S3 settings and leaves endpoint, credentials, and bucket names for dashboard configuration; it still omits `CHECKOUT_RESERVATION_MINUTES`. Set the private bucket name there and verify its ACL separately in Supabase. `frontend/.env.example` documents `VITE_API_URL` and `VITE_UPI_ID`. `VITE_*` values are public build config, never secrets. `NEXT_PUBLIC_API_URL` is not used by this Vite app.
 
 ## Build and CI Flow
 
@@ -103,6 +106,7 @@ CI pins Node 20, installs from lockfiles, syntax-checks only `server.js`, and bu
 1. Confirm approval, intended commit, green CI, and target environment. Compare live provider configuration to this guide.
 2. Back up database and verify object-storage recovery before schema-sensitive or destructive release.
 3. Deploy backend to staging first when available. For Render, root `backend`, build `npm ci`, start `npm start`; set health check `/api/health`. Configure `DATABASE_URL`, strong `JWT_SECRET`, origins/API URL, account credentials required by production config and S3 settings.
+  Create `S3_PAYMENT_PROOFS_BUCKET` in Supabase with public/anonymous access disabled and distinct from `S3_BUCKET`. Run `npm run migrate:payment-proofs` for a no-write pass, then `npm run migrate:payment-proofs -- --apply` during a controlled maintenance window to copy existing proofs, write private keys, and delete old public objects. Confirm old public URLs are denied and admin order detail produces a five-minute signed URL before reopening payment uploads.
 4. Inspect startup logs for PostgreSQL connection, schema checks and inventory initialization. Health should return 200 with `database:"postgresql"` and inventory counts.
 5. Deploy frontend from `frontend/` as Vite. Set `VITE_API_URL=https://vaishnavi-silk-emporium.onrender.com/api` for the documented API target and `VITE_UPI_ID`; trigger a new frontend build after changing either. Confirm built site does not call localhost.
 6. Set exact HTTPS `CLIENT_ORIGIN`, `PUBLIC_API_ORIGIN`, preview slug if needed, and OAuth callback URLs. Update/redeploy backend after runtime environment changes.

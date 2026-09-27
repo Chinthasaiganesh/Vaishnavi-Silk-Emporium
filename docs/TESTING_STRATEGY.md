@@ -2,7 +2,7 @@
 
 ## Current Test Architecture
 
-Backend uses Node's built-in `node:test` runner via `npm test`. Six focused tests cover database production configuration, inventory arithmetic/reservation invariant, order pricing, order-reference generation, payment rejection reason, and product image parsing. Tests are pure/unit-level; no PostgreSQL integration suite exists. There are no frontend unit/component tests, Playwright tests, browser E2E tests, or committed fixtures covering full flows.
+Backend uses Node's built-in `node:test` runner via `npm test`. Seven test files currently cover database production configuration, inventory arithmetic/reservation invariant and stock-error metadata, order pricing, order-reference generation, payment rejection reason, product image parsing, and safe logging/redaction (22 tests in the current suite). Tests are pure/unit-level; no PostgreSQL integration suite exists. There are no frontend unit/component tests, Playwright tests, browser E2E tests, or committed fixtures covering full flows.
 
 GitHub Actions (`.github/workflows/ci.yml`) runs Node 20, `npm ci` in backend, `node --check src/server.js`, `npm ci` in frontend, and `npm run build`. It does not invoke `npm test`, lint, migration tests, accessibility checks, security scans, or deployment. CI is triggered on pushes and PRs targeting `main`.
 

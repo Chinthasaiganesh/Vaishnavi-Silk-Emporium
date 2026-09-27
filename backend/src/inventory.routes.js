@@ -5,6 +5,10 @@ import { details, list, lowStock, update } from "./inventory.controller.js";
 import { getInventory } from "./inventory.service.js";
 
 const router = Router();
+router.use((req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  return next();
+});
 const stockValidation = body("stock").isInt({ min: 0 }).withMessage("Stock must be a non-negative integer.");
 
 router.get("/", authRequired, adminOnly, list);

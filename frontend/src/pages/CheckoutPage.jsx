@@ -12,6 +12,7 @@ import PaymentSessionNotice from "../components/PaymentSessionNotice";
 
 const emptyAddress = { fullName: "", mobileNumber: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "India", isDefault: false };
 const paymentCacheKey = (reservationId) => `checkout-payment-${reservationId}`;
+const checkoutSessionStates = { none: "NO_ACTIVE_SESSION", active: "ACTIVE_SESSION", expired: "EXPIRED_SESSION" };
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -20,10 +21,13 @@ export default function CheckoutPage() {
   const [summary, setSummary] = useState(null);
   const [addresses, setAddresses] = useState([]);
   const [addressId, setAddressId] = useState("");
+  const [deliveryMobile, setDeliveryMobile] = useState("");
   const [form, setForm] = useState(emptyAddress);
   const [showForm, setShowForm] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState(null);
   const [reservation, setReservation] = useState(null);
+  const [sessionState, setSessionState] = useState(checkoutSessionStates.none);
+  const [restoredSession, setRestoredSession] = useState(false);
   const [, setClock] = useState(Date.now());
   const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
@@ -31,7 +35,7 @@ export default function CheckoutPage() {
   const [upiPayment, setUpiPayment] = useState(null);
   const [upiReference, setUpiReference] = useState("");
   const [paymentScreenshot, setPaymentScreenshot] = useState(null);
-  const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || crypto.randomUUID());
+  const reservationSessionId = useRef(localStorage.getItem("checkout-reservation-session") || "");
   const idempotencyKey = useRef(crypto.randomUUID());
   const placingRef = useRef(false);
   const serverClockOffset = useRef(0);
@@ -45,16 +49,26 @@ export default function CheckoutPage() {
 
   function applyReservation(payload) {
     if (payload?.serverTime) serverClockOffset.current = new Date(payload.serverTime).getTime() - Date.now();
-    if (payload?.ReservationId) idempotencyKey.current = payload.ReservationId;
+    if (payload?.ReservationId) {
+      idempotencyKey.current = payload.ReservationId;
+      localStorage.setItem("checkout-reservation-id", payload.ReservationId);
+    }
     if (payload?.ReservationSessionId) {
       reservationSessionId.current = payload.ReservationSessionId;
       localStorage.setItem("checkout-reservation-session", payload.ReservationSessionId);
     }
+    const stillActive = payload?.ReservationStatus === "ACTIVE"
+      && new Date(payload.ExpiresAt).getTime() > (Date.now() + serverClockOffset.current);
+    const expired = payload?.ReservationStatus === "EXPIRED"
+      || (payload?.ReservationStatus === "ACTIVE" && !stillActive);
+    setSessionState(stillActive ? checkoutSessionStates.active : expired ? checkoutSessionStates.expired : checkoutSessionStates.none);
+    setRestoredSession((current) => stillActive ? current || restored : false);
     setReservation(payload || null);
     return payload;
   }
 
   async function reserveCheckout(selectedAddressId) {
+    if (!reservationSessionId.current) reservationSessionId.current = crypto.randomUUID();
     const response = await api.post("/checkout/reserve", { addressId: Number(selectedAddressId), sessionId: reservationSessionId.current });
     return applyReservation(response.data.reservation);
   }
@@ -62,25 +76,42 @@ export default function CheckoutPage() {
   async function load() {
     setLoading(true);
     try {
-      const [summaryResponse, addressResponse] = await Promise.all([api.get("/checkout/summary"), api.get("/addresses")]);
+      const [summaryResponse, addressResponse, cartResponse] = await Promise.all([api.get("/checkout/summary"), api.get("/addresses"), api.get("/cart")]);
       setSummary(summaryResponse.data);
       const saved = addressResponse.data.addresses || [];
       setAddresses(saved);
       const selectedAddressId = String(saved.find((address) => address.IsDefault)?.AddressId || saved[0]?.AddressId || "");
       setAddressId(selectedAddressId);
-      if (selectedAddressId) {
-        const activeReservation = await reserveCheckout(selectedAddressId);
-        if (activeReservation?.AddressId) setAddressId(String(activeReservation.AddressId));
-        const cachedPayment = sessionStorage.getItem(paymentCacheKey(activeReservation?.ReservationId));
-        if (cachedPayment) {
-          try {
-            const savedPayment = JSON.parse(cachedPayment);
-            if (savedPayment.reservationId === activeReservation.ReservationId) setUpiPayment(savedPayment);
-            else sessionStorage.removeItem(paymentCacheKey(activeReservation.ReservationId));
-          } catch {
-            sessionStorage.removeItem(paymentCacheKey(activeReservation.ReservationId));
+      const knownReservationId = cartResponse.data.activePaymentSession?.ReservationId
+        || localStorage.getItem("checkout-reservation-id");
+      if (knownReservationId) {
+        try {
+          const response = await api.get(`/checkout/reservations/${knownReservationId}`);
+          const knownReservation = applyReservation(response.data.reservation, true);
+          const deliveryAddressId = String(knownReservation?.AddressId || selectedAddressId);
+          if (deliveryAddressId) setAddressId(deliveryAddressId);
+          setDeliveryMobile(saved.find((address) => String(address.AddressId) === deliveryAddressId)?.MobileNumber || "");
+          if (knownReservation?.ReservationStatus === "ACTIVE" && knownReservation.remainingSeconds > 0) {
+            const cachedPayment = sessionStorage.getItem(paymentCacheKey(knownReservation.ReservationId));
+            if (cachedPayment) {
+              try {
+                const savedPayment = JSON.parse(cachedPayment);
+                if (savedPayment.reservationId === knownReservation.ReservationId) setUpiPayment(savedPayment);
+                else sessionStorage.removeItem(paymentCacheKey(knownReservation.ReservationId));
+              } catch {
+                sessionStorage.removeItem(paymentCacheKey(knownReservation.ReservationId));
+              }
+            }
+          } else {
+            sessionStorage.removeItem(paymentCacheKey(knownReservation.ReservationId));
           }
+        } catch (requestError) {
+          if (requestError.response?.status !== 404) throw requestError;
+          localStorage.removeItem("checkout-reservation-id");
+          localStorage.removeItem("checkout-reservation-session");
         }
+      } else {
+        setDeliveryMobile(saved.find((address) => String(address.AddressId) === selectedAddressId)?.MobileNumber || "");
       }
     } catch (requestError) { setError(requestError.response?.data?.message || "Unable to load checkout."); }
     finally { setLoading(false); }
@@ -88,14 +119,14 @@ export default function CheckoutPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (!reservation) return undefined;
+    if (sessionState !== checkoutSessionStates.active || !reservation) return undefined;
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [reservation]);
+  }, [reservation?.ReservationId, sessionState]);
 
   // The reservation clock is owned by the server, so resync whenever this tab regains focus.
   useEffect(() => {
-    if (!reservation?.ReservationId) return undefined;
+    if (sessionState !== checkoutSessionStates.active || !reservation?.ReservationId) return undefined;
     const reservationId = reservation.ReservationId;
     async function resync() {
       if (document.visibilityState !== "visible") return;
@@ -112,9 +143,12 @@ export default function CheckoutPage() {
       window.removeEventListener("focus", resync);
       window.clearInterval(poll);
     };
-  }, [reservation?.ReservationId]);
+  }, [reservation?.ReservationId, sessionState]);
 
   const remainingSeconds = reservation?.ReservationStatus === "ACTIVE" ? Math.max(0, Math.ceil((new Date(reservation.ExpiresAt).getTime() - (Date.now() + serverClockOffset.current)) / 1000)) : 0;
+  const hasActivePaymentSession = sessionState === checkoutSessionStates.active
+    && reservation?.ReservationStatus === "ACTIVE"
+    && remainingSeconds > 0;
 
   useEffect(() => {
     if (!reservation?.ExpiresAt || remainingSeconds <= 0) return;
@@ -130,23 +164,32 @@ export default function CheckoutPage() {
   }, [reservation?.ExpiresAt, remainingSeconds]);
 
   useEffect(() => {
-    if (!reservation || placing || placingRef.current) return;
+    if (!reservation || placing || placingRef.current || reservation.ReservationStatus !== "ACTIVE") return;
     const expired = reservation.ReservationStatus === "EXPIRED"
       || (reservation.ReservationStatus === "ACTIVE" && remainingSeconds <= 0);
     if (!expired) return;
-    api.post(`/checkout/reservations/${reservation.ReservationId}/release`).catch(() => undefined);
-    localStorage.removeItem("checkout-reservation-session");
+    setReservation((current) => current ? { ...current, ReservationStatus: "EXPIRED" } : current);
+    setSessionState(checkoutSessionStates.expired);
     sessionStorage.removeItem(paymentCacheKey(reservation.ReservationId));
-    setReservation(null);
     setUpiPayment(null);
-    navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
-  }, [reservation, remainingSeconds, placing, navigate]);
+    api.get(`/checkout/reservations/${reservation.ReservationId}`).then((response) => applyReservation(response.data.reservation)).catch(() => undefined);
+  }, [reservation, remainingSeconds, placing]);
 
   const reservationTone = remainingSeconds <= 30 ? "critical" : remainingSeconds <= 60 ? "urgent" : remainingSeconds <= 120 ? "warning" : "";
   const reservationWarning = remainingSeconds <= 30 ? "Final moments! Submit your payment proof now or the items will be released." : remainingSeconds <= 60 ? "Less than one minute remaining to complete payment." : remainingSeconds <= 120 ? "Hurry! Your reservation will expire soon." : "";
 
   function addressToForm(address) {
     return { fullName: address.FullName, mobileNumber: address.MobileNumber, addressLine1: address.AddressLine1, addressLine2: address.AddressLine2 || "", city: address.City, state: address.State, postalCode: address.PostalCode, country: address.Country || "India", isDefault: Boolean(address.IsDefault) };
+  }
+
+  async function saveDeliveryMobile() {
+    const selectedAddress = addresses.find((address) => String(address.AddressId) === addressId);
+    if (!selectedAddress) throw new Error("Select a delivery address before continuing.");
+    const mobileNumber = deliveryMobile.trim();
+    if (!/^[0-9+() -]{7,20}$/.test(mobileNumber)) throw new Error("Enter a valid delivery mobile number.");
+    if (mobileNumber === selectedAddress.MobileNumber) return;
+    const response = await api.put(`/addresses/${selectedAddress.AddressId}`, { ...addressToForm(selectedAddress), mobileNumber });
+    setAddresses((current) => current.map((address) => address.AddressId === selectedAddress.AddressId ? response.data.address : address));
   }
 
   function startAddAddress() {
@@ -175,6 +218,7 @@ export default function CheckoutPage() {
       const savedAddress = response.data.address;
       setAddresses((current) => editingAddressId ? current.map((address) => address.AddressId === editingAddressId ? savedAddress : { ...address, IsDefault: savedAddress.IsDefault ? 0 : address.IsDefault }) : [savedAddress, ...current]);
       setAddressId(String(savedAddress.AddressId));
+      setDeliveryMobile(savedAddress.MobileNumber);
       cancelAddressForm();
     }
     catch (requestError) { setError(requestError.response?.data?.message || "Unable to save address."); }
@@ -187,7 +231,10 @@ export default function CheckoutPage() {
       await api.delete(`/addresses/${address.AddressId}`);
       const remaining = addresses.filter((item) => item.AddressId !== address.AddressId);
       setAddresses(remaining);
-      if (String(address.AddressId) === addressId) setAddressId(String(remaining[0]?.AddressId || ""));
+      if (String(address.AddressId) === addressId) {
+        setAddressId(String(remaining[0]?.AddressId || ""));
+        setDeliveryMobile(remaining[0]?.MobileNumber || "");
+      }
       if (editingAddressId === address.AddressId) cancelAddressForm();
     } catch (requestError) { setError(requestError.response?.data?.message || "Unable to delete address."); }
   }
@@ -195,8 +242,17 @@ export default function CheckoutPage() {
   async function startUpiPayment() {
     setError("");
     try {
-      const reservationIsActive = reservation?.ReservationStatus === "ACTIVE"
+      await saveDeliveryMobile();
+      const reservationIsActive = hasActivePaymentSession
         && new Date(reservation.ExpiresAt).getTime() > Date.now() + serverClockOffset.current;
+      if (!reservationIsActive) {
+        reservationSessionId.current = crypto.randomUUID();
+        announcedReservation.current = false;
+        announcedExpiryWarning.current = false;
+        setRestoredSession(false);
+        localStorage.removeItem("checkout-reservation-id");
+        localStorage.setItem("checkout-reservation-session", reservationSessionId.current);
+      }
       const activeReservation = reservationIsActive ? reservation : await reserveCheckout(addressId);
       if (upiPayment?.reservationId === activeReservation.ReservationId) return;
       const cachedPayment = sessionStorage.getItem(paymentCacheKey(activeReservation.ReservationId));
@@ -220,7 +276,7 @@ export default function CheckoutPage() {
       sessionStorage.setItem(paymentCacheKey(activeReservation.ReservationId), JSON.stringify(payment));
       setUpiPayment(payment);
     } catch (err) {
-      console.error("UPI payment initialization failed", err);
+      console.error("UPI payment initialization failed.", { statusCode: err.response?.status || null, diagnosticCode: err.response?.data?.diagnosticCode || err.response?.data?.code || null });
       setError(err.response?.data?.message || err.message || "Payment initialization failed.");
     }
   }
@@ -231,6 +287,8 @@ export default function CheckoutPage() {
     if (!confirmed) return;
     try {
       await releasePaymentSession(reservation.ReservationId);
+      setSessionState(checkoutSessionStates.none);
+      setRestoredSession(false);
       setReservation(null);
       setUpiPayment(null);
       setPaymentScreenshot(null);
@@ -250,6 +308,7 @@ export default function CheckoutPage() {
     placingRef.current = true;
     setPlacing(true); setError("");
     try {
+      await saveDeliveryMobile();
       const formData = new FormData();
       formData.append("addressId", addressId);
       formData.append("paymentMethod", "UPI_MANUAL");
@@ -257,6 +316,9 @@ export default function CheckoutPage() {
       formData.append("paymentScreenshot", paymentScreenshot);
       const response = await api.post("/orders", formData, { headers: { "Idempotency-Key": idempotencyKey.current, "Checkout-Reservation-Id": reservation.ReservationId } });
       localStorage.removeItem("checkout-reservation-session");
+      localStorage.removeItem("checkout-reservation-id");
+      sessionStorage.removeItem(paymentCacheKey(reservation.ReservationId));
+      setSessionState(checkoutSessionStates.none);
       setReservation(null);
       setUpiPayment(null); setPaymentScreenshot(null);
       try { await refreshCart(); } catch { /* order was created */ }
@@ -264,9 +326,10 @@ export default function CheckoutPage() {
       notify(buildNotification("ORDER_PLACED", { dismissible: false, primaryAction: { label: "View Order", to: `/orders/${response.data.order.OrderId}`, navigateOptions: { replace: true } }, footnote: `Order ID: #${orderReference}` }));
     } catch (requestError) {
       if (["RESERVATION_EXPIRED"].includes(requestError.response?.data?.code || requestError.response?.data?.diagnosticCode)) {
-        localStorage.removeItem("checkout-reservation-session");
         sessionStorage.removeItem(paymentCacheKey(reservation.ReservationId));
-        navigate("/cart", { replace: true, state: { notice: "RESERVATION_EXPIRED" } });
+        setReservation((current) => current ? { ...current, ReservationStatus: "EXPIRED" } : current);
+        setSessionState(checkoutSessionStates.expired);
+        setUpiPayment(null);
         return;
       }
       setError(requestError.response?.data?.message || "Payment proof could not be saved. Please contact support with your UPI reference before paying again.");
@@ -281,15 +344,16 @@ export default function CheckoutPage() {
     <main className="container section checkout-page">
       <div className="section-head"><div><p className="eyebrow">Secure order review</p><h1>Checkout</h1></div></div>
       {error && <p className="error-text" role="alert">{error}</p>}
-      {reservation?.ReservationStatus === "ACTIVE" && <PaymentSessionNotice session={reservation} onContinue={startUpiPayment} onCancel={cancelPaymentSession} />}
-      {reservation && <div className={`reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`} role="status" aria-live={remainingSeconds <= 60 ? "assertive" : "polite"}><strong>Items reserved for checkout</strong><span>Your items are reserved for {formatReservationTime(remainingSeconds)} minutes.</span>{reservationWarning && <small>{reservationWarning}</small>}</div>}
+      {hasActivePaymentSession && <PaymentSessionNotice session={reservation} title={restoredSession ? "Active Payment Session Found" : "Payment Session Active"} description={restoredSession ? "You have an ongoing payment session." : "Your items are reserved for this checkout."} warning={reservationWarning} onContinue={startUpiPayment} onCancel={cancelPaymentSession} />}
+      {sessionState === checkoutSessionStates.expired && <div className="reservation-timer warning" role="status"><strong>Payment Session Expired</strong><span>The reserved items have been released. Start a new payment session to continue.</span></div>}
       <div className="checkout-layout">
         <section className="checkout-main">
           <article className="checkout-section">
-            <div className="checkout-section-heading"><h2>Delivery Address</h2><button className="link-btn" onClick={showForm ? cancelAddressForm : startAddAddress}>{showForm ? "Cancel" : "Add Address"}</button></div>
+            <div className="checkout-section-heading"><h2>Delivery Address</h2><button className="link-btn" disabled={reservation?.ReservationStatus === "ACTIVE" && !showForm} onClick={showForm ? cancelAddressForm : startAddAddress}>{showForm ? "Cancel" : "Add Address"}</button></div>
             {addresses.length === 0 && !showForm && <p className="muted">Add a delivery address to continue.</p>}
-            {addresses.length > 0 && <div className="address-list">{addresses.map((address) => <div className={`address-option${String(address.AddressId) === addressId ? " selected" : ""}`} key={address.AddressId}><label className="address-select"><input type="radio" name="address" value={address.AddressId} checked={String(address.AddressId) === addressId} onChange={(event) => setAddressId(event.target.value)} /><span><strong>{address.FullName}</strong><small>{address.AddressLine1}{address.AddressLine2 ? `, ${address.AddressLine2}` : ""}, {address.City}, {address.State} {address.PostalCode}</small><small>{address.MobileNumber}</small></span></label><div className="address-actions"><button type="button" className="link-btn" onClick={() => startEditAddress(address)}>Edit</button><button type="button" className="link-btn danger-link" onClick={() => removeAddress(address)}>Delete</button></div></div>)}</div>}
-              {showForm && <form className="address-form" onSubmit={saveAddress}>{Object.entries(emptyAddress).filter(([key]) => key !== "isDefault").map(([key]) => <input key={key} required={!['addressLine2', 'country'].includes(key)} placeholder={key.replace(/([A-Z])/g, " $1")} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} />)}<label className="checkbox-line"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />Use as default address</label><button className="btn btn-outline">{editingAddressId ? "Update Address" : "Save Address"}</button></form>}
+            {addresses.length > 0 && <div className="address-list">{addresses.map((address) => <div className={`address-option${String(address.AddressId) === addressId ? " selected" : ""}`} key={address.AddressId}><label className="address-select"><input type="radio" name="address" value={address.AddressId} checked={String(address.AddressId) === addressId} disabled={reservation?.ReservationStatus === "ACTIVE" && String(address.AddressId) !== String(reservation.AddressId)} onChange={() => { setAddressId(String(address.AddressId)); setDeliveryMobile(address.MobileNumber || ""); }} /><span><strong>{address.FullName}</strong><small>{address.AddressLine1}{address.AddressLine2 ? `, ${address.AddressLine2}` : ""}, {address.City}, {address.State} {address.PostalCode}</small><small>{address.MobileNumber}</small></span></label><div className="address-actions"><button type="button" className="link-btn" disabled={reservation?.ReservationStatus === "ACTIVE" && String(address.AddressId) !== String(reservation.AddressId)} onClick={() => startEditAddress(address)}>Edit</button><button type="button" className="link-btn danger-link" disabled={reservation?.ReservationStatus === "ACTIVE"} onClick={() => removeAddress(address)}>Delete</button></div></div>)}</div>}
+            {addresses.length > 0 && !showForm && <label className="address-form">Delivery mobile number<input type="tel" inputMode="tel" autoComplete="tel" required maxLength={20} value={deliveryMobile} onChange={(event) => setDeliveryMobile(event.target.value)} /></label>}
+              {showForm && <form className="address-form" onSubmit={saveAddress}>{Object.entries(emptyAddress).filter(([key]) => key !== "isDefault" && key !== "mobileNumber").map(([key]) => <input key={key} required={!['addressLine2', 'country'].includes(key)} placeholder={key.replace(/([A-Z])/g, " $1")} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} />)}<label>Delivery mobile number<input type="tel" inputMode="tel" autoComplete="tel" required maxLength={20} value={form.mobileNumber} onChange={(event) => setForm({ ...form, mobileNumber: event.target.value })} /></label><label className="checkbox-line"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm({ ...form, isDefault: event.target.checked })} />Use as default address</label><button className="btn btn-outline">{editingAddressId ? "Update Address" : "Save Address"}</button></form>}
           </article>
         </section>
         <aside className="checkout-summary-panel">
@@ -299,7 +363,7 @@ export default function CheckoutPage() {
             <div className="checkout-price-breakdown"><div><span>Original price</span><strong>{formatCurrency(summary.originalSubtotal ?? summary.items.reduce((total, item) => total + item.originalPrice * item.quantity, 0))}</strong></div><div><span>Discount</span><strong className="checkout-savings">-{formatCurrency(summary.discount)}</strong></div><div><span>Delivery</span><strong>Free</strong></div><div className="checkout-grand-total"><span>Final payable</span><strong>{formatCurrency(summary.grandTotal)}</strong></div></div>
             {Number(summary.discount) > 0 && <div className="order-savings-callout"><strong>You save {formatCurrency(summary.discount)} on this order</strong><span>Discounts are locked in at checkout.</span></div>}
             <div className="checkout-trust"><span aria-hidden="true">✓</span><div><strong>Secure checkout</strong><small>Safe UPI payment and order protection.</small></div></div>
-            <button className="btn btn-primary checkout-pay-button" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : reservation?.ReservationStatus === "ACTIVE" ? "Continue Payment" : "Pay securely with UPI QR"}</button>
+            {!hasActivePaymentSession && <button className="btn btn-primary checkout-pay-button" disabled={!addressId || placing} onClick={startUpiPayment}>{placing ? "Processing..." : sessionState === checkoutSessionStates.expired ? "Start New Payment Session" : "Start Payment"}</button>}
           </article>
         </aside>
       </div>
@@ -307,7 +371,7 @@ export default function CheckoutPage() {
         <section className="payment-modal">
           <button className="link-btn" onClick={() => setUpiPayment(null)}>Close</button>
           <h2 id="upi-payment-title">Pay ₹{upiPayment.amount} by UPI</h2>
-          {reservation && <div className={`reservation-timer modal-reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>{reservationWarning || "Submit payment proof before the timer expires."}</span></div>}
+          {hasActivePaymentSession && <div className={`reservation-timer modal-reservation-timer${reservationTone ? ` ${reservationTone}` : ""}`}><strong>Reserved for {formatReservationTime(remainingSeconds)}</strong><span>{reservationWarning || "Submit payment proof before the timer expires."}</span></div>}
           <p>Scan this QR with any UPI app, complete the payment, then enter the UTR and upload your payment screenshot.</p>
           <img src={upiPayment.qrDataUrl} alt="UPI payment QR code" />
           <dl className="upi-payment-summary">

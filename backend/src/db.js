@@ -1,5 +1,6 @@
 import pg from "pg";
 import { config } from "./config.js";
+import { logSafe } from "./safe-logger.js";
 
 const { Pool } = pg;
 
@@ -44,8 +45,8 @@ const identifiers = [...primaryKeys.keys(), ...primaryKeys.values(),
   "ProductName", "Description", "Category", "Price", "DiscountedPrice", "ImageUrl", "Quantity", "IsFeatured", "Fabric", "WeavingStyle", "Colour", "Occasion", "SareeLength", "BlousePieceIncluded", "CareInstructions", "Rating", "UpdatedDate",
   "CacheKey", "SourceLanguage", "TargetLanguage", "SourceText", "TranslatedText", "Provider", "CategoryId", "CategoryName", "SettingsId", "StoreName", "Tagline", "Phone", "Address", "BusinessDescription", "UpdatedBy",
   "InventoryId", "CurrentStock", "AvailableStock", "ReservedStock", "Status", "AdminUserId", "Action", "OldStock", "NewStock", "AuditId", "UserId", "OldValues", "NewValues",
-  "CartId", "CartItemId", "UnitPrice", "OldQuantity", "NewQuantity", "AddressId", "AddressLine1", "AddressLine2", "City", "State", "PostalCode", "Country", "IsDefault",
-  "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CancelledAt", "CancellationReason", "CancelledByRole", "RefundStatus", "RefundReference", "RefundInitiatedAt", "RefundProcessingAt", "RefundCompletedAt",
+  "CartId", "CartItemId", "UnitPrice", "OldQuantity", "NewQuantity", "AddressId", "AddressLine1", "AddressLine2", "City", "State", "PostalCode", "Country", "IsDefault", "DeliveryMobileNumber",
+  "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentScreenshotKey", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CancelledAt", "CancellationReason", "CancelledByRole", "RefundStatus", "RefundReference", "RefundInitiatedAt", "RefundProcessingAt", "RefundCompletedAt",
   "OrderItemId", "ProductPrice", "OriginalPrice", "DiscountedPrice", "DiscountPercentage", "SavingsAmount", "ImageUrl", "LineTotal", "StatusHistoryId", "OldStatus", "NewStatus", "ChangedBy", "ChangedAt", "LifecycleEventId", "EventType", "Description", "ActorRole", "EventDate",
   "ReservationId", "ReservationItemId", "ReservationStatus", "ReservedAt", "ExpiresAt", "ReservationSessionId", "AvailableQuantity", "ReservedQuantity",
   "nextId", "ItemCount", "ProductCount", "WishlistCreatedDate", "CustomerName", "CustomerMobile", "OrderImageUrl"
@@ -119,7 +120,7 @@ export async function transaction(work) {
           const result = await client.query(normalizedSql, params);
           return { changes: result.rowCount, lastInsertRowid: Object.values(result.rows[0] || {})[0] };
         } catch (error) {
-          console.error(JSON.stringify({ level: "error", message: "Database query failed", sql: normalizedSql, parameterCount: params.length, code: error.code, detail: error.detail, constraint: error.constraint, table: error.table, column: error.column, error: error.message, stack: error.stack }));
+          logSafe("error", "database_query_failed", { diagnosticCode: error.code });
           throw error;
         }
       }
@@ -153,7 +154,7 @@ export async function getDatabaseVersion() {
 
 export async function assertDatabaseConnection() {
   const version = await getDatabaseVersion();
-  console.info(JSON.stringify({ level: "info", message: "PostgreSQL database connected", version }));
+  logSafe("info", "postgresql_database_connected");
   return version;
 }
 
@@ -256,10 +257,12 @@ export async function initializeDatabase() {
   `);
 
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReference" TEXT');
+  await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "DeliveryMobileNumber" TEXT NOT NULL DEFAULT \'\'');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "ReservationId" UUID REFERENCES "CheckoutReservations"("ReservationId") ON DELETE SET NULL');
   await pool.query('ALTER TABLE "CheckoutReservationItems" ADD COLUMN IF NOT EXISTS "OriginalPrice" NUMERIC(12,2) NOT NULL DEFAULT 0');
   await pool.query('UPDATE "CheckoutReservationItems" ri SET "OriginalPrice" = p."Price" FROM "Products" p WHERE ri."ProductId" = p."ProductId" AND ri."OriginalPrice" = 0');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentScreenshotUrl" TEXT');
+  await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentScreenshotKey" TEXT');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentStatus" TEXT NOT NULL DEFAULT \'PENDING\'');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentSubmittedAt" TIMESTAMPTZ');
   await pool.query('ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "PaymentReviewedAt" TIMESTAMPTZ');
@@ -285,13 +288,13 @@ export async function initializeDatabase() {
   const tableCheck = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)", [requiredTables]);
   const foundTables = tableCheck.rows.map((row) => row.table_name);
   const missingTables = requiredTables.filter((table) => !foundTables.includes(table));
-  console.info(JSON.stringify({ level: missingTables.length ? "error" : "info", message: "Order schema check", requiredTables, foundTables, missingTables }));
+  logSafe(missingTables.length ? "error" : "info", missingTables.length ? "required_tables_missing" : "required_tables_present");
   if (missingTables.length) throw Object.assign(new Error(`Required database tables are missing: ${missingTables.join(", ")}`), { code: "42P01" });
-  const requiredColumns = ["PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "CancelledByRole", "RefundInitiatedAt", "RefundProcessingAt", "RefundCompletedAt"];
+  const requiredColumns = ["PaymentReference", "PaymentScreenshotUrl", "PaymentScreenshotKey", "PaymentStatus", "PaymentSubmittedAt", "PaymentReviewedAt", "PaymentRejectionReason", "CancelledByRole", "RefundInitiatedAt", "RefundProcessingAt", "RefundCompletedAt"];
   const columnCheck = await pool.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'Orders' AND column_name = ANY($1)", [requiredColumns]);
   const foundColumns = columnCheck.rows.map((row) => row.column_name);
   const missingColumns = requiredColumns.filter((column) => !foundColumns.includes(column));
-  console.info(JSON.stringify({ level: missingColumns.length ? "error" : "info", message: "Order column check", requiredColumns, foundColumns, missingColumns }));
+  logSafe(missingColumns.length ? "error" : "info", missingColumns.length ? "required_columns_missing" : "required_columns_present");
   if (missingColumns.length) throw Object.assign(new Error(`Required database columns are missing: ${missingColumns.join(", ")}`), { code: "42703" });
 }
 

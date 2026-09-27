@@ -55,14 +55,12 @@ export async function getCart(userId) {
 }
 
 export async function addToCart(userId, productId, quantity, requestId) {
-  console.info(JSON.stringify({ level: "info", message: "Cart add service hit", requestId, userId, productId, quantity }));
   assertQuantity(quantity);
   await releaseExpiredReservations();
   const cart = await getOrCreateCart(userId);
   await transaction(async (tx) => {
     await assertCartIsUnlocked(tx, userId, cart.CartId);
     const product = await getProduct(productId, tx);
-    console.info(JSON.stringify({ level: "info", message: "Cart product lookup completed", requestId, userId, productId, availableStock: product?.AvailableStock ?? null, productFound: Boolean(product) }));
     if (!product || !product.IsActive) throw Object.assign(new Error("Product is unavailable."), { status: 404 });
     const existing = await getCartItemByProduct(cart.CartId, productId, tx);
     const nextQuantity = (existing?.Quantity || 0) + quantity;

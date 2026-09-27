@@ -31,7 +31,7 @@ Other review items: `/auth/settings`, password, wishlist and notifications accep
 - JSON body limited to 1 MB. Add general per-IP/user rate limits and abuse controls for login, registration, uploads, translation and high-cost list calls.
 - CORS is configured with exact origins and credentials. Keep production allowlist narrow; `VERCEL_PROJECT_SLUG` preview regex broadens trust to matching preview hostnames.
 - Helmet is enabled, but CSP policy is not explicitly defined. Review CSP, HSTS (if TLS termination does not supply), frame/content-type/referrer policies and proxy trust.
-- Error messages normalize common DB failures; request logs include URLs, user IDs and some payload/query details. Redact PII and never log credentials/tokens/payment references/screenshots. Confirm request URLs do not carry secrets.
+- Error messages normalize common DB failures. Backend logs now use `safe-logger.js`, which allowlists server-generated request IDs, route templates, method/status/timing, masked numeric user IDs, role, and diagnostic codes. Validation, database, auth, order, and product paths do not log raw bodies, query strings, headers, error details, or stacks. Keep new log calls behind this allowlist and review changes for sensitive fields.
 
 ## SQL Injection, XSS, CSRF, Rate Limits
 
@@ -48,15 +48,17 @@ Other review items: `/auth/settings`, password, wishlist and notifications accep
 
 Multer holds files in memory, limits each to 5 MB and allows JPG/PNG/WEBP based on request MIME. Avatar dimensions are decoded and must be >=100x100. Product/payment images are not all decoded/virus-scanned; client MIME can be spoofed. Random UUID object names reduce path traversal, and user paths do not select storage keys.
 
-Recommendations: inspect magic bytes/fully decode, enforce pixel/dimension limits for all image types, malware scan where needed, apply upload rate limits, set private bucket access for payment proofs, use signed read URLs scoped to admin/customer, define retention/erasure, and protect against memory exhaustion. Confirm Supabase public bucket strategy: current service builds public URLs for every folder, potentially exposing payment evidence to anyone with URL. Avoid deleting object until DB update succeeds; schedule orphan reconciliation.
+Payment-proof handling is now private-by-key in application code: proofs use a dedicated bucket, customer DTOs omit proof URL/key, and only ADMIN order detail/mutation responses receive a five-minute signed URL. Production startup requires a distinct `S3_PAYMENT_PROOFS_BUCKET`, but cannot verify its Supabase ACL. Create that bucket with anonymous reads disabled before deployment. Existing orders may retain `PaymentScreenshotUrl` until `npm run migrate:payment-proofs -- --apply` copies private keys and deletes legacy objects. Purge provider/CDN caches for old URLs and test anonymous access is denied.
+
+Remaining recommendations: inspect magic bytes/fully decode, enforce pixel/dimension limits for all image types, malware scan where needed, apply upload rate limits, define retention/erasure, and protect against memory exhaustion. Avoid deleting an object until its private key is committed to the database; schedule orphan reconciliation.
 
 ## Secrets and Third Parties
 
-Do not commit `.env`, OAuth secrets, database URLs, S3 credentials or production UPI configuration. Use provider secret stores, least-privilege bucket/database credentials and rotation. `VITE_*` values are public build-time configuration. `DATABASE_URL` required at import. S3 env variables are not startup-validated. OAuth provider API calls use TLS `fetch`; add timeouts/retry limits and provider outage tests. No payment gateway integration exists.
+Do not commit `.env`, OAuth secrets, database URLs, S3 credentials or production UPI configuration. Use provider secret stores, least-privilege bucket/database credentials and rotation. `VITE_*` values are public build-time configuration. `DATABASE_URL` is required at import. Production startup validates S3 endpoint, region, credentials, public media bucket, and a distinct payment-proof bucket; it cannot verify provider ACLs. OAuth provider API calls use TLS `fetch`; add timeouts/retry limits and provider outage tests. No payment gateway integration exists.
 
 ## Data Protection and Logging
 
-Order address, email/mobile, payment reference, screenshots, and profile data are sensitive. Define retention and access policy. Logs may include user ID/request metadata; central error handler attempts to mask `paymentReference` but not all code paths provide uniform redaction. Restrict log access/retention and add structured scrubbing. `Notifications.OrderId` lacks a FK and direct cleanup can orphan logical references.
+Order address, email/mobile, payment reference, screenshots, and profile data are sensitive. Current application logging omits those values, but this does not retroactively remove data from provider logs written by earlier releases. Review and restrict historical log access/retention, and purge exposed credentials/PII according to incident and retention policy. `Notifications.OrderId` lacks a FK and direct cleanup can orphan logical references.
 
 ## Production Security Checklist
 

@@ -6,13 +6,14 @@ import { cancelOrder, getOrder, listOrders, resubmitPaymentProof } from "./order
 import { upload } from "./upload.js";
 import { uploadImage } from "./s3-storage.service.js";
 import { sendOrderNotification } from "./notification.service.js";
+import { logSafe } from "./safe-logger.js";
 
 const router = Router();
 router.use(authRequired, (req, res, next) => req.user.role === "USER" ? next() : res.status(403).json({ success: false, message: "Customer access required." }));
 router.get("/", async (req, res) => res.json({ orders: await listOrders(req.user.userId) }));
 router.get("/:id", param("id").isInt({ min: 1 }), validateRequest, async (req, res) => { const order = await getOrder(req.user.userId, Number(req.params.id)); return order ? res.json({ order }) : res.status(404).json({ success: false, message: "Order not found." }); });
 router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ min: 1 }).withMessage("Address required."), validateRequest, async (req, res, next) => {
-	console.info(JSON.stringify({ level: "info", message: "Order request received", requestId: req.requestId, userId: req.user.userId, role: req.user.role, payload: { ...req.body, paymentReference: req.body.paymentReference ? "[present]" : null }, addressId: req.body.addressId, idempotencyKeyPresent: Boolean(req.get("Idempotency-Key")) }));
+	logSafe("info", "order_request_received", { requestId: req.requestId, endpoint: "/api/orders", method: "POST", userId: req.user.userId, role: req.user.role });
 	try {
 		const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 100);
 		if (!idempotencyKey) return res.status(400).json({ success: false, message: "Idempotency-Key header is required. Please retry checkout." });
@@ -22,7 +23,7 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
 		const reservationId = req.get("Checkout-Reservation-Id")?.trim();
 		if (!reservationId) return res.status(409).json({ success: false, code: "RESERVATION_REQUIRED", message: "Your checkout reservation is missing. Please return to checkout and reserve your items again." });
-		const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.url, reservationId);
+			const order = await placeOrder(req.user.userId, Number(req.body.addressId), idempotencyKey, req.requestId, paymentMethod, paymentReference, screenshot.key, reservationId);
 		await sendOrderNotification(order, "Order Placed Successfully", `Your order #${order.OrderNumber} has been placed successfully and your payment is currently under verification. We'll notify you once payment verification is completed.`, "ORDER_PLACED");
 		if (Number(order.DiscountAmount) > 0) {
 			const saved = Number(order.DiscountAmount).toFixed(2);
@@ -30,11 +31,11 @@ router.post("/", upload.single("paymentScreenshot"), body("addressId").isInt({ m
 			const percent = originalTotal > 0 ? (Number(order.DiscountAmount) / originalTotal) * 100 : 0;
 			await sendOrderNotification(order, "You saved on this order", `You saved ₹${saved} (${Math.round(percent)}%) on order ${order.OrderNumber}. Thank you for shopping with us.`);
 		}
-		console.info(JSON.stringify({ level: "info", message: "Order response ready", requestId: req.requestId, userId: req.user.userId, orderId: order.OrderId, orderNumber: order.OrderNumber }));
+		logSafe("info", "order_response_ready", { requestId: req.requestId, endpoint: "/api/orders", method: "POST", statusCode: 201, userId: req.user.userId });
 		const conflictOrder = order.OrderStatus === "CANCELLED" && order.RefundStatus === "PENDING";
 		return res.status(201).json({ success: true, message: conflictOrder ? "Payment proof saved. The item was no longer available, so this order was cancelled and the payment will be verified for refund." : "Order placed successfully.", order });
 	} catch (error) {
-		console.error(JSON.stringify({ level: "error", message: "Order controller failed", requestId: req.requestId, userId: req.user.userId, addressId: req.body.addressId, error: error.message, code: error.code, constraint: error.constraint, table: error.table, column: error.column, stack: error.stack }));
+		logSafe("error", "order_controller_failed", { requestId: req.requestId, endpoint: "/api/orders", method: "POST", statusCode: error.status, userId: req.user.userId, diagnosticCode: error.code });
 		return next(error);
 	}
 });
@@ -42,7 +43,7 @@ router.post("/:id/payment-proof", upload.single("paymentScreenshot"), param("id"
 	try {
 		if (!req.file) return res.status(400).json({ success: false, message: "Payment screenshot is required." });
 		const screenshot = await uploadImage(req.file.buffer, { originalName: req.file.originalname, mimetype: req.file.mimetype, folder: "payment-proofs" });
-		const order = await resubmitPaymentProof(req.user.userId, Number(req.params.id), req.body.paymentReference.trim(), screenshot.url);
+			const order = await resubmitPaymentProof(req.user.userId, Number(req.params.id), req.body.paymentReference.trim(), screenshot.key);
 		if (!order) return res.status(409).json({ success: false, message: "Payment proof can only be re-submitted after a rejected verification." });
 		await sendOrderNotification(order, "Payment Submitted", "We have received your updated payment details and will verify them shortly.", "PAYMENT_STATUS");
 		return res.json({ success: true, message: "Payment proof submitted for review.", order });

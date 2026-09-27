@@ -2,7 +2,7 @@
 
 ## Order Creation
 
-Normal storefront flow is reservation-first. Checkout creates a timed stock reservation and immutable item/price snapshot. The browser generates a UPI QR and order reference from that reservation, then submits multipart payment details with `Idempotency-Key` and `Checkout-Reservation-Id`. The API uploads proof, validates the active owner reservation, and transactionally creates `Orders`/`OrderItems`, consumes reserved/current inventory, stores audit/status/lifecycle events, marks the reservation converted, and clears cart lines.
+Normal storefront flow is reservation-first. Checkout creates a timed stock reservation and immutable item/price snapshot. The browser generates a UPI QR and order reference from that reservation, then submits multipart payment details with `Idempotency-Key` and `Checkout-Reservation-Id`. The API uploads proof, validates the active owner reservation, and transactionally creates `Orders`/`OrderItems`, snapshots the selected address's `MobileNumber` as `Orders.DeliveryMobileNumber`, consumes reserved/current inventory, stores audit/status/lifecycle events, marks the reservation converted, and clears cart lines.
 
 `OrderNumber` for reservation flow is derived from the sanitized reservation/idempotency key (prefix `VSE-` plus a short uppercase reference). Order status and payment status start `PENDING`. A database uniqueness constraint on `(UserId,IdempotencyKey)` supports retry safety. Order lines snapshot name, price/discount breakdown, quantity and image; later product changes do not rewrite purchase values.
 

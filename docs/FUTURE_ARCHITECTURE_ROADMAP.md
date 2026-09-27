@@ -6,7 +6,7 @@ Recommendations are options, not current features. Prioritize operational safety
 
 - Fix guest price DTO leak; add API tests for roles and order ownership.
 - Run existing tests in CI; add PostgreSQL integration tests for stock reservation/order/refund state transitions.
-- Add startup validation for S3 config and separate public catalog images from private payment proofs.
+- Verify the private Supabase proof-bucket ACL, complete legacy proof migration, and add storage-policy smoke tests; application code now separates proofs from public catalog media.
 - Validate all order UTR/image fields consistently; revoke refresh sessions after customer password change and decide disabled-user JWT policy.
 - Add database snapshots/PITR/storage recovery checks; document live Vercel/Render/Supabase settings and secret owner.
 - Document and test a staging environment; block production release on successful migration/smoke validation.

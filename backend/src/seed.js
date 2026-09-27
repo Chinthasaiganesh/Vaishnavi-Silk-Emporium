@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { nowIso } from "./utils.js";
 import { calculateInventoryState } from "./inventory-logic.js";
 import { initializeInventory } from "./inventory.service.js";
+import { logSafe } from "./safe-logger.js";
 
 async function createSeedInventory(productId, stock, timestamp) {
   const state = calculateInventoryState(stock);
@@ -125,4 +126,4 @@ await db.prepare("INSERT OR IGNORE INTO StoreSettings (SettingsId, StoreName, Ta
   existingAdmin?.UserId || null
 );
 
-console.log("Seed complete. Existing users, products, categories, and settings were preserved.");
+logSafe("info", "seed_complete");

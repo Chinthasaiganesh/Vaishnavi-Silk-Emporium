@@ -77,5 +77,5 @@ This file states rules implemented in the current code. Where behavior is incomp
 - `DATABASE_URL` required to start.
 - Production requires a 32+ character JWT secret and explicit admin/customer demo account credentials.
 - `VITE_UPI_ID` required to generate UPI payment QR; it is frontend build-time configuration.
-- Product/avatar/payment proof objects require S3-compatible config; startup does not validate these variables.
+- Product/avatar/payment proof objects require S3-compatible config. Production startup validates the S3 endpoint, region, credentials, public media bucket, and distinct payment-proof bucket; development may omit storage settings until an upload is attempted.
 - OAuth only appears usable when provider client ID and secret are configured; no provider credentials are committed.

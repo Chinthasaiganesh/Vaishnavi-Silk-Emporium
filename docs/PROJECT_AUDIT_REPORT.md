@@ -3,11 +3,17 @@
 **Audit date:** 2026-09-26  
 **Scope:** Source-based pre-production audit of the Vaishnavi Silk Emporium frontend, API, database/bootstrap, authentication, business workflows, tests, and deployment configuration.
 
+## Post-Audit Remediation Update (2026-09-27)
+
+The raw sensitive-data logging finding below was remediated after the audit. Backend log calls now pass through `backend/src/safe-logger.js`, which allowlists server-generated request IDs, route templates, methods/status/duration, masked numeric user IDs, roles, and diagnostic codes. Validation, auth, DB, order, product, cart, checkout, and storage logs no longer serialize raw request bodies, query strings, headers, provider/database error details, or Axios response objects. `backend/test/safe-logger.test.js` covers rejection of credentials, PII, payment values, session identifiers, unknown fields, and query-bearing endpoints. The suite now has seven files and 22 tests. The ratings and original findings below describe the 2026-09-26 baseline; historical hosted logs still require access/retention review and may need cleanup.
+
+Payment-proof handling was also remediated in code after the baseline audit: new uploads use a separate bucket and persist object keys; customer order responses omit proof identifiers; ADMIN detail/mutation responses issue five-minute signed URLs. Deployment is not complete until the provider bucket is confirmed private and legacy public objects are migrated/deleted. The original finding below records the audit-date baseline.
+
 ## 1. Executive Summary
 
 This is a feature-rich, single-store commerce application implemented as a React/Vite SPA, an Express 4 modular monolith, PostgreSQL, and S3-compatible object storage. It has meaningful domain work already present: transactional reservation/order conversion, idempotency keys, explicit order history, owner-scoped customer queries, role-gated admin routes, and a usable manual-UBI review flow.
 
-It is **not production-ready for a public commerce workload handling real customer payment evidence**. The most urgent blockers are confirmed sensitive-field logging, payment evidence stored behind generated public-object URLs, a public product DTO that exposes prices despite the intended privacy rule, and concurrency gaps in cancellation/payment transitions that can restore inventory more than once. The application also has no durable migration system, no staging/deployment promotion pipeline, no database-backed integration tests, no error monitoring/backup configuration in source, and CI does not run its existing tests.
+It is **not production-ready for a public commerce workload handling real customer payment evidence**. The audit-date blockers included sensitive-field logging and payment evidence behind public-object URLs; code fixes now address both, but historical logs, provider bucket ACL, and legacy-proof migration are unverified. Remaining high risks include a public product DTO that exposes prices despite the intended policy and order/payment concurrency gaps that can restore inventory more than once. The application also lacks durable migrations, a staging/promotion pipeline, database integration tests, configured monitoring/backups, and CI execution of its backend tests.
 
 The architecture is maintainable enough for a small team to extend cautiously, but it has grown into a feature-dense monolith without consistent route/service/repository boundaries. Several strong features are undermined by incomplete contracts: payment resubmission is unavailable for newly created reservation-backed orders after rejection, late payment after reservation expiry has no reliable reconciliation path, and the actual UPI transfer is not verified by the software.
 
@@ -116,8 +122,8 @@ The runtime schema is created and altered by [backend/db.js](../backend/src/db.j
 
 ### Critical
 
-1. **Plaintext credentials/PII can enter logs.** `validateRequest` logs all of `req.body` on validation errors, including `password`, `confirmPassword`, `currentPassword`, and `newPassword`. The centralized error logger also spreads the request body and masks only `paymentReference`. A failed validation or DB error can therefore put plaintext credentials, email/mobile/address, or preferences into provider logs. Redact by allowlist before logging; never log raw request bodies.
-2. **Payment proofs are assigned public-object URLs.** `s3-storage.service.js` builds URLs under the S3-compatible public-object path and sets `Cache-Control: public, max-age=31536000, immutable` for every folder, including `payment-proofs/` and avatars. If the bucket policy permits those public URLs as intended, screenshots containing UTR/customer data are anonymously readable to anyone who obtains the URL and can be cached long-term. Make payment proofs private, use short-lived signed reads and test anonymous access before accepting real evidence.
+1. **[Remediated 2026-09-27] Plaintext credentials/PII could enter logs.** At audit time, `validateRequest` logged all of `req.body` on validation errors, and the centralized error logger spread the request body while masking only `paymentReference`. The safe logger and regression tests now prevent those fields from being emitted. Review retained logs from releases before this remediation.
+2. **[Remediated in code; deployment gate remains] Payment proofs were assigned public-object URLs.** At audit time, the storage service generated public, long-lived URLs for proofs. New proofs now use a separate bucket, private/no-store metadata, key-only persistence, customer response stripping, and five-minute ADMIN signed reads. The S3 provider ACL must still be set to private and all legacy public objects must be migrated/deleted before accepting real evidence.
 
 ### High
 
@@ -152,7 +158,7 @@ Reservation creation is comparatively strong: it locks the cart and inventory ro
 ### Payment and Order Lifecycle
 
 - Payment is manual UPI. QR is generated in the browser from a reservation snapshot and `VITE_UPI_ID`; the backend never checks payment settlement or amount with a provider. Admin review is the only verification.
-- `Idempotency-Key` and reservation UUID protect order creation against duplicate order rows, but screenshot upload occurs **before** reservation validation/idempotency lookup. Retries, missing reservation headers, or transaction failures can orphan publicly addressed proof images.
+- `Idempotency-Key` and reservation UUID protect order creation against duplicate order rows, but screenshot upload occurs **before** reservation validation/idempotency lookup. Retries, missing reservation headers, or transaction failures can orphan private proof objects; cleanup/reconciliation is still needed.
 - Reservation expiry is five minutes by default. If the customer pays externally but the reservation expires before proof submission, `createOrderFromReservation` rejects the expired reservation. The current reservation-backed path does not create the conflict/refund record for this late payment; support must reconcile manually. This is a material customer/financial risk.
 - Payment rejection on a reservation-backed order automatically cancels it and restores stock. The customer proof-resubmission route/UI accepts only rejected, non-cancelled orders; therefore the resubmission feature is effectively for legacy/non-reservation orders, not new checkout orders.
 - Refund status is tracking metadata only. The software does not move money or reconcile bank/UPI settlement. Cancellation with submitted proof opens PENDING; action waits for VERIFIED.
@@ -180,7 +186,7 @@ Notifications are persistent rows, not real-time delivery. The header polls ever
 - Public product list loads all active products, then applies keyword/category/featured filters and sort in Node. Admin orders load all joined rows and filter/search in memory. Both are unpaginated.
 - Notification polling at five seconds per signed-in tab, plus product (~15s), cart/wishlist (~30s) polling, scales requests with open clients.
 - Availability notification and inventory-view audit loops issue per-row queries/inserts; stock list reads produce an audit write per product.
-- Images have immutable one-year cache headers, which helps product assets, but the same policy is unsafe for payment proofs. No resize/format negotiation or responsive media pipeline exists.
+- Product images have immutable one-year cache headers. Payment proofs now use private/no-store metadata and signed reads. No resize/format negotiation or responsive media pipeline exists.
 - PostgreSQL pool uses defaults; no explicit pool sizing, query timeout, slow-query metrics, or pool saturation alarms are configured.
 
 ### Scaling Assessment
@@ -220,8 +226,8 @@ CI currently does not execute the existing test suite. During this review the te
 
 ### Critical Issues
 
-1. Plaintext credential/body logging on validation/error paths. Immediate log redaction and retention/access review required.
-2. Payment evidence generated as public URLs with long-lived public cache policy. Verify bucket ACL; make proofs private before collecting real payment evidence.
+1. **Remediated in code:** plaintext credential/body logging on validation/error paths. **Still required:** review historical provider log retention/access and purge data under the incident/retention policy.
+2. **Deployment gate:** verify the dedicated proof bucket denies anonymous reads, migrate/delete legacy public objects, and test that only ADMIN order-detail endpoints mint signed URLs before collecting real payment evidence.
 
 ### High-Risk Issues
 
@@ -280,20 +286,20 @@ Ratings are qualitative source-review scores, not measured SLOs. 10 means mature
 | Frontend Quality | 5/10 | Useful shared contexts/layouts and thoughtful flows; untyped, polling-heavy, static imports, no frontend tests. |
 | Backend Quality | 4/10 | Real transaction/business logic exists; fat route/repository modules, async error propagation and validation gaps. |
 | Database Design | 5/10 | Useful inventory checks/FKs/indexes; duplicated mirror, missing invariants, unversioned schema changes. |
-| Security | 3/10 | JWT/bcrypt/CORS/role gates exist, offset by raw secret logging, price leakage and public-proof risk. |
+| Security | 3/10 | Audit-date baseline. Logging and proof URL handling are remediated in code; guest-price exposure and other risks remain, while private bucket ACL and legacy migration are unverified. |
 | Performance | 4/10 | Small-store operation is plausible; whole-list filtering, polling, per-row writes and 539.61 kB JS chunk. |
 | Scalability | 3/10 | PostgreSQL/object state can scale, but no pagination, queue, distributed job ownership, pool tuning or load tests. |
 | Maintainability | 4/10 | Familiar stack and modular files; cross-layer business workflows and custom SQL compatibility increase change risk. |
 | Testability | 2/10 | Pure unit tests only; no DB/API/UI/concurrency/E2E coverage and CI skips the tests. |
 | DevOps Readiness | 3/10 | Hosting targets/health checks exist; staging, promotions, secrets coverage, alerts, backups and rollback drills are external/unverified. |
 | User Experience | 6/10 | Feature-rich and responsive with useful checkout messaging; payment edge cases and state refresh remain fragile. |
-| Production Readiness | 2/10 | Critical logging/storage/payment/concurrency controls and operational gates remain open. |
+| Production Readiness | 2/10 | Audit-date score: critical controls were open. Logging and proof URL handling are fixed in code; provider bucket privacy, legacy migration, payment/reconciliation and concurrency gates remain. |
 
 ## 15. Overall Grade
 
 **Overall grade: D (3.8/10 equivalent; production readiness is 2/10).**
 
-The product is substantially implemented, not a scaffold, but enterprise production readiness is not established. The grade is driven by direct credential logging, potentially public payment evidence, order/inventory race conditions, incomplete payment reconciliation, weak transaction-level testing, and absent operational controls—not by the choice of React/Express or a lack of microservices.
+The product is substantially implemented, not a scaffold, but enterprise production readiness is not established. The grade reflects the audit-date baseline, which included direct credential logging and potentially public payment evidence; both code paths were remediated afterward. Remaining concerns include provider ACL/legacy migration verification, order/inventory race conditions, incomplete payment reconciliation, weak transaction-level testing, and absent operational controls—not the choice of React/Express or a lack of microservices.
 
 ## 16. Top 20 Improvement Roadmap
 
@@ -301,8 +307,8 @@ Effort: S = days, M = roughly 1–2 weeks, L = multiple weeks/design migration. 
 
 | # | Priority | Recommendation | Impact | Risk if delayed | Effort |
 | ---: | --- | --- | --- | --- | --- |
-| 1 | P0 | Replace raw request-body logging with an allowlist/redactor; add regression tests proving passwords, tokens, addresses and payment data never enter logs. | Prevents credential/PII exposure. | Continued secret leakage to hosting logs. | S |
-| 2 | P0 | Make payment proofs private; use short-lived signed reads, remove public immutable cache policy for sensitive files, verify anonymous access is denied. | Protects financial evidence/PII. | Anyone obtaining a URL may view retained evidence. | M |
+| 1 | P0 | Review historical provider logs for pre-remediation credentials/PII, restrict access, and purge retained sensitive entries per incident/retention policy; keep the safe logger regression tests in CI. | Limits exposure from prior releases and prevents regression. | Old secrets/PII remain accessible in retained logs. | S |
+| 2 | P0 | Configure/verify the private proof bucket, migrate/delete legacy public objects, and test anonymous denial plus five-minute ADMIN signing. | Protects financial evidence/PII. | Legacy screenshots may remain public or admin proof review may fail. | M |
 | 3 | P0 | Lock order rows (`FOR UPDATE`) or use conditional state updates in cancel/payment/refund/status transactions; make stock return exactly-once. | Preserves inventory/order integrity under concurrency. | Duplicate restock, contradictory history, oversell. | M |
 | 4 | P0 | Fix guest product DTO so price fields are absent when price access is denied; test list and detail as guest/USER/ADMIN. | Enforces stated pricing policy. | Competitor/customer access to supposedly protected prices. | S |
 | 5 | P1 | Design late-payment and rejection flows explicitly: keep eligible orders retryable or provide a safe replacement/refund case; reconcile after reservation expiry. | Reduces payment loss/customer disputes. | Real transfer with no matching order/refund record. | M |
@@ -324,12 +330,12 @@ Effort: S = days, M = roughly 1–2 weeks, L = multiple weeks/design migration. 
 
 ## 17. Production Readiness Assessment
 
-**Current decision: No-go for unrestricted production commerce or public collection of payment screenshots.** Use only with synthetic data in an isolated environment until P0 issues are remediated.
+**Current decision: No-go for unrestricted production commerce or public collection of payment screenshots until the proof-bucket ACL and legacy migration are verified.** Use only with synthetic data in an isolated environment until remaining P0/P1 issues are remediated.
 
 Minimum release gate:
 
 1. Confirm password/PII redaction with tests and inspect historical log retention/access.
-2. Prove anonymous reads of payment proofs fail; migrate any existing public proof objects safely.
+2. Create/verify the dedicated proof bucket denies anonymous reads; migrate legacy proofs and test that only short-lived ADMIN signed reads work.
 3. Fix guest price serialization and order/payment/cancellation race transitions.
 4. Specify tested late-payment, rejection/resubmission, cancellation, and external refund reconciliation procedures.
 5. Add DB integration/concurrency tests and run them in CI.

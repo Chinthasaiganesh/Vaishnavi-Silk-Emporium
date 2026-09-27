@@ -20,7 +20,9 @@ Server returns expiry and server time. Client estimates clock offset, updates co
 
 ## Proof Submission and Admin Review
 
-Request: `POST /api/orders`, multipart `addressId`, `paymentMethod=UPI_MANUAL`, `paymentReference`, `paymentScreenshot`, headers `Idempotency-Key` and `Checkout-Reservation-Id`. Screenshot goes to S3-compatible storage before the order transaction. Order is created with `PaymentStatus=PENDING`, `OrderStatus=PENDING`; transaction consumes reserved stock and clears cart. `Idempotency-Key` is the reservation ID in the frontend, ensuring retry maps to the same order reference/order row.
+Payment screenshots are stored only in the dedicated private `S3_PAYMENT_PROOFS_BUCKET`; `Orders.PaymentScreenshotKey` stores the object key. Customer order APIs never return the key or a URL. ADMIN order detail/mutation APIs mint a five-minute signed URL. The bucket must have anonymous/public reads disabled; a separate bucket name alone does not enforce its ACL. Migrate legacy public URLs before accepting production proofs.
+
+Request: `POST /api/orders`, multipart `addressId`, `paymentMethod=UPI_MANUAL`, `paymentReference`, `paymentScreenshot`, headers `Idempotency-Key` and `Checkout-Reservation-Id`. The order stores the private object key, starts with `PaymentStatus=PENDING` and `OrderStatus=PENDING`, consumes reserved stock, and clears cart. `Idempotency-Key` is the reservation ID in the frontend, ensuring retry maps to the same order reference/order row.
 
 Admin review at `PATCH /api/admin/orders/:id/payment` accepts VERIFIED or REJECTED; rejection requires a 3–500 character reason. VERIFIED on a non-cancelled pending order advances it to PROCESSING and creates lifecycle/notification entries. REJECTED on reservation-backed orders cancels and returns inventory. A customer may resubmit proof at `/orders/:id/payment-proof` only after REJECTED and only if the order is not cancelled.
 

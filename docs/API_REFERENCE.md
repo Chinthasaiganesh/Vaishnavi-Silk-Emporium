@@ -53,7 +53,7 @@ Content-Type: application/json
 | `POST /inventory/update-stock` | ADMIN | Legacy `{productId,stock}` | Same inventory response. |
 | `POST /inventory/restock` | ADMIN | `{productId,quantity}`; positive integer. | Adds quantity to current stock. |
 
-Product DTO inventory values are `quantity`/`availableQuantity`, `currentStock`, `reservedQuantity`, `temporarilyReserved`, and a display availability status. Product edit enforces at most eight merged images, unlike create. Guest requests currently receive price values; do not treat a frontend sign-in prompt as data protection.
+Product DTO inventory values are `quantity`/`availableQuantity`, `currentStock`, `reservedQuantity`, `temporarilyReserved`, and a display availability status. Stock conflict errors include `availableStock`, `reservedStock`, and `currentStock` so clients can reconcile stale product controls. Product edit enforces at most eight merged images, unlike create. Guest requests currently receive price values; do not treat a frontend sign-in prompt as data protection.
 
 ## Cart, Addresses, Checkout
 
@@ -82,8 +82,8 @@ Cart and checkout calculations are server-owned. Reservation item prices/quantit
 | Method and route | Auth | Request and validation | Success / notable failure |
 | --- | --- | --- | --- |
 | `GET /orders` | USER | None | `{orders:[caller-owned orders]}`. |
-| `GET /orders/:id` | USER | Positive order ID | `{order}` with items/address/history/lifecycle; 404 if not owned. |
-| `POST /orders` | USER | Multipart `addressId`, `paymentMethod=UPI_MANUAL`, `paymentReference`, `paymentScreenshot`; `Idempotency-Key` and `Checkout-Reservation-Id` headers. | `201 {success,message,order}`; missing idempotency 400, missing proof 400, missing reservation 409, expired/inconsistent stock 409. Idempotent per user/key. |
+| `GET /orders/:id` | USER | Positive order ID | `{order}` with items/address/history/lifecycle; payment proof URL/key are omitted; 404 if not owned. |
+| `POST /orders` | USER | Multipart `addressId`, `paymentMethod=UPI_MANUAL`, `paymentReference`, `paymentScreenshot`; `Idempotency-Key` and `Checkout-Reservation-Id` headers. | `201 {success,message,order}`; snapshots delivery mobile and stores only private `PaymentScreenshotKey`. Customer response omits proof URL/key. Missing idempotency 400, missing proof 400, missing reservation 409, expired/inconsistent stock 409. Idempotent per user/key. |
 | `POST /orders/:id/payment-proof` | USER | Multipart `paymentReference` matching 6–64 allowed chars plus `paymentScreenshot`. | `{success,message,order}` only for REJECTED, not-cancelled order; otherwise 409. |
 | `POST /orders/:id/cancel` | USER | `{reason}` 3–300 chars. | `{success,message,refundMessage,order}`; only PENDING/PROCESSING/PACKED; 404 not-owned, 409 disallowed/already canceled. |
 | `GET /admin/orders` | ADMIN | `q?`, `status?` valid order status. | `{orders,statuses}`; implementation loads/filter orders in process memory. |
@@ -92,6 +92,8 @@ Cart and checkout calculations are server-owned. Reservation item prices/quantit
 | `PATCH /admin/orders/:id/payment` | ADMIN | `{paymentStatus:"VERIFIED"|"REJECTED",rejectionReason?}`; rejection reason 3–500 and required on reject. | `{success,message,order}`; 409 reviewed/missing. Verification may progress fulfillment; rejection on reservation-backed order cancels/releases stock. |
 | `POST /admin/orders/:id/cancel` | ADMIN | `{reason}` 3–300 chars. | `{success,message,order,allowedTransitions:[]}`; same cancellable states and refund case rules. |
 | `PATCH /admin/orders/:id/refund` | ADMIN | `{refundStatus:"PROCESSING"|"COMPLETED"|"FAILED",refundReference?}`; reference <=120. | `{success,message,order,allowedTransitions}`; only verified payment and allowed refund state, else 409. |
+
+ADMIN order detail and mutation responses include `PaymentScreenshotUrl` only as a five-minute signed URL when a private key exists. Admin order-list responses omit screenshot URLs and keys. Legacy rows without a private key report `paymentProofMigrationPending:true` and return no URL.
 
 Example proof submission:
 

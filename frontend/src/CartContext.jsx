@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, apiBaseUrl } from "./api";
+import { api } from "./api";
 import { useAuth } from "./AuthContext";
 import { formatCurrency } from "./utils/currency";
 import { resolveImageUrl } from "./utils/image";
@@ -61,6 +61,7 @@ export function CartProvider({ children }) {
   async function releasePaymentSession(reservationId) {
     await api.post(`/checkout/reservations/${reservationId}/release`);
     localStorage.removeItem("checkout-reservation-session");
+    localStorage.removeItem("checkout-reservation-id");
     sessionStorage.removeItem(`checkout-payment-${reservationId}`);
     await refreshCart();
   }
@@ -90,12 +91,10 @@ export function CartProvider({ children }) {
   }
 
   async function addToCart(productId, quantity = 1, product = null, sourceRect = null, targetRect = null) {
-    if (user?.role !== "USER") { console.info("Cart add blocked for guest user", { productId, quantity }); showGuestPrompt(); return false; }
-    const requestUrl = `${apiBaseUrl}/cart/items`;
-    console.info("Cart add requested", { requestUrl, method: "POST", userId: user.userId, productId, quantity });
+    if (user?.role !== "USER") { showGuestPrompt(); return false; }
+    const requestId = crypto.randomUUID();
     try {
-      const response = await api.post("/cart/items", { productId, quantity });
-      console.info("Cart add succeeded", { requestUrl, method: "POST", status: response.status, userId: user.userId, productId, quantity, response: response.data });
+      const response = await api.post("/cart/items", { productId, quantity }, { headers: { "X-Request-Id": requestId } });
       const addedItem = response.data.items.find((item) => item.productId === productId);
       const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const flightDuration = reduceMotion ? 0 : 500;
@@ -114,11 +113,18 @@ export function CartProvider({ children }) {
       return true;
     } catch (error) {
       const status = error.response?.status;
-      const requestId = error.response?.headers?.["x-request-id"];
-      const errorCode = error.response?.data?.code;
+      const errorCode = error.response?.data?.code || error.response?.data?.diagnosticCode;
       const serverMessage = error.response?.data?.message;
-      console.error("Cart add failed", { requestUrl, method: "POST", userId: user.userId, productId, quantity, status: status || null, response: error.response?.data || null, requestId: requestId || null, error: error.message });
-      if (errorCode === "TEMPORARILY_RESERVED") return { code: errorCode, message: serverMessage };
+      console.error("Cart add failed.", { statusCode: status || null, requestId: error.response?.headers?.["x-request-id"] || requestId });
+      if (["TEMPORARILY_RESERVED", "INSUFFICIENT_STOCK"].includes(errorCode)) {
+        return {
+          code: errorCode,
+          message: serverMessage,
+          availableStock: error.response.data.availableStock,
+          reservedStock: error.response.data.reservedStock,
+          currentStock: error.response.data.currentStock
+        };
+      }
       if (capturePaymentSession(error)) return { code: errorCode, message: serverMessage, activePaymentSession: error.response.data.activePaymentSession };
       setNotice({ type: "error", text: serverMessage || (status ? `Cart API failed (HTTP ${status}) at ${requestUrl}.` : `Cart API unavailable at ${requestUrl}.`) });
       return false;

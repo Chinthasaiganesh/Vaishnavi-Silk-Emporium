@@ -23,6 +23,7 @@ import ordersRoutes from "./orders.routes.js";
 import adminOrdersRoutes from "./admin-orders.routes.js";
 import { listExpiringReservations, releaseExpiredReservations } from "./reservation.repository.js";
 import { sendReservationNotification } from "./notification.service.js";
+import { logSafe, safeEndpoint } from "./safe-logger.js";
 
 const app = express();
 
@@ -41,14 +42,11 @@ const defaultCategoryDescriptions = {
 app.set("trust proxy", 1);
 
 app.use((req, res, next) => {
-  req.requestId = req.headers["x-request-id"] || crypto.randomUUID();
+  req.requestId = crypto.randomUUID();
   res.setHeader("x-request-id", req.requestId);
-  if (req.method === "OPTIONS" || req.method === "PATCH") {
-    console.info(JSON.stringify({ level: "info", message: "CORS-sensitive request received", requestId: req.requestId, method: req.method, url: req.originalUrl, origin: req.headers.origin || null, accessControlRequestMethod: req.headers["access-control-request-method"] || null, accessControlRequestHeaders: req.headers["access-control-request-headers"] || null, authorizationPresent: Boolean(req.headers.authorization) }));
-  }
   const startedAt = Date.now();
   res.on("finish", () => {
-    console.info(JSON.stringify({ level: "info", requestId: req.requestId, method: req.method, url: req.originalUrl, status: res.statusCode, userId: req.user?.userId || null, role: req.user?.role || null, durationMs: Date.now() - startedAt }));
+    logSafe("info", "http_request_completed", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method, statusCode: res.statusCode, userId: req.user?.userId, role: req.user?.role, durationMs: Date.now() - startedAt });
   });
   next();
 });
@@ -56,7 +54,7 @@ app.use((req, res, next) => {
 const corsOptions = {
   origin(origin, callback) {
     if (config.isAllowedOrigin(origin)) return callback(null, true);
-    console.warn(JSON.stringify({ level: "warn", message: "CORS origin rejected", origin }));
+    logSafe("warn", "cors_origin_rejected", { requestId: null, endpoint: "/cors", method: "OPTIONS" });
     return callback(null, false);
   },
   credentials: true,
@@ -84,9 +82,9 @@ async function ensureAdminUser() {
       config.adminUsername,
       hash
     );
-    console.log("Default admin user created.");
+    logSafe("info", "default_admin_created");
   } else {
-    console.log("Admin already exists; preserving password and role.");
+    logSafe("info", "default_admin_preserved");
   }
 
   const existingUser = await db
@@ -99,9 +97,9 @@ async function ensureAdminUser() {
       config.userUsername,
       hash
     );
-    console.log("Default customer user created.");
+    logSafe("info", "default_customer_created");
   } else {
-    console.log("Customer already exists; preserving account.");
+    logSafe("info", "default_customer_preserved");
   }
 
   const now = new Date().toISOString();
@@ -121,12 +119,7 @@ async function ensureAdminUser() {
     existingAdmin?.UserId || null
   );
 
-  const categoryCount = (await db.prepare("SELECT COUNT(*) AS count FROM Categories").get()).count;
-  const productCount = (await db.prepare("SELECT COUNT(*) AS count FROM Products").get()).count;
-  const settings = await db.prepare("SELECT SettingsId FROM StoreSettings WHERE SettingsId = 1").get();
-  const inventoryCount = (await db.prepare("SELECT COUNT(*) AS count FROM Inventory").get()).count;
-  const orphanInventoryCount = (await db.prepare("SELECT COUNT(*) AS count FROM Inventory i LEFT JOIN Products p ON p.ProductId = i.ProductId WHERE p.ProductId IS NULL").get()).count;
-  console.log(`Database initialization completed. Categories: ${categoryCount}; Products preserved: ${productCount}; Inventory records: ${inventoryCount}; Orphan inventory: ${orphanInventoryCount}; Settings: ${settings ? "preserved" : "created"}.`);
+  logSafe("info", "database_initialization_completed");
 }
 
 app.get("/api/health", async (req, res) => {
@@ -137,7 +130,7 @@ app.get("/api/health", async (req, res) => {
     const outOfStockProducts = (await db.prepare("SELECT COUNT(*) AS count FROM Inventory WHERE AvailableStock = 0").get()).count;
     res.json({ status: "ok", database: "postgresql", version: await getDatabaseVersion(), inventory: { status: "ok", routeRegistered: true, productCount: totalProducts, activeProducts, outOfStockProducts }, environment: config.nodeEnv, timestamp: new Date().toISOString() });
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", message: "Health check failed", requestId: req.requestId, error: error.message, stack: error.stack }));
+    logSafe("error", "health_check_failed", { requestId: req.requestId, endpoint: "/api/health", method: req.method, statusCode: 503, diagnosticCode: error.code });
     res.status(503).json({ success: false, status: "unavailable", message: "Database unavailable.", timestamp: new Date().toISOString() });
   }
 });
@@ -145,44 +138,15 @@ app.get("/api/health", async (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/inventory", inventoryRoutes);
-console.info(JSON.stringify({ level: "info", message: "Inventory routes registered", basePath: "/api/inventory" }));
+logSafe("info", "route_group_registered", { endpoint: "/api/inventory" });
 app.use("/api/cart", cartRoutes);
-console.info(JSON.stringify({
-  level: "info",
-  message: "Cart routes registered",
-  basePath: "/api/cart",
-  routes: [
-    "GET /api/cart",
-    "POST /api/cart/items",
-    "PUT /api/cart/items/:id",
-    "DELETE /api/cart/items/:id",
-    "DELETE /api/cart"
-  ]
-}));
+logSafe("info", "route_group_registered", { endpoint: "/api/cart" });
 app.use("/api/addresses", addressRoutes);
 app.use("/api/checkout", checkoutRoutes);
 app.use("/api/orders", ordersRoutes);
-console.info(JSON.stringify({
-  level: "info",
-  message: "Order routes registered",
-  basePath: "/api/orders",
-  routes: [
-    "GET /api/orders",
-    "GET /api/orders/:id",
-    "POST /api/orders"
-  ]
-}));
+logSafe("info", "route_group_registered", { endpoint: "/api/orders" });
 app.use("/api/admin/orders", adminOrdersRoutes);
-console.info(JSON.stringify({
-  level: "info",
-  message: "Admin order routes registered",
-  basePath: "/api/admin/orders",
-  routes: [
-    "GET /api/admin/orders",
-    "GET /api/admin/orders/:id",
-    "PATCH /api/admin/orders/:id/status"
-  ]
-}));
+logSafe("info", "route_group_registered", { endpoint: "/api/admin/orders" });
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/wishlists", wishlistRoutes);
 app.use("/api/translations", translationRoutes);
@@ -200,16 +164,16 @@ ensureAdminUser().then(() => {
       const expired = await releaseExpiredReservations();
       for (const reservation of expired) await sendReservationNotification(reservation.UserId, reservation.ReservationId, "Reservation Expired", "Your checkout reservation expired and the items were released.", "RESERVATION_EXPIRED");
     } catch (error) {
-      console.error(JSON.stringify({ level: "error", message: "Reservation cleanup failed", error: error.message, stack: error.stack }));
+      logSafe("error", "reservation_cleanup_failed", { endpoint: "/api/checkout/reservations", diagnosticCode: error.code });
     }
   };
   const reservationCleanupTimer = setInterval(cleanupReservations, 30_000);
   reservationCleanupTimer.unref?.();
   cleanupReservations();
   app.listen(config.port, () => {
-    console.log(`Backend running on http://localhost:${config.port}`);
+    logSafe("info", "backend_started", { endpoint: "/api" });
   });
 }).catch((error) => {
-  console.error(JSON.stringify({ level: "fatal", message: "Backend initialization failed", error: error.message, code: error.code, stack: error.stack }));
+  logSafe("error", "backend_initialization_failed", { endpoint: "/startup", diagnosticCode: error.code });
   process.exitCode = 1;
 });

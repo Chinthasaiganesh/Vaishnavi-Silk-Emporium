@@ -59,7 +59,6 @@ export default function AdminDashboardPage() {
       ]);
       setSummary(summaryRes.data);
       const loadedProducts = listRes.data.products || [];
-      console.info("Admin product prices rendered", loadedProducts.map((product) => ({ productId: product.productId, productName: product.productName, priceRetrieved: product.price, priceRendered: formatCurrency(product.price) })));
       setProducts(loadedProducts);
     } catch (requestError) {
       setError(requestError.response?.status >= 500 ? "The inventory service is temporarily unavailable." : "Unable to load inventory data.");

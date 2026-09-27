@@ -1,16 +1,16 @@
 import { Link, useParams } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { api } from "../api";
 import { useNotifier } from "../NotifierContext";
 import { buildNotification, resolveNotificationVisual } from "../utils/notificationPresets";
 import { formatCurrency } from "../utils/currency";
-import { resolveImageUrl } from "../utils/image";
+import { resolveImageUrl, useFallbackImage } from "../utils/image";
 
 const terminalStatuses = ["CANCELLED", "REFUNDED"];
 
 function prettyStatus(status = "") {
-  return status
+  return String(status || "")
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -20,8 +20,8 @@ function orderStatusLabel(status) {
   return status === "PENDING" ? "Order Placed" : prettyStatus(status);
 }
 
-function getTimelineSteps(order) {
-  const lifecycle = (order.lifecycle || []).map((event) => ({
+function getTimelineSteps(order = {}) {
+  const lifecycle = (Array.isArray(order.lifecycle) ? order.lifecycle : []).filter((event) => event && typeof event === "object").map((event) => ({
     key: `lifecycle-${event.LifecycleEventId}`,
     type: event.EventType,
     label: event.EventType === "ORDER_PLACED" ? "Order Placed" : event.EventType === "PAYMENT_SUBMITTED" ? "Payment Under Verification" : event.Title || prettyStatus(event.EventType),
@@ -50,7 +50,7 @@ function getTimelineSteps(order) {
     CANCELLED: ["Order Cancelled", order.CancellationReason || "The order was cancelled."],
     REFUNDED: ["Refund Completed", "Your refund was completed."]
   };
-  for (const entry of order.history || []) {
+  for (const entry of (Array.isArray(order.history) ? order.history : []).filter((item) => item && typeof item === "object")) {
     const details = statusDetails[entry.NewStatus];
     if (details) addFallback(entry.NewStatus, details[0], entry.ChangedAt, details[1]);
   }
@@ -74,6 +74,22 @@ function getTimelineSteps(order) {
       };
     });
 
+    if (completedSteps.length === 0) {
+      completedSteps.push({
+        key: "current-order-status",
+        type: order.PaymentStatus === "REJECTED" ? "PAYMENT_REJECTED" : order.OrderStatus || "ORDER_STATUS",
+        label: order.PaymentStatus === "REJECTED" ? "Payment Verification Failed" : orderStatusLabel(order.OrderStatus),
+        date: order.PaymentReviewedAt || order.UpdatedDate || order.CreatedDate,
+        description: order.PaymentStatus === "REJECTED"
+          ? order.PaymentRejectionReason || "Payment verification failed."
+          : terminalStatuses.includes(order.OrderStatus)
+            ? "This order is no longer moving through fulfillment."
+            : "Current order status.",
+        complete: true,
+        cancelled: order.OrderStatus === "CANCELLED",
+        failed: order.OrderStatus === "CANCELLED" || order.PaymentStatus === "REJECTED"
+      });
+    }
     if (terminalStatuses.includes(order.OrderStatus) || order.PaymentStatus === "REJECTED") return completedSteps;
 
     const completedTypes = new Set(completedSteps.map((step) => step.type));
@@ -93,6 +109,60 @@ function getTimelineSteps(order) {
         .map(([type, label, description]) => ({ key: `upcoming-${type}`, type, label, description, complete: false, pending: true }))
     ];
 }
+
+function normalizeOrder(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    ...value,
+    items: Array.isArray(value.items) ? value.items.filter((item) => item && typeof item === "object") : [],
+    history: Array.isArray(value.history) ? value.history.filter((item) => item && typeof item === "object") : [],
+    lifecycle: Array.isArray(value.lifecycle) ? value.lifecycle.filter((item) => item && typeof item === "object") : []
+  };
+}
+
+function readSessionValue(key) {
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Session storage is optional; the order view must still render.
+  }
+}
+
+class OrderDetailErrorBoundary extends Component {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("Order detail render failed.");
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main className="container section">
+          <h1>Unable to display this order</h1>
+          <p>Your order is still saved. Return to your order history or retry this page.</p>
+          <div className="form-actions">
+            <button className="btn btn-primary" onClick={() => this.setState({ hasError: false })}>Try Again</button>
+            <Link className="btn btn-outline" to="/orders">Back to Orders</Link>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 function refundLabel(order) {
   if (order.PaymentMethod === "COD") return "Not applicable";
   if (order.RefundStatus === "PENDING" && order.PaymentStatus !== "VERIFIED") return "Awaiting payment verification";
@@ -109,6 +179,10 @@ function refundLabel(order) {
 }
 
 export default function OrderDetailPage() {
+  return <OrderDetailErrorBoundary><OrderDetailContent /></OrderDetailErrorBoundary>;
+}
+
+function OrderDetailContent() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
   const [error, setError] = useState("");
@@ -128,7 +202,15 @@ export default function OrderDetailPage() {
     setOrder(null);
     setError("");
     api.get(`/orders/${id}`)
-      .then((response) => { if (active && sequence === orderFetchSequence.current) setOrder(response.data.order); })
+      .then((response) => {
+        if (!active || sequence !== orderFetchSequence.current) return;
+        const loadedOrder = normalizeOrder(response.data?.order);
+        if (!loadedOrder) {
+          setError("Order details were returned in an unexpected format.");
+          return;
+        }
+        setOrder(loadedOrder);
+      })
       .catch((requestError) => {
         if (active && sequence === orderFetchSequence.current) setError(requestError.response?.data?.message || "Unable to load order.");
       });
@@ -141,8 +223,9 @@ export default function OrderDetailPage() {
       try {
         const response = await api.get(`/orders/${id}`);
         if (!active || sequence !== orderFetchSequence.current) return;
-        const freshOrder = response.data.order;
-        window.sessionStorage.setItem(`order-notice-${freshOrder.OrderId}`, `${freshOrder.PaymentStatus}:${freshOrder.OrderStatus}`);
+        const freshOrder = normalizeOrder(response.data?.order);
+        if (!freshOrder) return;
+        writeSessionValue(`order-notice-${freshOrder.OrderId}`, `${freshOrder.PaymentStatus}:${freshOrder.OrderStatus}`);
         setOrder(freshOrder);
         const visual = resolveNotificationVisual({ type: notification.type, title: notification.title });
         notify({
@@ -154,7 +237,7 @@ export default function OrderDetailPage() {
           primaryAction: { label: "Got it" }
         });
       } catch (requestError) {
-        if (active && sequence === orderFetchSequence.current) console.warn("Order refresh after notification failed.", requestError);
+        if (active && sequence === orderFetchSequence.current) console.warn("Order refresh after notification failed.");
       }
     }
 
@@ -190,8 +273,8 @@ export default function OrderDetailPage() {
     // Announce each status transition once per browser session rather than on every visit.
     const storageKey = `order-notice-${order.OrderId}`;
     const signature = `${order.PaymentStatus}:${order.OrderStatus}`;
-    if (window.sessionStorage.getItem(storageKey) === signature) return;
-    window.sessionStorage.setItem(storageKey, signature);
+    if (readSessionValue(storageKey) === signature) return;
+    writeSessionValue(storageKey, signature);
     notify(buildNotification(preset, {
       detail: preset === "PAYMENT_REJECTED" && order.PaymentRejectionReason ? `Reason: ${order.PaymentRejectionReason}` : undefined,
       primaryAction: preset === "PAYMENT_REJECTED"
@@ -227,7 +310,7 @@ export default function OrderDetailPage() {
       const response = await api.post(`/orders/${order.OrderId}/cancel`, {
         reason: cancelReason,
       });
-      setOrder(response.data.order);
+      setOrder(normalizeOrder(response.data?.order) || order);
       setMessage(`${response.data.message}. ${response.data.refundMessage}`);
       setShowCancel(false);
     } catch (requestError) {
@@ -253,7 +336,7 @@ export default function OrderDetailPage() {
       formData.append("paymentReference", paymentReference.trim());
       formData.append("paymentScreenshot", paymentScreenshot);
       const response = await api.post(`/orders/${order.OrderId}/payment-proof`, formData);
-      setOrder(response.data.order);
+      setOrder(normalizeOrder(response.data?.order) || order);
       setPaymentReference("");
       setPaymentScreenshot(null);
       setMessage(response.data.message);
@@ -295,7 +378,7 @@ export default function OrderDetailPage() {
           <h2>Items</h2>
           {(order.items || []).map((item) => (
             <div className="checkout-item" key={item.OrderItemId}>
-              <img className="order-item-image" src={resolveImage(item.ImageUrl)} alt="" /><span className="order-item-pricing"><strong>{item.ProductName} × {item.Quantity}</strong><small>{formatCurrency(item.OriginalPrice || item.ProductPrice)} original · {formatCurrency(item.DiscountedPrice || item.ProductPrice)} selling price · Save {formatCurrency(item.SavingsAmount || 0)} ({Number(item.DiscountPercentage || 0).toFixed(0)}%)</small></span>
+              <img className="order-item-image" src={resolveImage(item.ImageUrl)} onError={useFallbackImage} alt="" /><span className="order-item-pricing"><strong>{item.ProductName} × {item.Quantity}</strong><small>{formatCurrency(item.OriginalPrice || item.ProductPrice)} original · {formatCurrency(item.DiscountedPrice || item.ProductPrice)} selling price · Save {formatCurrency(item.SavingsAmount || 0)} ({Number(item.DiscountPercentage || 0).toFixed(0)}%)</small></span>
               <strong>{formatCurrency(item.LineTotal)}</strong>
             </div>
           ))}

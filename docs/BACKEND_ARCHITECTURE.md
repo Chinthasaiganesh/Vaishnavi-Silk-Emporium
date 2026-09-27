@@ -48,7 +48,7 @@ Refresh JWT is backed by `RefreshSessions` and an HttpOnly `refresh_session` coo
 
 ## Validation, Error Handling, Logging
 
-Selected routes use express-validator; `validateRequest` returns 400 and field errors. Coverage is inconsistent. JSON is capped at 1 MB. Upload MIME types are JPG/PNG/WEBP, 5 MB each; avatar additionally must decode to at least 100x100. Central `errorHandler` maps common PostgreSQL codes, upload limits and typed status errors to JSON with request ID/diagnostic code. Some route/service logging includes payload/query information; payment reference is masked in central errors but redaction is not uniform. Logs go to stdout/stderr; no external error collector is configured.
+Selected routes use express-validator; `validateRequest` returns 400 and field errors. Coverage is inconsistent. JSON is capped at 1 MB. Upload MIME types are JPG/PNG/WEBP, 5 MB each; avatar additionally must decode to at least 100x100. Central `errorHandler` maps common PostgreSQL codes, upload limits and typed status errors to JSON with request ID/diagnostic code. Backend log writes use `safe-logger.js`, an allowlist that emits only server-generated request ID, route template, method, status, duration, masked numeric user ID, role, and diagnostic code. Raw bodies, query strings, auth headers, SQL details, error stacks, payment fields, and personal data are not logged. Logs go to stdout/stderr; no external error collector is configured.
 
 ## Persistence and Transactions
 
@@ -58,7 +58,7 @@ DDL lives in startup code (`CREATE TABLE IF NOT EXISTS`, additive ALTERs and bac
 
 ## Uploads and Images
 
-Multer buffers files in memory. Products accept one `image` plus up to eight `images`; update checks combined count <=8, create does not. Avatars and payment proofs accept one file. `s3-storage.service.js` uploads UUID keys under `products/`, `avatars/`, `payment-proofs/` using AWS SDK against S3-compatible endpoint and returns public URL. Superseded-object deletion is best-effort; no local upload/static route is mounted. Storage environment is not startup-validated; DB failure after upload can orphan objects. MIME metadata is checked; all files are not decoded/scanned.
+Multer buffers files in memory. Products accept one `image` plus up to eight `images`; update checks combined count <=8, create does not. Avatars use public product/media storage. Payment proofs use the distinct `S3_PAYMENT_PROOFS_BUCKET`, persist only `PaymentScreenshotKey`, and use private/no-store cache metadata. Customer order DTOs omit proof keys/URLs; only ADMIN order-detail/mutation routes return five-minute signed reads. Production config rejects a missing/shared proof-bucket name, but the provider ACL must also deny anonymous reads. `npm run migrate:payment-proofs` is dry-run by default; `-- --apply` copies legacy public proofs, records private keys, and deletes old objects. No local upload/static route is mounted. DB failure after upload can still orphan objects; MIME metadata is checked and all files are not decoded/scanned.
 
 ## Order and Payment Sequence
 
