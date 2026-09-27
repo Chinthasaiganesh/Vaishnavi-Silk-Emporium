@@ -47,7 +47,7 @@ export default function CheckoutPage() {
     return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
   }
 
-  function applyReservation(payload) {
+  function applyReservation(payload, restored = false) {
     if (payload?.serverTime) serverClockOffset.current = new Date(payload.serverTime).getTime() - Date.now();
     if (payload?.ReservationId) {
       idempotencyKey.current = payload.ReservationId;
