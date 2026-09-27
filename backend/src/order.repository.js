@@ -4,6 +4,8 @@ import { markReservationConverted, reservationError } from "./reservation.reposi
 import { calculateOrderTotals, priceReservedItems } from "./order-pricing.js";
 import { normalizeRejectionReason } from "./payment-review.js";
 import { orderNumberFromIdempotencyKey } from "./order-reference.js";
+import { logSafe } from "./safe-logger.js";
+import { stripPaymentProof } from "./payment-proof-access.js";
 
 export const ORDER_STATUSES = ["PENDING", "PROCESSING", "PACKED", "SHIPPED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED", "REFUNDED"];
 const cancellableStatuses = ["PENDING", "PROCESSING", "PACKED"];
@@ -33,8 +35,15 @@ async function addLifecycleEvent(tx, orderId, eventType, title, description, act
   await tx.run("INSERT INTO OrderLifecycleEvents (OrderId, EventType, Title, Description, ActorRole, ChangedBy, EventDate) VALUES (?, ?, ?, ?, ?, ?, ?)", [orderId, eventType, title, description, actorRole, changedBy || null, eventDate]);
 }
 
+async function getDeliveryMobileNumber(tx, userId, addressId) {
+  const address = await tx.get("SELECT MobileNumber FROM Addresses WHERE AddressId = ? AND UserId = ?", [addressId, userId]);
+  if (!address) throw Object.assign(new Error("Delivery address not found for this customer."), { status: 404, code: "ADDRESS_NOT_FOUND" });
+  return address.MobileNumber;
+}
+
 export async function listOrders(userId) {
-  return await db.prepare("SELECT o.*, COUNT(oi.OrderItemId) AS ItemCount, (SELECT ImageUrl FROM OrderItems preview WHERE preview.OrderId = o.OrderId ORDER BY preview.OrderItemId LIMIT 1) AS OrderImageUrl FROM Orders o LEFT JOIN OrderItems oi ON oi.OrderId = o.OrderId WHERE o.UserId = ? GROUP BY o.OrderId ORDER BY datetime(o.CreatedDate) DESC").all(userId);
+  const orders = await db.prepare("SELECT o.*, COUNT(oi.OrderItemId) AS ItemCount, (SELECT ImageUrl FROM OrderItems preview WHERE preview.OrderId = o.OrderId ORDER BY preview.OrderItemId LIMIT 1) AS OrderImageUrl FROM Orders o LEFT JOIN OrderItems oi ON oi.OrderId = o.OrderId WHERE o.UserId = ? GROUP BY o.OrderId ORDER BY datetime(o.CreatedDate) DESC").all(userId);
+  return orders.map(stripPaymentProof);
 }
 
 export async function listAllOrders({ q = "", status = "" } = {}) {
@@ -51,13 +60,13 @@ export async function listAllOrders({ q = "", status = "" } = {}) {
     const text = `${order.OrderNumber} ${order.Username} ${order.FullName} ${order.Email}`.toLowerCase();
     const queryMatch = !query || text.includes(query);
     return statusMatch && queryMatch;
-  });
+  }).map(stripPaymentProof);
 }
 
 export async function getOrder(userId, orderId) {
   const order = await db.prepare("SELECT o.*, a.FullName, a.MobileNumber, a.AddressLine1, a.AddressLine2, a.City, a.State, a.PostalCode, a.Country FROM Orders o JOIN Addresses a ON a.AddressId = o.AddressId WHERE o.UserId = ? AND o.OrderId = ?").get(userId, orderId);
   if (!order) return null;
-  return { ...order, items: await db.prepare("SELECT * FROM OrderItems WHERE OrderId = ? ORDER BY OrderItemId").all(orderId), history: await getOrderStatusHistory(orderId), lifecycle: await getOrderLifecycle(orderId) };
+  return { ...stripPaymentProof(order), items: await db.prepare("SELECT * FROM OrderItems WHERE OrderId = ? ORDER BY OrderItemId").all(orderId), history: await getOrderStatusHistory(orderId), lifecycle: await getOrderLifecycle(orderId) };
 }
 
 export async function getAdminOrder(orderId) {
@@ -80,23 +89,22 @@ export async function getOrderByIdempotencyKey(userId, idempotencyKey) {
   return existing ? await getOrder(userId, existing.OrderId) : null;
 }
 
-export async function createOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotUrl = null }) {
-  console.info(JSON.stringify({ level: "info", message: "Order repository entry", requestId, userId, addressId, itemCount: items.length, subtotal, grandTotal, paymentMethod, paymentReferencePresent: Boolean(paymentReference) }));
+export async function createOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, requestId, paymentMethod = 'UPI_MANUAL', paymentReference = null, paymentScreenshotKey = null }) {
+  logSafe("info", "order_creation_started", { requestId, endpoint: "/api/orders", method: "POST", userId });
   const timestamp = nowIso();
   const orderId = await transaction(async (tx) => {
     if (idempotencyKey) {
       const existing = await tx.get("SELECT OrderId FROM Orders WHERE UserId = ? AND IdempotencyKey = ?", [userId, idempotencyKey]);
       if (existing) return existing.OrderId;
     }
+    const deliveryMobileNumber = await getDeliveryMobileNumber(tx, userId, addressId);
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, paymentReference ? timestamp : null, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
-    console.info(JSON.stringify({ level: "info", message: "Orders insert result", requestId, orderId: orderResult.lastInsertRowid, changes: orderResult.changes }));
-    console.info(JSON.stringify({ level: "info", message: "Order database row created", requestId, orderId: orderResult.lastInsertRowid, orderNumber, subtotal, grandTotal }));
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "DeliveryMobileNumber", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotKey", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, ?, ?, ?, ?, ?)', [userId, addressId, deliveryMobileNumber, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotKey, paymentReference ? timestamp : null, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
+    logSafe("info", "order_record_created", { requestId, endpoint: "/api/orders", method: "POST", userId });
     for (const item of items) {
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [orderResult.lastInsertRowid, item.ProductId, item.ProductName, item.Price, item.OriginalPrice ?? item.Price, item.DiscountedPrice ?? item.Price, item.DiscountPercentage ?? 0, item.SavingsAmount ?? 0, item.ImageUrl || null, item.Quantity, item.Price * item.Quantity, timestamp]);
       const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, AvailableStock = AvailableStock - ?, Status = CASE WHEN AvailableStock - ? = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock - ? <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND AvailableStock >= ?", [item.Quantity, item.Quantity, item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity]);
-      console.info(JSON.stringify({ level: "info", message: "Inventory update result", requestId, productId: item.ProductId, requestedQuantity: item.Quantity, changes: result.changes }));
       if (result.changes !== 1) throw Object.assign(new Error(`Insufficient stock available for ${item.ProductName}.`), { status: 409, code: "INSUFFICIENT_STOCK" });
       await tx.run("UPDATE Products SET Quantity = (SELECT CurrentStock FROM Inventory WHERE ProductId = ?), UpdatedDate = ? WHERE ProductId = ?", [item.ProductId, timestamp, item.ProductId]);
       await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'INVENTORY_DEDUCTED', ?)", [orderResult.lastInsertRowid, userId, timestamp]);
@@ -112,7 +120,7 @@ export async function createOrder({ userId, addressId, items, subtotal, shipping
   return await getOrder(userId, orderId);
 }
 
-export async function createOrderFromReservation({ userId, reservationId, idempotencyKey, requestId, paymentMethod = "UPI_MANUAL", paymentReference, paymentScreenshotUrl }) {
+export async function createOrderFromReservation({ userId, reservationId, idempotencyKey, requestId, paymentMethod = "UPI_MANUAL", paymentReference, paymentScreenshotKey }) {
   const timestamp = nowIso();
   const orderId = await transaction(async (tx) => {
     if (idempotencyKey) {
@@ -122,6 +130,7 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
     const reservation = await tx.get("SELECT * FROM CheckoutReservations WHERE ReservationId = ? AND UserId = ? FOR UPDATE", [reservationId, userId]);
     if (!reservation || reservation.ReservationStatus !== "ACTIVE") throw reservationError("This checkout reservation has expired. Please start checkout again.", "RESERVATION_EXPIRED");
     if (new Date(reservation.ExpiresAt).getTime() <= Date.now()) throw reservationError("This checkout reservation has expired. Please start checkout again.", "RESERVATION_EXPIRED");
+    const deliveryMobileNumber = await getDeliveryMobileNumber(tx, userId, reservation.AddressId);
     const items = await tx.all("SELECT * FROM CheckoutReservationItems WHERE ReservationId = ? ORDER BY ReservationItemId", [reservationId]);
     if (!items.length) throw reservationError("This checkout reservation has no items.", "RESERVATION_EMPTY", 409);
     const next = idempotencyKey ? null : await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
@@ -130,7 +139,7 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
       : `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
     const pricedItems = priceReservedItems(items);
     const { subtotal, discount } = calculateOrderTotals(pricedItems);
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "ReservationId", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, 0, ?, ?, ?, ?)', [userId, reservation.AddressId, orderNumber, idempotencyKey || null, reservationId, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, subtotal, discount, subtotal, timestamp, timestamp]);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "DeliveryMobileNumber", "OrderNumber", "IdempotencyKey", "ReservationId", "PaymentMethod", "PaymentReference", "PaymentScreenshotKey", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'PENDING\', ?, 0, ?, ?, ?, ?)', [userId, reservation.AddressId, deliveryMobileNumber, orderNumber, idempotencyKey || null, reservationId, paymentMethod, paymentReference, paymentScreenshotKey, timestamp, subtotal, discount, subtotal, timestamp, timestamp]);
     for (const item of pricedItems) {
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) SELECT ?, r.ProductId, r.ProductName, ?, ?, ?, ?, ?, p.ImageUrl, r.Quantity, ? * r.Quantity, ? FROM CheckoutReservationItems r LEFT JOIN Products p ON p.ProductId = r.ProductId WHERE r.ReservationItemId = ?", [orderResult.lastInsertRowid, item.Price, item.OriginalPrice, item.DiscountedPrice, item.DiscountPercentage, item.SavingsAmount, item.Price, timestamp, item.ReservationItemId]);
       const result = await tx.run("UPDATE Inventory SET CurrentStock = CurrentStock - ?, ReservedStock = ReservedStock - ?, Status = CASE WHEN AvailableStock = 0 THEN 'OUT_OF_STOCK' WHEN AvailableStock <= 5 THEN 'LOW_STOCK' ELSE 'IN_STOCK' END, UpdatedDate = ? WHERE ProductId = ? AND ReservedStock >= ? AND CurrentStock >= ?", [item.Quantity, item.Quantity, timestamp, item.ProductId, item.Quantity, item.Quantity]);
@@ -145,22 +154,23 @@ export async function createOrderFromReservation({ userId, reservationId, idempo
     await markReservationConverted(tx, reservationId);
     await tx.run("DELETE FROM CartItems WHERE CartId = (SELECT CartId FROM Carts WHERE UserId = ?)", [userId]);
     await tx.run("UPDATE Carts SET UpdatedDate = ? WHERE UserId = ?", [timestamp, userId]);
-    console.info(JSON.stringify({ level: "info", message: "Reservation converted to order", requestId, userId, reservationId, orderId: orderResult.lastInsertRowid }));
+    logSafe("info", "reservation_converted_to_order", { requestId, endpoint: "/api/orders", method: "POST", userId });
     return orderResult.lastInsertRowid;
   });
   return await getOrder(userId, orderId);
 }
 
-export async function createPaymentConflictOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, paymentMethod = 'UPI_MANUAL', paymentReference, paymentScreenshotUrl, reason }) {
+export async function createPaymentConflictOrder({ userId, addressId, items, subtotal, shipping, discount, grandTotal, idempotencyKey, paymentMethod = 'UPI_MANUAL', paymentReference, paymentScreenshotKey, reason }) {
   const timestamp = nowIso();
   const orderId = await transaction(async (tx) => {
     if (idempotencyKey) {
       const existing = await tx.get("SELECT OrderId FROM Orders WHERE UserId = ? AND IdempotencyKey = ?", [userId, idempotencyKey]);
       if (existing) return existing.OrderId;
     }
+    const deliveryMobileNumber = await getDeliveryMobileNumber(tx, userId, addressId);
     const next = await tx.get("SELECT COALESCE(MAX(OrderId), 0) + 1 AS nextId FROM Orders");
     const orderNumber = `VSE-${new Date().getFullYear()}-${String(next.nextId).padStart(6, "0")}`;
-    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotUrl", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "RefundStatus", "RefundInitiatedAt", "CancellationReason", "CancelledByRole", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'CANCELLED\', \'PENDING\', ?, ?, \'ADMIN\', ?, ?, ?, ?, ?, ?)', [userId, addressId, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotUrl, timestamp, timestamp, reason, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
+    const orderResult = await tx.run('INSERT INTO "Orders" ("UserId", "AddressId", "DeliveryMobileNumber", "OrderNumber", "IdempotencyKey", "PaymentMethod", "PaymentReference", "PaymentScreenshotKey", "PaymentStatus", "PaymentSubmittedAt", "OrderStatus", "RefundStatus", "RefundInitiatedAt", "CancellationReason", "CancelledByRole", "SubTotal", "ShippingAmount", "DiscountAmount", "GrandTotal", "CreatedDate", "UpdatedDate") VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'PENDING\', ?, \'CANCELLED\', \'PENDING\', ?, ?, \'ADMIN\', ?, ?, ?, ?, ?, ?)', [userId, addressId, deliveryMobileNumber, orderNumber, idempotencyKey || null, paymentMethod, paymentReference, paymentScreenshotKey, timestamp, timestamp, reason, subtotal, shipping, discount, grandTotal, timestamp, timestamp]);
     for (const item of items) {
       await tx.run("INSERT INTO OrderItems (OrderId, ProductId, ProductName, ProductPrice, OriginalPrice, DiscountedPrice, DiscountPercentage, SavingsAmount, ImageUrl, Quantity, LineTotal, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", [orderResult.lastInsertRowid, item.ProductId, item.ProductName, item.Price, item.OriginalPrice ?? item.Price, item.DiscountedPrice ?? item.Price, item.DiscountPercentage ?? 0, item.SavingsAmount ?? 0, item.ImageUrl || null, item.Quantity, item.Price * item.Quantity, timestamp]);
     }
@@ -236,10 +246,10 @@ export async function updatePaymentStatus(orderId, paymentStatus, rejectionReaso
   return updated ? getAdminOrder(orderId) : null;
 }
 
-export async function resubmitPaymentProof(userId, orderId, paymentReference, paymentScreenshotUrl) {
+export async function resubmitPaymentProof(userId, orderId, paymentReference, paymentScreenshotKey) {
   const timestamp = nowIso();
   const updated = await transaction(async (tx) => {
-    const result = await tx.run("UPDATE Orders SET PaymentReference = ?, PaymentScreenshotUrl = ?, PaymentStatus = 'PENDING', PaymentSubmittedAt = ?, PaymentReviewedAt = NULL, PaymentRejectionReason = NULL, UpdatedDate = ? WHERE OrderId = ? AND UserId = ? AND PaymentMethod = 'UPI_MANUAL' AND PaymentStatus = 'REJECTED' AND OrderStatus <> 'CANCELLED'", [paymentReference, paymentScreenshotUrl, timestamp, timestamp, orderId, userId]);
+    const result = await tx.run("UPDATE Orders SET PaymentReference = ?, PaymentScreenshotKey = ?, PaymentScreenshotUrl = NULL, PaymentStatus = 'PENDING', PaymentSubmittedAt = ?, PaymentReviewedAt = NULL, PaymentRejectionReason = NULL, UpdatedDate = ? WHERE OrderId = ? AND UserId = ? AND PaymentMethod = 'UPI_MANUAL' AND PaymentStatus = 'REJECTED' AND OrderStatus <> 'CANCELLED'", [paymentReference, paymentScreenshotKey, timestamp, timestamp, orderId, userId]);
     if (!result.changes) return false;
     await tx.run("INSERT INTO OrderAuditLog (OrderId, UserId, Action, CreatedDate) VALUES (?, ?, 'ORDER_UPDATED', ?)", [orderId, userId, timestamp]);
     await addLifecycleEvent(tx, orderId, "PAYMENT_SUBMITTED", "Payment Re-submitted", "Updated payment details were submitted for verification.", "CUSTOMER", userId, timestamp);

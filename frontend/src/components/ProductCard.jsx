@@ -5,14 +5,13 @@ import RatingBadge from "./RatingBadge";
 import ProductCardActions from "./ProductCardActions";
 import ProductPrice from "./ProductPrice";
 import ProductMediaCarousel from "./ProductMediaCarousel";
+import { availabilityFromStock } from "../utils/stock";
 
 export default function ProductCard({ product }) {
   const { t } = useLanguage();
-  const [reservedAfterConflict, setReservedAfterConflict] = useState(false);
-  useEffect(() => setReservedAfterConflict(false), [product]);
-  const displayedProduct = reservedAfterConflict
-    ? { ...product, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }
-    : product;
+  const [stockAfterConflict, setStockAfterConflict] = useState(null);
+  useEffect(() => setStockAfterConflict(null), [product.productId, product.availableQuantity, product.currentStock, product.reservedQuantity]);
+  const displayedProduct = stockAfterConflict ? { ...product, ...stockAfterConflict } : product;
   return (
     <article className="product-card">
       <div className="product-card-image-wrap">
@@ -34,7 +33,7 @@ export default function ProductCard({ product }) {
           </div>
           {displayedProduct.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
         </div>
-        <ProductCardActions product={displayedProduct} compact fixedFooter onUnavailable={() => setReservedAfterConflict(true)}>
+        <ProductCardActions product={displayedProduct} compact fixedFooter onUnavailable={(stock) => setStockAfterConflict(availabilityFromStock(stock))}>
           <Link className="featured-details-link product-card-details-link" to={`/products/${displayedProduct.productId}`}>
             {t("viewDetails")}
           </Link>

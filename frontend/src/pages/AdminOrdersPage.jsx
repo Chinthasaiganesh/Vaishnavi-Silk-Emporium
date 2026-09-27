@@ -174,7 +174,7 @@ export default function AdminOrdersPage() {
               <h3>Customer</h3>
               <p>{selectedOrder.CustomerName || selectedOrder.Username}<br />{selectedOrder.Email}<br />{selectedOrder.CustomerMobile}</p>
               <h3>Shipping Address</h3>
-              <p>{selectedOrder.FullName}<br />{selectedOrder.AddressLine1}{selectedOrder.AddressLine2 ? `, ${selectedOrder.AddressLine2}` : ""}<br />{selectedOrder.City}, {selectedOrder.State} {selectedOrder.PostalCode}<br />{selectedOrder.Country}</p>
+              <p>{selectedOrder.FullName}<br />{selectedOrder.AddressLine1}{selectedOrder.AddressLine2 ? `, ${selectedOrder.AddressLine2}` : ""}<br />{selectedOrder.City}, {selectedOrder.State} {selectedOrder.PostalCode}<br />{selectedOrder.Country}<br />Delivery mobile: {selectedOrder.DeliveryMobileNumber || selectedOrder.MobileNumber}</p>
             </article>
             <article>
               <h3>Payment</h3>

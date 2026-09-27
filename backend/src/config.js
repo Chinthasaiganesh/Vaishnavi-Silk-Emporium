@@ -23,6 +23,12 @@ if (nodeEnv === "production" && (!process.env.JWT_SECRET || process.env.JWT_SECR
 if (nodeEnv === "production" && (!process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD || !process.env.USER_USERNAME || !process.env.USER_PASSWORD)) {
   throw new Error("ADMIN_USERNAME, ADMIN_PASSWORD, USER_USERNAME, and USER_PASSWORD are required in production.");
 }
+if (nodeEnv === "production" && (!process.env.S3_PAYMENT_PROOFS_BUCKET || !process.env.S3_BUCKET || process.env.S3_PAYMENT_PROOFS_BUCKET === process.env.S3_BUCKET)) {
+  throw new Error("S3_PAYMENT_PROOFS_BUCKET must name a dedicated private bucket distinct from S3_BUCKET in production.");
+}
+if (nodeEnv === "production" && ["S3_ENDPOINT", "S3_REGION", "S3_ACCESS_KEY", "S3_SECRET_KEY"].some((key) => !process.env[key])) {
+  throw new Error("S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY, and S3_SECRET_KEY are required in production.");
+}
 
 export const config = {
   port: Number(process.env.PORT || 4000),
@@ -47,6 +53,7 @@ export const config = {
     region: process.env.S3_REGION || "",
     accessKeyId: process.env.S3_ACCESS_KEY || "",
     secretAccessKey: process.env.S3_SECRET_KEY || "",
-    bucket: process.env.S3_BUCKET || ""
+    bucket: process.env.S3_BUCKET || "",
+    paymentProofBucket: process.env.S3_PAYMENT_PROOFS_BUCKET || ""
   }
 };

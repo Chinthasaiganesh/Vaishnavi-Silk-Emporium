@@ -7,6 +7,7 @@ import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
 import ProductCardActions from "../components/ProductCardActions";
 import ProductPrice from "../components/ProductPrice";
+import { availabilityFromStock } from "../utils/stock";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -112,7 +113,7 @@ export default function ProductDetailPage() {
           {product.temporarilyReserved && <p className="reserved-note" role="status">Another customer is completing checkout. Please try again shortly.</p>}
         </div>
         <div className="detail-content-actions">
-          <ProductCardActions compact product={product} onUnavailable={() => setProduct((current) => current && ({ ...current, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" }))} />
+          <ProductCardActions compact product={product} onUnavailable={(stock) => setProduct((current) => current && ({ ...current, ...availabilityFromStock(stock) }))} />
         </div>
       </section>
     </main>

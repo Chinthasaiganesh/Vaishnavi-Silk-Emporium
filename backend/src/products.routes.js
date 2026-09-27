@@ -10,6 +10,7 @@ import { updateStockInTransaction } from "./inventory.repository.js";
 import { calculateInventoryState } from "./inventory-logic.js";
 import { getProductAudit, recordProductAudit } from "./product-audit.js";
 import { mergeProductImages, parseImageUrls } from "./product-images.js";
+import { logSafe } from "./safe-logger.js";
 
 const router = Router();
 
@@ -72,17 +73,8 @@ function auditValues(product) {
   return { productName: product.ProductName, category: product.Category, price: product.Price, discountedPrice: product.DiscountedPrice, quantity: product.Quantity, isActive: product.IsActive, isFeatured: product.IsFeatured };
 }
 
-async function productCounts() {
-  return {
-    totalProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products").get()).count,
-    activeProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 1").get()).count,
-    inactiveProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Products WHERE IsActive = 0").get()).count,
-    outOfStockProducts: (await db.prepare("SELECT COUNT(*) AS count FROM Inventory WHERE AvailableStock = 0").get()).count
-  };
-}
-
-async function logProductEvent(message, requestId, details = {}) {
-  console.info(JSON.stringify({ level: "info", message, requestId, ...details, counts: await productCounts() }));
+function logProductEvent(message, requestId) {
+  logSafe("info", message, { requestId, endpoint: "/api/products" });
 }
 
 router.get(
@@ -97,6 +89,7 @@ router.get(
     .withMessage("Invalid sort option."),
   validateRequest,
   async (req, res) => {
+    res.set("Cache-Control", "no-store");
     const q = (req.query.q || "").trim().toLowerCase();
     const category = (req.query.category || "").trim().toLowerCase();
     const sort = req.query.sort || "";
@@ -113,7 +106,7 @@ router.get(
       return keywordMatch && categoryMatch && featuredMatch;
     });
 
-    await logProductEvent("Product Loaded", req.requestId, { scope: "public-list", query: req.query, candidateCount: activeProducts.length, resultCount: products.length, filter: { category, featuredOnly } });
+    logProductEvent("product_catalog_loaded", req.requestId);
 
     if (canViewPrice && sort === "price_asc") {
       products.sort((a, b) => a.Price - b.Price);
@@ -124,27 +117,26 @@ router.get(
     }
 
     const mappedProducts = products.map((product) => mapProduct(product, canViewPrice));
-    console.info(JSON.stringify({ level: "info", message: "Customer product prices retrieved", requestId: req.requestId, prices: mappedProducts.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price ?? null })) }));
     return res.json({ products: mappedProducts });
   }
 );
 
 router.get("/public/:id", optionalAuth, param("id").isInt({ min: 1 }), validateRequest, async (req, res) => {
+  res.set("Cache-Control", "no-store");
   const id = Number(req.params.id);
   const row = await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId WHERE p.ProductId = ? AND p.IsActive = 1").get(id);
   if (!row) {
-    await logProductEvent("Product Load Miss", req.requestId, { scope: "public-detail", productId: id });
+    logProductEvent("public_product_not_found", req.requestId);
     return res.status(404).json({ message: "Product not found." });
   }
-  await logProductEvent("Product Loaded", req.requestId, { scope: "public-detail", productId: id });
+  logProductEvent("public_product_loaded", req.requestId);
   return res.json({ product: mapProduct(row, Boolean(req.user)) });
 });
 
 router.get("/admin", authRequired, adminOnly, async (req, res) => {
   const rows = await db.prepare("SELECT p.*, COALESCE(i.CurrentStock, 0) AS CurrentStock, COALESCE(i.AvailableStock, 0) AS AvailableQuantity, COALESCE(i.ReservedStock, 0) AS ReservedQuantity FROM Products p LEFT JOIN Inventory i ON i.ProductId = p.ProductId ORDER BY datetime(p.CreatedDate) DESC").all();
   const products = rows.map((row) => mapProduct(row, true));
-  await logProductEvent("Product Loaded", req.requestId, { scope: "admin-list", userId: req.user.userId, resultCount: products.length });
-  console.info(JSON.stringify({ level: "info", message: "Admin product prices retrieved", requestId: req.requestId, userId: req.user.userId, prices: products.map((product) => ({ productId: product.productId, productName: product.productName, price: product.price })) }));
+  logProductEvent("admin_product_catalog_loaded", req.requestId);
   return res.json({ products });
 });
 

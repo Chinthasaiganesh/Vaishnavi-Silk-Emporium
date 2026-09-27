@@ -45,7 +45,7 @@ Read next: [ARCHITECTURE.md](ARCHITECTURE.md), [FRONTEND_ARCHITECTURE.md](FRONTE
 
 - Public product JSON leaks price fields to guests despite `canViewPrice=false` and older docs claiming protection.
 - Runtime DDL has no ordered migration/rollback process; deployment uses additive startup changes.
-- Storage variables are not startup-validated; payment proof URLs are built as public URLs; uploads can become orphaned.
+- Payment proofs use `PaymentScreenshotKey` in a dedicated private bucket and ADMIN-only five-minute signed URLs. Production requires `S3_PAYMENT_PROOFS_BUCKET`; verify its provider ACL and migrate/delete legacy public objects before collecting real payment evidence. Uploads can still become orphaned after storage succeeds but a database write fails.
 - Auth token in web storage, disabled account access JWT lifetime, no customer session revocation on password change, no CSRF middleware/general rate limit.
 - Notification polling volume and reservation notification dedupe behavior need attention.
 - Legacy seed includes non-saree products. Admin user API lacks UI; privacy/terms pages are placeholders; reports are product-derived client-side.

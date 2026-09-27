@@ -175,9 +175,9 @@ export default function Header() {
           }
           for (const notification of newNotifications.filter((item) => !item.isRead).reverse()) {
             if ("Notification" in window && Notification.permission === "granted") {
-              try { new Notification(notification.title, { body: notification.message, silent: false }); } catch (error) { console.warn("Device notification could not be displayed.", error); }
+              try { new Notification(notification.title, { body: notification.message, silent: false }); } catch { console.warn("Device notification could not be displayed."); }
             }
-            playNotificationSound().catch((error) => console.warn("Notification sound could not be played.", error));
+            playNotificationSound().catch(() => console.warn("Notification sound could not be played."));
           }
           setUnreadNotifications(unreadCount);
           setNotificationItems(notifications.slice(0, 5));

@@ -29,6 +29,7 @@ Audit: `/admin/product-audit` calls `/products/admin/audit`. Audit JSON snapshot
 Do not reduce stock below active reservations. For discrepancy, inspect Inventory, active CheckoutReservations/items and audit before applying a correction. Each inventory list logs VIEWED events for all returned rows; repeated visits add audit volume. Back-in-stock notifications fire only on available 0→positive.
 
 ## Orders and Payments
+Proof screenshot links are generated as five-minute signed URLs for ADMIN order detail/actions only. Admin list results do not contain proof links or object keys. If the order shows `paymentProofMigrationPending`, complete the legacy proof migration; do not request or share the old public URL.
 
 `/admin/orders` supports search/status filter, order inspection, payment review, fulfillment status, cancellation, and refund-state recording. Review uploaded proof and UTR before setting VERIFIED. Reject with an actionable reason; reservation-backed rejection cancels order/restores stock and cannot be resubmitted on that canceled order. Payment approval advances a pending order to PROCESSING; later fulfillment stages must follow the allowed linear transition.
 

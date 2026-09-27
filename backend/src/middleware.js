@@ -1,22 +1,23 @@
 import jwt from "jsonwebtoken";
 import { validationResult } from "express-validator";
 import { config } from "./config.js";
+import { logSafe, safeEndpoint } from "./safe-logger.js";
 
 export function authRequired(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   if (!token) {
-    console.warn(JSON.stringify({ level: "warn", message: "Authentication required", requestId: req.requestId, method: req.method, url: req.originalUrl, authorizationPresent: Boolean(authHeader) }));
+    logSafe("warn", "authentication_required", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method });
     return res.status(401).json({ success: false, message: "Authentication required." });
   }
 
   try {
     req.user = jwt.verify(token, config.jwtSecret);
-    console.info(JSON.stringify({ level: "info", message: "Authentication succeeded", requestId: req.requestId, method: req.method, url: req.originalUrl, userId: req.user.userId, role: req.user.role }));
+    logSafe("info", "authentication_succeeded", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method, userId: req.user.userId, role: req.user.role });
     return next();
   } catch (error) {
-    console.warn(JSON.stringify({ level: "warn", message: "JWT verification failed", requestId: req.requestId, method: req.method, url: req.originalUrl, error: error.message }));
+    logSafe("warn", "jwt_verification_failed", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method });
     return res.status(401).json({ success: false, message: "Session expired. Please login again." });
   }
 }
@@ -45,7 +46,7 @@ export function validateRequest(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     const validationErrors = errors.array().map((error) => ({ field: error.path, message: error.msg }));
-    console.warn(JSON.stringify({ level: "warn", message: "Request validation failed", method: req.method, path: req.path, params: req.params, body: req.body, errors: validationErrors }));
+    logSafe("warn", "request_validation_failed", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method, statusCode: 400, userId: req.user?.userId });
     return res.status(400).json({
       success: false,
       message: "Validation failed.",
@@ -56,7 +57,6 @@ export function validateRequest(req, res, next) {
 }
 
 export function errorHandler(err, req, res, next) {
-  console.error(JSON.stringify({ level: "error", message: "Unhandled request error", requestId: req.requestId, method: req.method, url: req.originalUrl, userId: req.user?.userId || null, params: req.params, body: { ...req.body, paymentReference: req.body?.paymentReference ? "[present]" : null }, error: err.message, code: err.code, detail: err.detail, constraint: err.constraint, table: err.table, column: err.column, stack: err.stack }));
   if (res.headersSent) {
     return next(err);
   }
@@ -76,5 +76,6 @@ export function errorHandler(err, req, res, next) {
   };
   const status = err.status || (postgresMessages[err.code] ? (err.code === "23505" ? 409 : err.code === "23503" ? 404 : 500) : 500);
   const message = err.status ? err.message : postgresMessages[err.code] || "Database transaction failed.";
-  return res.status(status).json({ success: false, message, requestId: req.requestId, diagnosticCode: err.code || "APPLICATION_ERROR", ...(err.activePaymentSession ? { activePaymentSession: err.activePaymentSession } : {}) });
+  logSafe("error", "request_failed", { requestId: req.requestId, endpoint: safeEndpoint(req), method: req.method, statusCode: status, userId: req.user?.userId, role: req.user?.role, diagnosticCode: err.code || "APPLICATION_ERROR" });
+  return res.status(status).json({ success: false, message, requestId: req.requestId, diagnosticCode: err.code || "APPLICATION_ERROR", ...(err.activePaymentSession ? { activePaymentSession: err.activePaymentSession } : {}), ...(Number.isFinite(err.availableStock) ? { availableStock: err.availableStock } : {}), ...(Number.isFinite(err.reservedStock) ? { reservedStock: err.reservedStock } : {}), ...(Number.isFinite(err.currentStock) ? { currentStock: err.currentStock } : {}) });
 }

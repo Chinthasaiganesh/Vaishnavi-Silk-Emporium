@@ -9,6 +9,7 @@ import { config } from "./config.js";
 import { authRequired, validateRequest } from "./middleware.js";
 import { upload, validateAvatarDimensions } from "./upload.js";
 import { uploadImage, deleteImage } from "./s3-storage.service.js";
+import { logSafe } from "./safe-logger.js";
 
 const router = Router();
 const accessTokenLifetime = "15m";
@@ -170,7 +171,7 @@ router.get("/oauth/:provider/callback", async (req, res) => {
     oauthStage = "client_redirect";
     return res.redirect(`${clientOrigin}/oauth/callback`);
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", message: "OAuth callback failed", requestId: req.requestId, provider, stage: oauthStage, error: error.message, code: error.code || null, status: error.status || null }));
+    logSafe("error", "oauth_callback_failed", { requestId: req.requestId, endpoint: "/api/auth/oauth/:provider/callback", method: "GET", statusCode: error.status, diagnosticCode: error.code });
     return res.redirect(`${config.clientOrigin}/login?oauthError=authentication_failed`);
   }
 });
@@ -280,7 +281,7 @@ router.post("/refresh", async (req, res) => {
     setRefreshCookie(res, await issueRefreshSession(user, rememberMe), rememberMe);
     return res.json({ token: issueAccessToken(user), user: mapUser(user) });
   } catch (error) {
-    console.warn(JSON.stringify({ level: "warn", message: "Refresh session failed", requestId: req.requestId, error: error.message, code: error.code, stack: error.stack }));
+    logSafe("warn", "refresh_session_failed", { requestId: req.requestId, endpoint: "/api/auth/refresh", method: "POST", diagnosticCode: error.code });
     return res.status(401).json({ message: "Session expired. Please sign in again." });
   }
 });

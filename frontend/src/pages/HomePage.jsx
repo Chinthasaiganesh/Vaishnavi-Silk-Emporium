@@ -6,6 +6,7 @@ import { useAuth } from "../AuthContext";
 import { useLanguage } from "../LanguageContext";
 import RatingBadge from "../components/RatingBadge";
 import ProductCardActions from "../components/ProductCardActions";
+import { availabilityFromStock } from "../utils/stock";
 import ProductPrice from "../components/ProductPrice";
 import ProductMediaCarousel from "../components/ProductMediaCarousel";
 
@@ -188,7 +189,7 @@ export default function HomePage() {
                   </span>
                 </div>
                 <Link className="featured-details-link" to={`/products/${product.productId}`}>{t("viewDetails")}</Link>
-                <ProductCardActions product={product} compact onUnavailable={() => setFeaturedProducts((current) => current.map((item) => item.productId === product.productId ? { ...item, quantity: 0, availableQuantity: 0, temporarilyReserved: true, availabilityStatus: "Temporarily Unavailable" } : item))} />
+                <ProductCardActions product={product} compact onUnavailable={(stock) => setFeaturedProducts((current) => current.map((item) => item.productId === product.productId ? { ...item, ...availabilityFromStock(stock) } : item))} />
               </div>
             </motion.article>
           ))}

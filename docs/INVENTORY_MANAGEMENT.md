@@ -27,7 +27,7 @@ flowchart TD
   Admin --> Audit[InventoryAuditLog + ProductAuditLog]
 ```
 
-New product creation inserts product and initial inventory together. Startup runs one-time `InventoryMigrations` bootstrap from legacy product quantities, then synchronizes `Products.Quantity` from Inventory on every startup. It does not repeatedly overwrite Inventory from the product mirror.
+New product creation inserts product and initial inventory together. Startup runs one-time `InventoryMigrations` bootstrap from legacy product quantities, reconciles `AvailableStock = CurrentStock - ReservedStock` and the derived `Status`, then synchronizes `Products.Quantity` from Inventory on every startup. It does not repeatedly overwrite Inventory from the product mirror. Startup fails closed if any row has `ReservedStock > CurrentStock`, because silently guessing would risk overselling.
 
 ## Checkout Reservation and Order Effects
 

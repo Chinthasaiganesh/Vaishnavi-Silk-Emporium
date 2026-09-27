@@ -5,7 +5,7 @@ function formatTime(seconds) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export default function PaymentSessionNotice({ session, onContinue, onCancel, canceling = false }) {
+export default function PaymentSessionNotice({ session, onContinue, onCancel, canceling = false, title = "Payment In Progress", description = "You already have an active payment transaction.", warning = "" }) {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -20,9 +20,10 @@ export default function PaymentSessionNotice({ session, onContinue, onCancel, ca
   return (
     <section className="payment-session-notice" role="status" aria-live="polite">
       <div className="payment-session-copy">
-        <strong>Payment In Progress</strong>
-        <p>You already have an active payment transaction.</p>
+        <strong>{title}</strong>
+        <p>{description}</p>
         <p>Please complete the current payment or wait for it to expire before making changes to your cart.</p>
+        {warning && <p>{warning}</p>}
         <span>Time Remaining: <b>{formatTime(remaining)}</b></span>
       </div>
       <div className="payment-session-actions">

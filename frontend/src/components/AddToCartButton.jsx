@@ -26,11 +26,11 @@ export default function AddToCartButton({ product, inCart = false, className = "
     const cart = document.querySelector(".cart-link");
     const result = await addToCart(product.productId, 1, product, image?.getBoundingClientRect(), cart?.getBoundingClientRect());
     setAdding(false);
-    if (result?.code === "TEMPORARILY_RESERVED") {
-      onUnavailable?.();
+    if (["TEMPORARILY_RESERVED", "INSUFFICIENT_STOCK"].includes(result?.code)) {
+      onUnavailable?.(result);
       notify(buildNotification("ITEM_UNAVAILABLE", {
-        title: "Temporarily Unavailable",
-        message: `${product.productName} is reserved while another customer completes checkout. Please try again shortly.`,
+        title: result.code === "TEMPORARILY_RESERVED" ? "Temporarily Unavailable" : "Availability Updated",
+        message: result.message || `${product.productName} is no longer available in the requested quantity.`,
         primaryAction: { label: "Got it" }
       }));
       return;

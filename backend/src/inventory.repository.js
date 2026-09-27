@@ -2,6 +2,7 @@ import { db, transaction } from "./db.js";
 import { nowIso } from "./utils.js";
 import { recordProductAudit } from "./product-audit.js";
 import { calculateInventoryState } from "./inventory-logic.js";
+import { logSafe } from "./safe-logger.js";
 
 const inventorySelect = `
   SELECT i.InventoryId, i.ProductId, p.ProductName, p.Category, i.CurrentStock, i.AvailableStock,
@@ -22,7 +23,29 @@ export async function ensureInventoryRecords() {
         ON CONFLICT(ProductId) DO NOTHING
       `);
     }
+    const invalidReservations = await tx.all("SELECT ProductId, CurrentStock, ReservedStock FROM Inventory WHERE ReservedStock > CurrentStock");
+    if (invalidReservations.length) {
+      const productIds = invalidReservations.map((row) => row.ProductId).join(", ");
+      throw Object.assign(new Error(`Reserved inventory exceeds current stock for product(s): ${productIds}. Reconcile reservations before startup.`), { code: "INVENTORY_RESERVATION_INVARIANT" });
+    }
+    const reconciled = await tx.run(`
+      UPDATE Inventory
+      SET AvailableStock = CurrentStock - ReservedStock,
+        Status = CASE
+          WHEN CurrentStock - ReservedStock = 0 THEN 'OUT_OF_STOCK'
+          WHEN CurrentStock - ReservedStock <= 5 THEN 'LOW_STOCK'
+          ELSE 'IN_STOCK'
+        END,
+        UpdatedDate = ?
+      WHERE AvailableStock <> CurrentStock - ReservedStock
+        OR Status <> CASE
+          WHEN CurrentStock - ReservedStock = 0 THEN 'OUT_OF_STOCK'
+          WHEN CurrentStock - ReservedStock <= 5 THEN 'LOW_STOCK'
+          ELSE 'IN_STOCK'
+        END
+    `, [timestamp]);
     await tx.run("UPDATE Products p SET Quantity = i.CurrentStock FROM Inventory i WHERE i.ProductId = p.ProductId AND p.Quantity <> i.CurrentStock");
+    if (reconciled.changes) logSafe("warn", "inventory_availability_reconciled");
     return migration;
   });
 }

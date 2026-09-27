@@ -4,7 +4,6 @@ export async function get(req, res, next) {
   try { return res.json(await getCart(req.user.userId)); } catch (error) { return next(error); }
 }
 export async function add(req, res, next) {
-  console.info(JSON.stringify({ level: "info", message: "Cart add controller hit", requestId: req.requestId, userId: req.user.userId, productId: req.body.productId, quantity: req.body.quantity }));
   try { return res.status(201).json({ success: true, message: "Added to cart successfully.", ...(await addToCart(req.user.userId, Number(req.body.productId), Number(req.body.quantity), req.requestId)) }); } catch (error) { return next(error); }
 }
 export async function update(req, res, next) {

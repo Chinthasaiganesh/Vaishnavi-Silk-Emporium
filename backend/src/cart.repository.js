@@ -39,7 +39,6 @@ export async function getCartItemByProduct(cartId, productId, tx = null) {
 }
 
 export async function saveItem(cartId, productId, quantity, unitPrice, action, userId, oldQuantity = null, tx = null) {
-  console.info(JSON.stringify({ level: "info", message: "Cart repository save started", cartId, productId, quantity, action, userId }));
   const timestamp = nowIso();
   const existing = await getCartItemByProduct(cartId, productId, tx);
   let cartItemId;
@@ -61,7 +60,6 @@ export async function saveItem(cartId, productId, quantity, unitPrice, action, u
     await db.prepare("INSERT INTO CartAuditLog (CartId, CartItemId, UserId, ProductId, Action, OldQuantity, NewQuantity, CreatedDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(cartId, cartItemId, userId, productId, action, oldQuantity, quantity, timestamp);
   }
   const savedItem = await getCartItem(cartId, cartItemId, tx);
-  console.info(JSON.stringify({ level: "info", message: "Cart repository save completed", cartId, cartItemId, productId, quantity: savedItem?.Quantity ?? null }));
   return savedItem;
 }
 
